@@ -53,10 +53,10 @@ prototype) before committing to them.
 | F-01 | Headlight toggle works at night (lights are currently forced on) | Authentic | 3 | S | Low | P0 | done |
 | F-02 | Fix bloom on nearby headlights: cap the glow from close cars and use proper dipped-beam aim | Authentic | 4 | S | Low | P0 | done, needs playtest |
 | F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | |
-| F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | |
+| F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | done: `?scenario=` + `npm run scenario` |
 | F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | done (O key, dev mode) |
 | F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered | Readable | 5 | S | Low | P0 | done, needs playtest |
-| F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | |
+| F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | next. Baseline (elephant): speeder brakes late, peak 1.3 m/s², stuck 20 s |
 | F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
 | F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | |
 | F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | |
@@ -89,6 +89,16 @@ prototype) before committing to them.
 | F-32 | Klaverblad (cloverleaf) junction between two motorways, including weaving traffic | Authentic | 4 | XL | High | P3 | split needed |
 | F-33 | Navigation: voice and HUD arrow, with the blue signs matching the route | Authentic | 4 | M | Low | P2 | |
 | F-34 | Trip mode: choose a destination, drive there, see a summary at the end (no score) | Calm | 3 | S | Low | P3 | |
+
+### Harness findings
+
+- **Fixed:** MOBIL politeness made drivers (mostly trucks) move *left* just to let a faster car
+  behind through, and they then got stuck alongside traffic in the right lane. Left moves now need
+  the driver's own gain, and drivers signal right and wait so cooperative drivers make room.
+  Elephant races now happen at all: trucks used lane 1 0% of the time in `simtest` before the fix.
+- In `truck-race`, the overtaking truck waits ~43 s before pulling out. Probably too patient.
+- In `hogger`, the hogger moves right within 5 s because politeness reacts to you behind. Real
+  hoggers ignore that, so the hogger should get its own politeness rules (F-14).
 
 ## Parking lot
 

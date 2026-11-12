@@ -65,6 +65,25 @@ export class Player {
     this.events.push({ type, ...data });
   }
 
+  /** Put the car in the centre of a lane at a speed with cruise engaged (scenarios). */
+  placeInLane(lane, kmh) {
+    this.lat = laneLat(lane);
+    const p = this.road.toWorld(this.s, this.lat);
+    this.x = p.x;
+    this.z = p.z;
+    this.yaw = this.roadH = p.h;
+    this.headingErr = 0;
+    this.v = this.vAlong = kmh * KMH;
+    this.acc = 0;
+    this.steerIn = this.steerVis = 0;
+    this.ind = 0;
+    this.lane = lane;
+    this.lanesOcc = [lane];
+    this.cc.on = this.cc.has = true;
+    this.cc.set = Math.round(kmh);
+    this.cc.integ = this.cc.out = 0;
+  }
+
   // ---------------- controls ----------------
   toggleCruise() {
     if (this.cc.on) {

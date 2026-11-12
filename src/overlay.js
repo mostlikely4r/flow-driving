@@ -188,9 +188,9 @@ export class Overlay {
     if (veh.coop) f.push('coop');
     if (!veh.strict) f.push('undertakes');
     if (veh.pressureT > 0) f.push('PRESSED');
-    const head = `#${veh.id} ${veh.variant}${f.length ? ' · ' + f.join(' ') : ''}`;
+    const head = `#${veh.id}${veh.tag ? ' "' + veh.tag + '"' : ''} ${veh.variant}${f.length ? ' · ' + f.join(' ') : ''}`;
     const stShort = veh.state === 'signal' ? ` sig${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.state === 'move' ? ` mov${veh.targetLane > veh.lane ? 'L' : 'R'}` : '';
-    if (!full) return `#${veh.id} ${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)}${f.length ? ' ' + f[0] : ''}${stShort}`;
+    if (!full) return `${veh.tag ? veh.tag : '#' + veh.id} ${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)}${f.length ? ' ' + f[0] : ''}${stShort}`;
     const sp = `${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s · p ${veh.p.toFixed(2)}`;
     let st;
     const dir = (t) => (t > veh.lane ? 'L' : 'R');

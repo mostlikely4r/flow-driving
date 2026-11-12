@@ -7,7 +7,8 @@
     "dev": "vite --open",
     "build": "vite build",
     "preview": "vite preview --open",
-    "simtest": "node tools/simtest.js"
+    "simtest": "node tools/simtest.js",
+    "scenario": "node tools/scenario.js"
   },
   "dependencies": {
     "three": "^0.170.0",

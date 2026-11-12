@@ -20,6 +20,7 @@ import { AudioEngine } from './audio.js';
 import { Hud } from './hud.js';
 import { Stats } from './stats.js';
 import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
+import { SCENARIOS, applyScenario } from './scenarios.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -37,6 +38,15 @@ const LAYER_WORLD = 0, LAYER_SELF = 1, LAYER_COCKPIT = 2;
 
 const scene = new THREE.Scene();
 initVehicleMaterials();
+
+// ?scenario=<name> sets up a repeatable situation (see src/scenarios.js).
+// Overrides are not saved to your settings.
+const SCENARIO_NAME = new URLSearchParams(location.search).get('scenario');
+const SCENARIO = SCENARIOS[SCENARIO_NAME] || null;
+if (SCENARIO) {
+  CONFIG.lanes = SCENARIO.lanes;
+  if (SCENARIO.timeOfDay) CONFIG.timeOfDay = SCENARIO.timeOfDay;
+}
 
 const road = new Road(CONFIG.seed);
 const env = new Environment(scene, renderer);
@@ -292,8 +302,14 @@ function makeTraffic() {
     onRemove: (v) => view.remove(v),
   });
   player.update(0.001, { steer: 0, throttle: 0, brake: 0, analog: false }, { vehicles: [], lanes: [] });
-  traffic.initialFill(player.s, player.proxy);
+  if (SCENARIO) startScenario();
+  else traffic.initialFill(player.s, player.proxy);
   oncoming.initialFill(player.s, null);
+}
+function startScenario() {
+  player.placeInLane(SCENARIO.player.lane, SCENARIO.player.kmh);
+  applyScenario(traffic, SCENARIO, player.s);
+  player.update(0.001, { steer: 0, throttle: 0, brake: 0, analog: false }, traffic);
 }
 makeTraffic();
 
@@ -359,6 +375,10 @@ startEl.addEventListener('click', () => {
   audio.init();
   audio.resume();
   setPaused(false);
+  if (SCENARIO) {
+    startScenario();
+    hud.toast(`Scenario: ${SCENARIO.title} · Backspace restarts`);
+  } else if (SCENARIO_NAME) hud.toast(`Unknown scenario "${SCENARIO_NAME}"`, 'bad');
 });
 document.getElementById('btnresume').onclick = () => setPaused(false);
 
@@ -449,6 +469,12 @@ function handlePresses(pad) {
         break;
       case 'KeyI':
         player.hazard = !player.hazard;
+        break;
+      case 'Backspace':
+        if (SCENARIO) {
+          startScenario();
+          hud.toast(`Restarted: ${SCENARIO.title}`);
+        }
         break;
       case 'KeyO': {
         const next = OVERLAY_MODES[(OVERLAY_MODES.indexOf(overlay.mode) + 1) % OVERLAY_MODES.length];
