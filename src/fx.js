@@ -23,6 +23,8 @@ const glowVS = /* glsl */ `
     // small lights far away get dimmer as they shrink below a few pixels
     float px = size * uScale / d;
     vColor *= clamp(px / 2.0, 0.25, 1.0);
+    // ...and big ones (very close) don't keep flooding the screen: the eye adapts
+    vColor *= min(1.0, pow(48.0 / px, 0.6));
   }
 `;
 const glowFS = /* glsl */ `

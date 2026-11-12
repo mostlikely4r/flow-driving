@@ -117,6 +117,7 @@ export class Hud {
       ['volume', 'Volume', 'range', [0, 1, 0.05]],
       ['shadows', 'Shadows *', 'check'],
       ['bloom', 'Bloom', 'check'],
+      ['headlightGlare', 'Headlight glare', 'range', [0, 2, 0.1]],
       ['mirrorRes', 'Mirror resolution *', 'range', [0.5, 2, 0.25]],
       ['pixelRatio', 'Render scale *', 'range', [0.5, 2, 0.25]],
     ];

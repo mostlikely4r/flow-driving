@@ -2,6 +2,7 @@
 // their lamps into the glow / beam systems.
 import { createVehicleVisual } from './vehicles.js';
 import { mulberry32, clamp } from './util.js';
+import { CONFIG } from './config.js';
 
 const COL = {
   head: [1, 0.93, 0.82],
@@ -115,10 +116,27 @@ export class TrafficView {
       tz /= tl;
       const dot = dxw * tx + dzw * tz;
       let f = clamp((dot + wide) / (1 + wide), 0, 1);
-      if (e.kind === 'head') f = Math.pow(f, 2.2);
+      let glare = 1;
+      if (e.kind === 'head') {
+        f = Math.pow(f, 2.2);
+        if (!st.high) {
+          // Dipped beam: the cut-off sits just below the horizon, so a viewer
+          // more than a few degrees above the lamp (close by, or in a mirror)
+          // sees the lamp itself rather than the beam. Far away you're in it.
+          const elev = Math.atan2(cam.y - ey, tl) * (180 / Math.PI);
+          const t = clamp((elev - 0.5) / 3.0, 0, 1);
+          glare = 1 - 0.82 * t * t * (3 - 2 * t);
+          // Asymmetric cut-off (right-hand traffic): the beam is kept low on
+          // the driver's left, where oncoming traffic is. Local +x is left.
+          const left = tx * c - tz * s;
+          const u = clamp((left - 0.07) / 0.15, 0, 1);
+          glare *= 1 - 0.65 * u;
+        }
+        glare *= CONFIG.headlightGlare;
+      }
       if (f <= 0.01) continue;
-      const k = inten * f * scaleAll;
-      glow.add(wx, ey, wz, r * k, g * k, b * k, size * e.size * (0.6 + 0.4 * f));
+      const k = inten * f * glare * scaleAll;
+      glow.add(wx, ey, wz, r * k, g * k, b * k, size * e.size * (0.6 + 0.4 * f) * (0.55 + 0.45 * Math.min(1, glare)));
     }
   }
 

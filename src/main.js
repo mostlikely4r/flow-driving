@@ -418,6 +418,7 @@ function handlePresses(pad) {
         break;
       case 'KeyL':
         player.lightsOn = !player.lightsOn;
+        hud.toast(player.lightsOn ? 'Lights on' : 'Lights off');
         break;
       case 'KeyJ':
         saveSetting('adaptiveCruise', !CONFIG.adaptiveCruise);
@@ -608,7 +609,7 @@ function frame(now) {
 
   // ----- visuals
   const night = mode !== 'day';
-  const lights = player.lightsOn || night;
+  const lights = player.lightsOn;
   TrafficView.pose(playerVis, player.x, player.z, player.yaw, clamp(-player.acc * 0.004, -0.012, 0.018), 0);
   steeringWheel.rotation.z = -player.steerVis * 1.6;
   for (const l of headLows) l.intensity = lights ? (mode === 'night' ? 130 : 70) : 0;
@@ -638,7 +639,7 @@ function frame(now) {
   pm.indL.emissiveIntensity = indL ? 6 : 0;
   pm.indR.emissiveIntensity = indR ? 6 : 0;
   if (VIEWS[viewIdx] === 'chase') {
-    TrafficView.glowPart(selfGlow, playerVis.front, playerVis.emFront, camWorld, { night: lights, brake: pBrake, indL, indR, head: true });
+    TrafficView.glowPart(selfGlow, playerVis.front, playerVis.emFront, camWorld, { night: lights, brake: pBrake, indL, indR, head: true, high: player.highBeam || player.flashT > 0 });
   } else {
     // seen in side mirrors only: tail + indicator glows from mirror position
     TrafficView.glowPart(selfGlow, playerVis.front, playerVis.emFront.filter((e) => e.kind !== 'head'), mirrors.left.cam.getWorldPosition(_v3), { night: lights, brake: pBrake, indL, indR, head: false }, 0.6);

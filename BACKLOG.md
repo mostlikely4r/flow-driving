@@ -50,8 +50,8 @@ prototype) before committing to them.
 
 | ID | Feature | Pillar | Value | Effort | Risk | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| F-01 | Headlight toggle works at night (lights are currently forced on) | Authentic | 3 | S | Low | P0 | |
-| F-02 | Fix bloom on nearby headlights: cap the glow from close cars and use proper dipped-beam aim | Authentic | 4 | S | Low | P0 | |
+| F-01 | Headlight toggle works at night (lights are currently forced on) | Authentic | 3 | S | Low | P0 | done |
+| F-02 | Fix bloom on nearby headlights: cap the glow from close cars and use proper dipped-beam aim | Authentic | 4 | S | Low | P0 | done, needs playtest |
 | F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | |
 | F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | |
 | F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | |
@@ -97,6 +97,7 @@ prototype) before committing to them.
   speed. Revisit later.
 - Replay / rewind a situation to watch it again from above.
 - Archetypes based on nationality, e.g. foreign trucks. Too close to stereotyping real groups; we stick to cars and driving habits.
+- AI flashes its lights at you when you drive at night without lights (follows F-01).
 - Gentle "driving style" feedback through other drivers' reactions, such as being flashed at for
   hogging a lane, instead of a score.
 
