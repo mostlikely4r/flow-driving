@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snelweg</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2214%22 fill=%22%23fff%22 stroke=%22%23d61f26%22 stroke-width=%224%22/%3E%3Ctext x=%2216%22 y=%2221%22 font-size=%2212%22 font-family=%22Arial%22 font-weight=%22bold%22 text-anchor=%22middle%22%3E100%3C/text%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --fg: #e9eef3;
+        --dim: #8a97a4;
+        --panel: rgba(12, 15, 19, 0.72);
+        --green: #4fe07a;
+        --amber: #ffb02e;
+        --red: #ff5a4e;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: 'Segoe UI', system-ui, Arial, sans-serif; }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; }
+      .hidden { display: none !important; }
+
+      /* start screen */
+      #start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 60%, rgba(8,12,18,.55), rgba(0,0,0,.85)); cursor: pointer; z-index: 20; }
+      #start .card { max-width: 760px; padding: 36px 44px; background: var(--panel); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; backdrop-filter: blur(6px); }
+      #start h1 { margin: 0 0 4px; font-size: 44px; letter-spacing: 1px; }
+      #start h1 span { display: inline-block; background: #0a3d8f; color: #fff; padding: 0 12px; border-radius: 4px; margin-right: 10px; }
+      #start h1 em { font-style: normal; background: #d61f26; color: #fff; padding: 0 10px; border-radius: 4px; font-size: 28px; vertical-align: middle; }
+      #start p { color: var(--dim); line-height: 1.5; margin: 10px 0 18px; }
+      #start .go { margin-top: 22px; font-size: 18px; color: var(--green); }
+
+      .keys { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 14px; font-size: 14px; }
+      .keys kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 4px; background: #2a3038; border: 1px solid #3c444f; border-bottom-width: 2px; font-family: inherit; font-size: 12px; text-align: center; color: #dfe6ee; }
+      .keys span { color: var(--dim); }
+
+      /* HUD cluster */
+      #hud { position: fixed; right: 22px; bottom: 20px; display: flex; align-items: flex-end; gap: 16px; pointer-events: none; z-index: 5; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+      .cluster { background: var(--panel); border-radius: 14px; padding: 10px 18px 12px; min-width: 210px; border: 1px solid rgba(255,255,255,.06); }
+      .speedrow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+      #spd { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+      .unit { color: var(--dim); font-size: 14px; }
+      .subrow { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 15px; }
+      .cc { font-weight: 700; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 6px; border: 1px solid #333a42; }
+      .cc.on { color: #0b1a0f; background: var(--green); border-color: var(--green); }
+      .cc.standby { color: #c8d0d8; }
+      .cc.off { color: #4b545e; }
+      #gear { color: var(--dim); font-weight: 600; }
+      .gap { font-variant-numeric: tabular-nums; color: var(--dim); }
+      .gap.ok { color: #9fd6a9; }
+      .gap.meh { color: var(--amber); }
+      .gap.bad { color: var(--red); }
+      .gaplabel { color: #5c6772; font-size: 12px; margin-right: 4px; }
+
+      .limit { width: 74px; height: 74px; border-radius: 50%; background: #fff; border: 9px solid #d61f26; display: flex; align-items: center; justify-content: center; color: #111; font-weight: 800; font-size: 26px; box-shadow: 0 2px 10px rgba(0,0,0,.5); text-shadow: none; }
+
+      .ind { position: fixed; bottom: 46px; font-size: 40px; color: #1b3a24; transition: color .03s; pointer-events: none; z-index: 5; text-shadow: none; }
+      .ind.on { color: var(--green); filter: drop-shadow(0 0 8px rgba(79,224,122,.8)); }
+      #indl { right: 330px; }
+      #indr { right: 20px; bottom: 150px; }
+
+      #topleft { position: fixed; left: 14px; top: 10px; font-size: 12px; color: rgba(230,236,242,.55); pointer-events: none; z-index: 5; text-shadow: 0 1px 2px #000; }
+
+      #toasts { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; z-index: 8; }
+      .toast { background: var(--panel); padding: 8px 16px; border-radius: 8px; font-size: 16px; opacity: 0; transform: translateY(-6px); transition: all .3s; border-left: 3px solid #5b9dff; }
+      .toast.show { opacity: 1; transform: none; }
+      .toast.warn { border-left-color: var(--amber); }
+      .toast.bad { border-left-color: var(--red); }
+
+      .panel { position: fixed; background: var(--panel); border-radius: 12px; padding: 14px 18px; border: 1px solid rgba(255,255,255,.07); z-index: 9; backdrop-filter: blur(4px); }
+      #stats { left: 16px; bottom: 16px; min-width: 260px; font-size: 14px; }
+      #stats h3, #help h3, #menu h3 { margin: 0 0 8px; font-size: 15px; letter-spacing: .5px; color: #b8c4cf; }
+      #stats .row { display: flex; justify-content: space-between; gap: 20px; padding: 2px 0; color: var(--dim); }
+      #stats .row b { color: var(--fg); font-variant-numeric: tabular-nums; }
+      #help { left: 16px; top: 40px; max-width: 560px; }
+
+      #menu { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 94vw); max-height: 88vh; overflow: auto; z-index: 15; }
+      .mrow { display: grid; grid-template-columns: 1fr 160px 44px; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; color: #c7d0d8; }
+      .mrow select, .mrow input[type=checkbox] { grid-column: 2 / span 2; justify-self: start; }
+      .mrow select { background: #1c2228; color: #e8edf2; border: 1px solid #39424c; border-radius: 6px; padding: 3px 6px; }
+      .mrow em { font-style: normal; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 13px; }
+      .btns { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+      button { background: #26303a; color: #e6edf3; border: 1px solid #3c4752; border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+      button:hover { background: #2f3b47; }
+      button.primary { background: #1f6a3a; border-color: #2c8a50; }
+      .note { color: #6f7b86; font-size: 12px; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="start">
+      <div class="card">
+        <h1><span>A12</span>Snelweg <em>100</em></h1>
+        <p>Not a race. Find your speed, set the cruise control, and become part of the flow:
+          trucks at 85 on the right, cars weaving past them, the odd fast car on the left.
+          Keep right, don't pass on the right, check your mirrors, signal, and let people in.</p>
+        <div class="keys">
+          <kbd>W</kbd><span>accelerate (tap = gentle)</span>
+          <kbd>S</kbd><span>brake (tap = gentle)</span>
+          <kbd>A</kbd>&nbsp;<kbd>D</kbd><span style="grid-column: span 1">steer</span>
+          <kbd>Q</kbd>&nbsp;<kbd>E</kbd><span>indicator left / right</span>
+          <kbd>C</kbd><span>cruise on/off at current speed</span>
+          <kbd>R</kbd><span>resume cruise</span>
+          <kbd>+</kbd>&nbsp;<kbd>−</kbd><span>cruise ±1 km/h (Shift ±5, or mouse wheel)</span>
+          <kbd>J</kbd><span>toggle adaptive cruise (ACC)</span>
+          <kbd>Z</kbd>&nbsp;<kbd>X</kbd><span>look left / right (shoulder check)</span>
+          <kbd>B</kbd><span>look back · right mouse = free look</span>
+          <kbd>F</kbd><span>flash headlights</span>
+          <kbd>V</kbd><span>camera: cockpit / bonnet / chase</span>
+          <kbd>N</kbd><span>day / dusk / night</span>
+          <kbd>T</kbd><span>traffic density</span>
+          <kbd>Tab</kbd><span>trip stats</span>
+          <kbd>Esc</kbd><span>pause &amp; settings</span>
+        </div>
+        <div class="go">Click to drive ▸</div>
+      </div>
+    </div>
+
+    <div id="topleft"><span id="viewname"></span> · <span id="fps"></span> · <span id="clock">H = help</span></div>
+
+    <div id="hud">
+      <div class="limit"><span id="limitnum">100</span></div>
+      <div class="cluster">
+        <div class="speedrow"><span id="spd">0</span><span class="unit">km/h</span><span id="gear">D6</span></div>
+        <div class="subrow">
+          <span id="cc" class="cc off"><span id="cclabel">CC</span> <span id="ccval">--</span></span>
+          <span><span class="gaplabel">gap</span><span id="gap" class="gap">—</span></span>
+        </div>
+      </div>
+    </div>
+    <div id="indl" class="ind">◀</div>
+    <div id="indr" class="ind">▶</div>
+
+    <div id="toasts"></div>
+
+    <div id="stats" class="panel hidden"></div>
+
+    <div id="help" class="panel hidden">
+      <h3>Controls</h3>
+      <div class="keys">
+        <kbd>W / ↑</kbd><span>accelerate (progressive)</span>
+        <kbd>S / ↓</kbd><span>brake (progressive) · cancels cruise</span>
+        <kbd>A D / ← →</kbd><span>steer</span>
+        <kbd>Q / E</kbd><span>indicators (auto-cancel)</span>
+        <kbd>C</kbd><span>cruise on/off</span>
+        <kbd>R</kbd><span>resume cruise</span>
+        <kbd>+ − [ ] wheel</kbd><span>cruise ±1 (Shift ±5)</span>
+        <kbd>PgUp/PgDn</kbd><span>cruise ±5</span>
+        <kbd>J</kbd><span>ACC on/off</span>
+        <kbd>K</kbd><span>steering assist level</span>
+        <kbd>Z / X / B</kbd><span>look left / right / back</span>
+        <kbd>RMB drag</kbd><span>free look</span>
+        <kbd>F</kbd><span>flash lights</span>
+        <kbd>G</kbd><span>high beam</span>
+        <kbd>I</kbd><span>hazard lights</span>
+        <kbd>V</kbd><span>camera</span>
+        <kbd>N</kbd><span>time of day</span>
+        <kbd>T</kbd><span>traffic density</span>
+        <kbd>Tab</kbd><span>trip stats</span>
+        <kbd>M</kbd><span>mute</span>
+      </div>
+      <p class="note">Gamepad: left stick steer, RT/LT pedals, LB/RB indicators, A cruise, X resume, D-pad ±1, Y camera, B look back, right stick look.</p>
+      <p class="note">Gap = time to the car ahead. Dutch advice: 2 seconds; under 1 s counts as tailgating.</p>
+    </div>
+
+    <div id="menu" class="panel hidden">
+      <h3>Paused · Settings</h3>
+      <div id="menuitems"></div>
+      <p class="note">* takes effect after restart. Behaviour sliders affect newly spawned traffic.</p>
+      <div class="btns">
+        <button id="btnresume" class="primary">Resume (Esc)</button>
+        <button id="btnrestart">Restart</button>
+        <button id="btnreset">Reset to defaults</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
