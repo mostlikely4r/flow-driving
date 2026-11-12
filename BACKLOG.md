@@ -34,8 +34,8 @@ prototype) before committing to them.
 ## Milestones
 
 - **M1: Readable flow.** Remove the annoyances. Make the AI's intent readable, so that situations
-  like the elephant race with a speeder behind play out believably and repeatably. Take the first
-  step on car models. *Done when a 20-minute drive produces at least one "that's exactly it"
+  like the elephant race with a speeder behind play out believably and repeatably. Drivers get archetypes you can recognise
+  at a glance. *Done when a 20-minute drive produces at least one "that's exactly it"
   moment without any cars that feel wrong.*
 - **M2: The road breathes.** Traffic enters and leaves the motorway through on-ramps and exits.
   Bottlenecks create jams that form and clear again, matrix signs react, and it rains.
@@ -59,8 +59,11 @@ prototype) before committing to them.
 | F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
 | F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | |
 | F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | |
-| F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 4 | M | Med | P1 | |
-| F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 4 | L | Med | P2 | |
+| F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 3 | M | Med | P3 | deferred: generic but convincing is fine |
+| F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 3 | L | Med | P3 | deferred |
+| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | |
+| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | |
+| F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | |
 | F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | |
 | F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | |
 
@@ -93,6 +96,7 @@ prototype) before committing to them.
 - Trajectcontrole (average-speed cameras) and fines. Authentic, but they push the focus toward
   speed. Revisit later.
 - Replay / rewind a situation to watch it again from above.
+- Archetypes based on nationality, e.g. foreign trucks. Too close to stereotyping real groups; we stick to cars and driving habits.
 - Gentle "driving style" feedback through other drivers' reactions, such as being flashed at for
   hogging a lane, instead of a score.
 
@@ -100,3 +104,15 @@ prototype) before committing to them.
 
 - MVP: 3-lane motorway with IDM + MOBIL traffic, Dutch keep-right rule, trucks, cruise control,
   mirrors, day/dusk/night.
+
+## Draft archetypes (F-14)
+
+| Archetype | Looks like | Drives like |
+|---|---|---|
+| Leasebak (lease car) | Dark grey or black German-style estate or sedan, LED light strips | 120–135 in the left lane, slightly short headway, flashes you |
+| Patser | Cheap black hatch, lowered, tinted windows, big wheels | Erratic: short gaps, late cut-ins, overtakes on the right when frustrated |
+| Pensioner | Small silver hatch or a caravan, yellowish halogen lights | Under the limit, stays right, signals early and long, very polite |
+| Family | Mid-blue or red SUV or estate | Steady at the limit, normal gaps, cooperative |
+| White van (bestelbus) | White van, roof rack | Faster than you'd expect, pushes in the middle lane |
+| EV smoothie | White or blue clean sedan, thin light bar | Exactly at the limit, perfectly smooth, often hogs the middle lane |
+| Truck | Truck, rigid truck | Unchanged: 80–85 km/h, elephant races |
