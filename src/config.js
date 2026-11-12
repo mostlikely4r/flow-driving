@@ -41,6 +41,7 @@ export const DEFAULTS = {
   pixelRatio: 1.25, // capped by device pixel ratio
   shadows: true,
   bloom: true,
+  overlay: 'off', // off | ar-rel | ar-abs | dev (O key)
   headlightGlare: 1.0, // glare of oncoming / following headlights (0 = none)
   mirrorRes: 1.0, // mirror render target scale
   fov: 62,

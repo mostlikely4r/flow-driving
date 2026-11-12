@@ -353,10 +353,13 @@ export class Traffic {
       veh.decT = 0.5 + this.rng() * 0.7;
       let best = null;
       const maxLane = this.maxLaneFor(veh);
+      veh.dbgL = veh.dbgR = null; // last evaluations, shown by the dev overlay
       for (const t of [veh.lane + 1, veh.lane - 1]) {
         if (t < 0 || t >= N || t > maxLane) continue;
         if (veh.type === 'truck' && t > veh.lane && veh.eager <= 0.01) continue;
         const ev = this.evaluate(veh, t);
+        if (t > veh.lane) veh.dbgL = ev;
+        else veh.dbgR = ev;
         if (!ev.wants) continue;
         if (!best || ev.margin > best.ev.margin) best = { t, ev };
       }

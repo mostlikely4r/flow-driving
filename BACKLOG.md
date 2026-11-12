@@ -54,7 +54,8 @@ prototype) before committing to them.
 | F-02 | Fix bloom on nearby headlights: cap the glow from close cars and use proper dipped-beam aim | Authentic | 4 | S | Low | P0 | done, needs playtest |
 | F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | |
 | F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | |
-| F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | |
+| F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | done (O key, dev mode) |
+| F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered | Readable | 5 | S | Low | P0 | done, needs playtest |
 | F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | |
 | F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
 | F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | |

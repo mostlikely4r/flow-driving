@@ -19,6 +19,7 @@ import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { Hud } from './hud.js';
 import { Stats } from './stats.js';
+import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -180,6 +181,7 @@ const mirrors = {
   left: makeMirror(256, 176, 21, new THREE.Vector3(1.02, 1.03, 1.12), -0.24, -0.04, [LAYER_SELF]),
   right: makeMirror(256, 176, 27, new THREE.Vector3(-1.02, 1.03, 1.12), 0.29, -0.04, [LAYER_SELF]),
 };
+const cockpitGlass = {};
 function flippedPlane(w, h) {
   const g = new THREE.PlaneGeometry(w, h);
   const uv = g.attributes.uv;
@@ -206,6 +208,9 @@ function flippedPlane(w, h) {
   rmm.position.set(-0.99, 1.01, 1.088);
   rmm.rotation.set(0, Math.PI - 0.12, 0);
   cockpit.add(lm, rmm);
+  cockpitGlass.rear = rm;
+  cockpitGlass.left = lm;
+  cockpitGlass.right = rmm;
   setLayerRecursive(cockpit, LAYER_COCKPIT);
 }
 
@@ -297,6 +302,8 @@ const input = new Input(renderer.domElement);
 const audio = new AudioEngine();
 const hud = new Hud();
 const stats = new Stats();
+const overlay = new Overlay(document.getElementById('overlay'));
+overlay.setMode(OVERLAY_MODES.includes(CONFIG.overlay) ? CONFIG.overlay : 'off');
 const VIEWS = ['cockpit', 'bonnet', 'chase'];
 const VIEW_NAMES = { cockpit: 'Cockpit', bonnet: 'Bonnet', chase: 'Chase' };
 let viewIdx = 0;
@@ -443,6 +450,13 @@ function handlePresses(pad) {
       case 'KeyI':
         player.hazard = !player.hazard;
         break;
+      case 'KeyO': {
+        const next = OVERLAY_MODES[(OVERLAY_MODES.indexOf(overlay.mode) + 1) % OVERLAY_MODES.length];
+        overlay.setMode(next);
+        saveSetting('overlay', next);
+        hud.toast(OVERLAY_NAMES[next]);
+        break;
+      }
     }
   }
   const w = input.takeWheel();
@@ -683,6 +697,21 @@ function frame(now) {
   // ----- render
   const v = VIEWS[viewIdx];
   const needSide = v !== 'chase';
+  if (overlay.mode !== 'off') {
+    const W = window.innerWidth, H = window.innerHeight;
+    camera.updateMatrixWorld(true);
+    const views = [{ cam: camera, w: W, h: H }];
+    if (v === 'cockpit') {
+      for (const k of ['rear', 'left', 'right']) views.push({ cam: mirrors[k].cam, glass: cockpitGlass[k], glassCam: camera, w: W, h: H, small: true });
+    } else {
+      hudScene.updateMatrixWorld(true);
+      for (const k of ['rear', 'left', 'right']) {
+        if (k !== 'rear' && !needSide) continue;
+        views.push({ cam: mirrors[k].cam, glass: hudMirrors[k].glass, glassCam: hudCam, w: W, h: H, small: true });
+      }
+    }
+    overlay.update(traffic, player, views);
+  }
   renderer.shadowMap.needsUpdate = false;
   const prevBg = scene.background;
   for (const [k, m] of Object.entries(mirrors)) {
