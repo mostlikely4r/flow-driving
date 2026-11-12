@@ -105,6 +105,7 @@ export class Hud {
       ['oncomingDensity', 'Oncoming traffic', 'range', [0, 25, 1]],
       ['truckOvertakeEagerness', 'Truck overtaking (elephant races)', 'range', [0, 2.5, 0.1]],
       ['politeness', 'AI politeness', 'range', [0, 2, 0.1]],
+      ['anticipation', 'AI anticipation', 'range', [0, 1.5, 0.1]],
       ['middleLaneHoggers', 'Middle-lane hoggers', 'range', [0, 0.4, 0.01]],
       ['speeders', 'Speeders', 'range', [0, 0.4, 0.01]],
       ['speedSpreadKmh', 'Speed spread (km/h)', 'range', [0, 12, 0.5]],

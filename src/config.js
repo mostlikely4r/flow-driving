@@ -26,6 +26,7 @@ export const DEFAULTS = {
   speedSpreadKmh: 4, // std-dev of 'normal' drivers around limit + 2
   truckSpeedKmh: 84, // trucks are limited (80 + GPS/tolerance)
   truckOvertakeEagerness: 1.0, // 0 = never overtake, 2 = elephant races galore
+  anticipation: 1.0, // scales how early AI reads merges and plans overtakes (0 = purely reactive)
   politeness: 1.0, // scales how much AI lets others in / moves right for faster cars
 
   // --- player car ---

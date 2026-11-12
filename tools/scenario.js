@@ -1,7 +1,7 @@
 // Runs a scenario from src/scenarios.js headless and prints a timeline of what
 // each driver does. By default "you" holds your lane and follows (like a
 // player watching); you=ai lets an ordinary AI driver play you.
-// Usage: npm run scenario <name> [sec=60] [limit=100] [you=lane|ai]
+// Usage: npm run scenario <name> [sec=60] [limit=100] [you=lane|ai] [tag.param=value ...]
 import { Traffic, gapBetween, leaderIn } from '../src/traffic.js';
 import { CONFIG } from '../src/config.js';
 import { KMH } from '../src/util.js';
@@ -21,6 +21,14 @@ const seconds = +(args.sec || 60);
 const tr = new Traffic({ dir: 1, density: 0, ahead: 2000, behind: 1000, seed: 1, limitKmh: limit });
 const vehicles = applyScenario(tr, sc, 0, { includeYou: true });
 const you = vehicles.find((v) => v.tag === 'you');
+// per-driver overrides from the command line: speeder.antic=0 ahead.p=0.3
+for (const [k, val] of Object.entries(args)) {
+  const dot = k.indexOf('.');
+  if (dot < 0) continue;
+  const veh = vehicles.find((v) => v.tag === k.slice(0, dot));
+  if (!veh) { console.log(`no driver tagged "${k.slice(0, dot)}"`); process.exit(1); }
+  veh[k.slice(dot + 1)] = +val;
+}
 if (args.you !== 'ai') you.cooldown = Infinity; // never changes lanes
 
 console.log(`${name}: ${sc.title}`);

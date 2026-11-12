@@ -48,4 +48,6 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 `npm run scenario elephant` for a headless timeline of who signals, merges and brakes
 (`you=ai` lets an AI drive your car; run without a name to list scenarios).
 
+`npm run abtest -- anticipation=0 anticipation=1` compares traffic settings over many seeds
+(hard braking, emergency stops, truck overtakes, lane changes, speed).
 `node tools/glare.js <dir>` sets up a night scene with cars close behind and oncoming, for checking headlight glare.

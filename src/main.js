@@ -359,7 +359,7 @@ hud.buildMenu((key, v) => {
     camera.fov = v;
     camera.updateProjectionMatrix();
   } else if (key === 'bloom') applyTime(mode);
-  else if (key === 'speeders' || key === 'middleLaneHoggers' || key === 'truckOvertakeEagerness' || key === 'politeness' || key === 'speedSpreadKmh')
+  else if (key === 'speeders' || key === 'middleLaneHoggers' || key === 'truckOvertakeEagerness' || key === 'politeness' || key === 'anticipation' || key === 'speedSpreadKmh')
     hud.toast('Applies to newly spawned traffic');
 });
 

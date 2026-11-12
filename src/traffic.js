@@ -190,6 +190,9 @@ export class Traffic {
       veh.bias = -0.05 + r() * 0.07;
     }
     veh.strict = r() < 0.7; // obeys no-undertaking even when frustrated
+    // Anticipation 0..1: 0 reacts only when something enters its lane, 1 reads
+    // signals and likely pull-outs early and plans its own overtakes sooner.
+    veh.antic = clamp((0.15 + r() * 0.75) * CONFIG.anticipation, 0, 1);
     veh.tSignal = r() < 0.1 ? 0.3 + r() * 0.4 : 1.1 + r() * 1.7;
     veh.lcDur = type === 'car' ? 3.2 + r() * 2.3 : type === 'van' ? 3.8 + r() * 2 : 5 + r() * 2.2;
     veh.tSafe = 0.45 + r() * 0.6;
@@ -255,7 +258,9 @@ export class Traffic {
     if (lead.v >= veh.v0) return veh.v0;
     const g = gapBetween(lead, veh);
     const closing = Math.max(0.1, veh.v - lead.v);
-    const near = g < veh.v * 3 || (g - veh.v * veh.T) / closing < 7;
+    // anticipating drivers start wanting to overtake further back
+    const an = veh.antic ?? 0.5;
+    const near = g < veh.v * (2.2 + 1.6 * an) || (g - veh.v * veh.T) / closing < 4 + 6 * an;
     return near ? Math.min(veh.v0, lead.v) : veh.v0;
   }
 
@@ -278,6 +283,7 @@ export class Traffic {
     let a = this.laneAcc(veh, veh.lane);
     if (veh.state === 'move' && veh.targetLane !== veh.lane) a = Math.min(a, this.laneAcc(veh, veh.targetLane));
     veh.accPure = a;
+    a = this.anticipate(veh, a);
     // cooperation: ease off to let a signalling vehicle ahead in the next lane merge in front
     if (veh.coop) {
       const L = this.lanes;
@@ -294,6 +300,54 @@ export class Traffic {
           if (e.v < veh.v - 6) continue; // way slower: not a sensible merge
           const ac = idm(veh, e, 0.45);
           a = Math.min(a, Math.max(ac, -1.6));
+        }
+      }
+    }
+    return a;
+  }
+
+  /**
+   * Anticipation: ease off for a vehicle in a neighbouring lane that is about
+   * to come into ours, either signalling into our lane or (very anticipating
+   * drivers) closing in on a slower vehicle with nowhere to go but our lane.
+   * This is lifting off the throttle, not braking: the reaction to an actual
+   * lane change stays with the IDM once the vehicle is in our lane.
+   */
+  anticipate(veh, a) {
+    const an = veh.antic || 0;
+    if (an <= 0.05) return a;
+    const L = this.lanes;
+    const reach = 30 + veh.v * 5 * an; // how far ahead this driver reads, m
+    veh.anticOn = null;
+    for (const side of [-1, 1]) {
+      const ln = veh.lane + side;
+      if (ln < 0 || ln >= this.N) continue;
+      const list = L[ln];
+      let i = firstAbove(list, veh.u);
+      for (let n = 0; n < 3 && i < list.length; n++, i++) {
+        const e = list[i];
+        if (e === veh) continue;
+        const g = gapBetween(e, veh);
+        if (g > reach) break;
+        if (g < 2 || e.v >= veh.v) continue; // alongside, or not slower: no conflict
+        let likely = 0;
+        if (e.signalLane === veh.lane) likely = 1;
+        else if (an > 0.5 && ln < veh.lane && !e.isPlayer) {
+          // car to our right, stuck behind something slower, and it wants to go faster
+          const ld = leaderIn(list, e);
+          if (ld && ld.v < e.v0 - 8 * KMH) {
+            const gl = gapBetween(ld, e);
+            const tReach = (gl - e.v * e.T) / Math.max(0.5, e.v - ld.v);
+            if (tReach < 6) likely = 0.6 * (an - 0.5) * 2;
+          }
+        }
+        if (likely <= 0) continue;
+        // as if it were already in our lane, with a slightly shorter headway
+        const ac = Math.max(idm(veh, e, 0.75), likely >= 1 ? -1.6 : -0.9);
+        const target = a + (Math.min(a, ac) - a) * likely * Math.min(1, an * 1.4);
+        if (target < a) {
+          a = target;
+          veh.anticOn = e;
         }
       }
     }

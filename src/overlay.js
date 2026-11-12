@@ -191,12 +191,13 @@ export class Overlay {
     const head = `#${veh.id}${veh.tag ? ' "' + veh.tag + '"' : ''} ${veh.variant}${f.length ? ' · ' + f.join(' ') : ''}`;
     const stShort = veh.state === 'signal' ? ` sig${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.state === 'move' ? ` mov${veh.targetLane > veh.lane ? 'L' : 'R'}` : '';
     if (!full) return `${veh.tag ? veh.tag : '#' + veh.id} ${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)}${f.length ? ' ' + f[0] : ''}${stShort}`;
-    const sp = `${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s · p ${veh.p.toFixed(2)}`;
+    const sp = `${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s · p ${veh.p.toFixed(2)} · ant ${(veh.antic ?? 0).toFixed(2)}`;
     let st;
     const dir = (t) => (t > veh.lane ? 'L' : 'R');
     if (veh.state === 'signal') st = `signal ${dir(veh.targetLane)} ${veh.signalT.toFixed(1)}/${veh.tSignal.toFixed(1)}s`;
     else if (veh.state === 'move') st = `moving ${dir(veh.targetLane)} ${Math.round(veh.lcT * 100)}%`;
     else st = veh.cooldown > 0 ? `cooldown ${veh.cooldown.toFixed(1)}s` : 'cruising';
+    if (veh.anticOn) st += ` · easing for ${veh.anticOn.isPlayer ? 'YOU' : veh.anticOn.tag || '#' + veh.anticOn.id}`;
     const ev = (e, name) => (e ? `${name} ${e.margin >= 0 ? '+' : ''}${e.margin.toFixed(2)}${e.safe ? '' : ' unsafe'}` : `${name} –`);
     const wish = `${ev(veh.dbgL, 'L')} | ${ev(veh.dbgR, 'R')}`;
     return `${head}\n${sp}\n${st}\n${wish}`;

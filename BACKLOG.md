@@ -56,7 +56,8 @@ prototype) before committing to them.
 | F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | done: `?scenario=` + `npm run scenario` |
 | F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | done (O key, dev mode) |
 | F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered | Readable | 5 | S | Low | P0 | done, needs playtest |
-| F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | next. Baseline (elephant): speeder brakes late, peak 1.3 m/s², stuck 20 s |
+| F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | done: per-driver `antic` skill (archetypes will set it), menu knob |
+| F-18 | **Cut-in overreaction**: IDM brakes up to −9 m/s² when a slightly slower car merges in ~20 m ahead. Real drivers drop back gently. Fix: blend IDM with Treiber's constant-acceleration heuristic (the ACC model) | Authentic | 5 | S | Low | P0 | next |
 | F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
 | F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | |
 | F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | |
@@ -98,6 +99,9 @@ prototype) before committing to them.
   Elephant races now happen at all: trucks used lane 1 0% of the time in `simtest` before the fix.
 - In `truck-race`, the overtaking truck waits ~42 s before pulling out. The left lane is busy, but
   real truckers would push in sooner, and that is what starts an elephant race (F-06 and F-14).
+- F-06 A/B over 12 seeds (`npm run abtest -- anticipation=0 anticipation=1`): ~10% fewer hard
+  brakes and more truck overtakes, avg speed −0.4 km/h. About 14 emergency stops (<−6 m/s²) per
+  12×6 min in *both* settings. That is F-18.
 - In `hogger`, the hogger moves right within 5 s because politeness reacts to you behind. Real
   hoggers ignore that, so the hogger should get its own politeness rules (F-14).
 
