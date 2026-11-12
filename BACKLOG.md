@@ -96,7 +96,8 @@ prototype) before committing to them.
   behind through, and they then got stuck alongside traffic in the right lane. Left moves now need
   the driver's own gain, and drivers signal right and wait so cooperative drivers make room.
   Elephant races now happen at all: trucks used lane 1 0% of the time in `simtest` before the fix.
-- In `truck-race`, the overtaking truck waits ~43 s before pulling out. Probably too patient.
+- In `truck-race`, the overtaking truck waits ~42 s before pulling out. The left lane is busy, but
+  real truckers would push in sooner, and that is what starts an elephant race (F-06 and F-14).
 - In `hogger`, the hogger moves right within 5 s because politeness reacts to you behind. Real
   hoggers ignore that, so the hogger should get its own politeness rules (F-14).
 
