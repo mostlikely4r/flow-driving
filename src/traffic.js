@@ -328,15 +328,19 @@ export class Traffic {
     let dNf = 0;
     if (nf && gapBetween(veh, nf) < 200) dNf = idm(nf, veh) - idm(nf, nl);
     const p = veh.p + (veh.pressureT > 0 ? 0.6 : 0);
-    let inc = aNew - aOld + p * (dNf + dOf);
     const kv = veh.type === 'truck' ? 0.15 * veh.eager : 0.15;
-    inc += kv * (this.expSpeed(veh, nl) - this.expSpeed(veh, ol));
+    const selfish = aNew - aOld + kv * (this.expSpeed(veh, nl) - this.expSpeed(veh, ol));
+    let inc = selfish + p * (dNf + dOf);
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
     const bias = baseBias + (veh.pressureT > 0 ? 0.25 : 0);
     const left = t > veh.lane;
     const need = left ? veh.thr + bias : veh.thr - bias;
-    return { safe, inc, wants: inc > need, margin: inc - need };
+    // Nobody moves LEFT just to be nice to the car behind: politeness may hold
+    // back an overtake, but the driver must gain something themselves. (Flashed
+    // drivers are the exception: they're pressed to move, handled by bias.)
+    const wants = inc > need && (!left || selfish > veh.thr * 0.5);
+    return { safe, inc, wants, margin: inc - need };
   }
 
   laneLogic(veh, dt) {
@@ -365,8 +369,11 @@ export class Traffic {
       }
       if (!best) return;
       const left = best.t > veh.lane;
-      // Signal if safe, or (when we really want to go left) signal and wait for a gap.
-      if (best.ev.safe || (left && best.ev.margin > 0.25 && this.rng() < 0.35)) {
+      // Signal if safe, or signal and wait for a gap when we really want it:
+      // going left to overtake, or going right (keep-right / back in after an
+      // overtake), where signalling lets cooperative drivers make room.
+      const waitAndSignal = left ? best.ev.margin > 0.25 && this.rng() < 0.35 : best.ev.margin > 0.1 && this.rng() < 0.5;
+      if (best.ev.safe || waitAndSignal) {
         veh.state = 'signal';
         veh.targetLane = best.t;
         veh.signalLane = best.t;
