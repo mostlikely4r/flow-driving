@@ -1,42 +1,102 @@
 # Snelweg backlog
 
-## Design pillars (DRAFT, confirm or edit)
+## Vision
 
-Every feature has to serve at least one pillar. If it serves none, it goes to the Parking Lot.
+**An authentic Dutch driving simulator where the game is being part of traffic.**
 
-1. **Part of the flow.** You are one car among many, and the push and pull of traffic is the game.
-   Other drivers react to you, and you react to them.
-2. **Gentle, not twitchy.** Small inputs like 1 km/h cruise clicks, mirror checks and a well-timed
-   signal matter more than reflexes. No speeding rewards and no hard corners.
-3. **Authentically Dutch.** The rules, signs, road furniture, landscape and driver habits all come
-   from the Netherlands.
-4. **Believable atmosphere.** Light, weather, sound and scenery make a long drive feel calm and real.
+## Design pillars
+
+The pillars decide arguments. When two good ideas conflict, the pillar order says which one wins.
+
+1. **Authentic.** Dutch rules, roads, signs and driver habits. When in doubt, do what really happens
+   on the A12 at 17:30, not what is convenient or "gamey".
+2. **Readable traffic.** You can see situations build up and predict how they will play out.
+   Drivers show what they intend through their position, speed and signals, just as good real
+   drivers do. Authentic chaos that you cannot read loses to this pillar.
+3. **Calm.** Nothing rewards speed, reflexes or risk. Pressure comes from the flow, never from
+   a timer or a score.
+
+Visual quality (car models, lighting) is a *quality bar*, not a pillar. It matters, but it never
+justifies a feature on its own.
 
 ## How to score
 
 | Field | Scale |
 |---|---|
 | **Value** | 1–5. How much it strengthens a pillar or the core "drive in traffic" loop. |
-| **Effort** | S (an evening), M (a weekend), L (a week or more), XL (needs breaking down). |
+| **Effort** | S (an evening), M (a weekend), L (a week or more), XL (must be split first). |
 | **Risk** | Low / Med / High. How unsure we are that it can be done well, or that it will be fun. |
-| **Priority** | **P0** next up · **P1** this milestone · **P2** later · **P3** maybe/someday |
+| **Priority** | **P0** next up · **P1** this milestone · **P2** later · **P3** someday |
 
-Rule of thumb: start with high value and low effort. Prototype high-value, high-risk items as
-cheap spikes before committing. An XL item must be split before it can be prioritised.
+Do high-value, low-effort items first. Test high-risk items with a cheap *spike* (a throwaway
+prototype) before committing to them.
 
 ## Milestones
 
-- **M1: Feel** (tune the core loop until a 20-minute drive is pleasant on its own)
-- **M2: …**
+- **M1: Readable flow.** Remove the annoyances. Make the AI's intent readable, so that situations
+  like the elephant race with a speeder behind play out believably and repeatably. Take the first
+  step on car models. *Done when a 20-minute drive produces at least one "that's exactly it"
+  moment without any cars that feel wrong.*
+- **M2: The road breathes.** Traffic enters and leaves the motorway through on-ramps and exits.
+  Bottlenecks create jams that form and clear again, matrix signs react, and it rains.
+- **M3: Going somewhere.** You drive a real route from A to B: take the exit, cross a
+  klaverblad (cloverleaf) junction, follow navigation and continue on an 80 km/h N-road.
+- **Horizon: Town.** Urban and suburban driving: cyclists, right-turn checks, right of way.
+  This is a separate game-sized scope and is parked until M3 has been delivered.
 
 ## Backlog
 
-| ID | Feature | Pillar | Value | Effort | Risk | Priority | Milestone | Status |
-|---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
+### M1: Readable flow
+
+| ID | Feature | Pillar | Value | Effort | Risk | Priority | Status |
+|---|---|---|---|---|---|---|---|
+| F-01 | Headlight toggle works at night (lights are currently forced on) | Authentic | 3 | S | Low | P0 | |
+| F-02 | Fix bloom on nearby headlights: cap the glow from close cars and use proper dipped-beam aim | Authentic | 4 | S | Low | P0 | |
+| F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | |
+| F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | |
+| F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | |
+| F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | |
+| F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
+| F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | |
+| F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | |
+| F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 4 | M | Med | P1 | |
+| F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 4 | L | Med | P2 | |
+| F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | |
+| F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | |
+
+### M2: The road breathes
+
+| ID | Feature | Pillar | Value | Effort | Risk | Priority | Status |
+|---|---|---|---|---|---|---|---|
+| F-20 | On-ramps (AI only): merge lane, acceleration strip, AI zipper-merge and making room | Readable | 5 | L | High | P1 | |
+| F-21 | Exits (AI only): cars move right early and leave the motorway | Authentic | 4 | M | Med | P1 | |
+| F-22 | Bottlenecks and jams: density waves and lane drops that create a jam which forms and dissolves | Readable | 5 | M | Med | P1 | |
+| F-23 | Dynamic matrix signs: 70/50 limits ahead of jams, flashing lights, red X lane closures | Authentic | 4 | M | Low | P2 | |
+| F-24 | Rain: wet road reflections, spray behind trucks, wipers, and AI that keeps bigger gaps | Authentic | 4 | L | Med | P2 | |
+| F-25 | Spitsstrook (rush-hour lane): a hard shoulder that opens at rush hour under the matrix signs | Authentic | 3 | M | Low | P2 | |
+| F-26 | Roadworks: yellow lines, narrowed lanes and a 90 km/h limit | Authentic | 3 | M | Low | P3 | |
+
+### M3: Going somewhere
+
+| ID | Feature | Pillar | Value | Effort | Risk | Priority | Status |
+|---|---|---|---|---|---|---|---|
+| F-30 | Road network graph: replace the single endless road with connected segments (architecture work) | — | 5 | XL | High | P2 | split needed |
+| F-31 | Player takes an exit onto an N-road (80 km/h, single carriageway, oncoming traffic) | Authentic | 4 | L | Med | P2 | |
+| F-32 | Klaverblad (cloverleaf) junction between two motorways, including weaving traffic | Authentic | 4 | XL | High | P3 | split needed |
+| F-33 | Navigation: voice and HUD arrow, with the blue signs matching the route | Authentic | 4 | M | Low | P2 | |
+| F-34 | Trip mode: choose a destination, drive there, see a summary at the end (no score) | Calm | 3 | S | Low | P3 | |
 
 ## Parking lot
 
-Ideas that don't fit a pillar right now. They are kept here, not deleted.
+- Suburbs and city: cyclists, right-turn blind-spot checks, roundabouts, voorrang (priority) rules.
+  This was the original spark for the game and stays on the horizon.
+- Trajectcontrole (average-speed cameras) and fines. Authentic, but they push the focus toward
+  speed. Revisit later.
+- Replay / rewind a situation to watch it again from above.
+- Gentle "driving style" feedback through other drivers' reactions, such as being flashed at for
+  hogging a lane, instead of a score.
 
 ## Done
+
+- MVP: 3-lane motorway with IDM + MOBIL traffic, Dutch keep-right rule, trucks, cruise control,
+  mirrors, day/dusk/night.
