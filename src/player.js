@@ -194,7 +194,7 @@ export class Player {
       let aDes = clamp(0.55 * e + 0.06 * this.cc.integ, -0.8, 0.9);
       if (CONFIG.adaptiveCruise && this.leader) {
         const me = { u: 0, len: 0, v, v0: target, a: 1.2, b: 2.0, s0: 4, T: CONFIG.accTimeGap };
-        const aAcc = idm(me, { u: this.leaderGap + this.leader.len * 0.5, len: this.leader.len, v: this.leader.v }, 1);
+        const aAcc = idm(me, { u: this.leaderGap + this.leader.len * 0.5, len: this.leader.len, v: this.leader.v, acc: this.leader.acc }, 1);
         if (aAcc < aDes) {
           aDes = Math.max(aAcc, -3.5);
           this.cc.integ = Math.min(this.cc.integ, 0);

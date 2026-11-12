@@ -49,7 +49,17 @@ export function gapBetween(ahead, behind) {
   return ahead.u - ahead.len * 0.5 - (behind.u + behind.len * 0.5);
 }
 
-/** IDM acceleration of `me` behind `lead` (lead may be null). Tmul scales time headway. */
+/**
+ * Car-following acceleration of `me` behind `lead` (lead may be null).
+ * Tmul scales the time headway.
+ *
+ * This is Treiber & Kesting's ACC model: the IDM blended with the "constant
+ * acceleration heuristic" (CAH). Plain IDM treats a car cutting in 20 m ahead
+ * at nearly the same speed as an emergency and brakes up to -9 m/s². The CAH
+ * asks "would I hit it if it keeps doing what it's doing?" and, if not, lets
+ * the driver drop back gently. Real emergencies (a much slower car) still get
+ * full braking. CONFIG.coolness = 0 gives plain IDM.
+ */
 export function idm(me, lead, Tmul = 1) {
   const v = me.v;
   const v0 = Math.max(me.v0, 1);
@@ -63,7 +73,18 @@ export function idm(me, lead, Tmul = 1) {
   const dv = v - lead.v;
   const sStar = me.s0 + Math.max(0, v * me.T * Tmul + (v * dv) / (2 * Math.sqrt(me.a * me.b)));
   const gg = Math.max(g, 0.3);
-  const acc = free - me.a * (sStar / gg) * (sStar / gg);
+  const aIdm = free - me.a * (sStar / gg) * (sStar / gg);
+  const c = CONFIG.coolness;
+  if (!(c > 0) || aIdm >= 0) return Math.max(aIdm, -9);
+  // constant-acceleration heuristic
+  const vl = lead.v;
+  const al = Math.min(lead.acc || 0, me.a);
+  let aCah;
+  if (vl * dv <= -2 * gg * al) aCah = (v * v * al) / Math.max(vl * vl - 2 * gg * al, 0.01);
+  else aCah = al - (dv > 0 ? (dv * dv) / (2 * gg) : 0);
+  if (aIdm >= aCah) return Math.max(aIdm, -9);
+  const b = me.b;
+  const acc = (1 - c) * aIdm + c * (aCah + b * Math.tanh((aIdm - aCah) / b));
   return Math.max(acc, -9);
 }
 
