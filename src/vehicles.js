@@ -44,10 +44,10 @@ class Parts {
     const ang = Math.atan2(-dy, dz);
     return this.add(slot, new THREE.BoxGeometry(w, t, len), x, cy, cz, ang, 0, 0);
   }
-  wheel(x, y, z, r, w) {
+  wheel(x, y, z, r, w, rimF = 0.62) {
     const tyre = new THREE.CylinderGeometry(r, r, w, 18);
     this.add('trim', tyre, x, y, z, 0, 0, Math.PI / 2);
-    const rim = new THREE.CylinderGeometry(r * 0.62, r * 0.62, w + 0.012, 14);
+    const rim = new THREE.CylinderGeometry(r * rimF, r * rimF, w + 0.012, 14);
     this.add('chrome', rim, x, y, z, 0, 0, Math.PI / 2);
     return this;
   }
@@ -90,12 +90,34 @@ function emitter(kind, x, y, z, dz, size = 1) {
   return { kind, pos: new THREE.Vector3(x, y, z), dir: new THREE.Vector3(0, 0, dz), size };
 }
 
+/** Bottom edge of a side profile with wheel arches cut out, rear to front. */
+function archedSill(z0, z1, y, wheels, wr, ra) {
+  const pts = [[z0, y]];
+  for (const wz of wheels) {
+    pts.push([wz - ra, y]);
+    for (let i = 0; i <= 8; i++) {
+      const a = Math.PI - (i / 8) * Math.PI;
+      pts.push([wz + ra * Math.cos(a), wr + ra * Math.sin(a)]);
+    }
+    pts.push([wz + ra, y]);
+  }
+  pts.push([z1, y]);
+  return pts;
+}
+
+/** Dark wheel well behind the arch so you can't see through the car. */
+function wheelWell(P, W, y, wz, wr, ra) {
+  const top = wr + ra;
+  P.box('trim', W - 0.5, top - y, ra * 2 - 0.04, 0, (top + y) / 2, wz);
+}
+
 function buildCarBody(P, sp, em, extraRear = 0) {
   const { L, W, H, belt, clr, hood, ws, deck, rw, noseH, tailH, wr } = sp;
   const f = L / 2, r = -L / 2;
+  const wz1 = f - 0.82, wz2 = r + 0.78;
+  const ra = wr + (sp.archGap ?? 0.07);
   P.extrudeSide('paint', [
-    [r + 0.12, clr],
-    [f - 0.25, clr],
+    ...archedSill(r + 0.12, f - 0.25, clr, [wz2, wz1], wr, ra),
     [f, clr + 0.24],
     [f, noseH - 0.07],
     [f - 0.14, noseH],
@@ -131,14 +153,12 @@ function buildCarBody(P, sp, em, extraRear = 0) {
     P.box('glass', 0.15, 0.08, 0.01, sx * (W / 2 + 0.08), belt + 0.06, ax - 0.185);
   }
   // wheels
-  const wz1 = f - 0.82, wz2 = r + 0.78;
   for (const sx of [1, -1]) {
-    P.wheel(sx * (W / 2 - 0.12), wr, wz1, wr, 0.22);
-    P.wheel(sx * (W / 2 - 0.12), wr, wz2, wr, 0.22);
-    // wheel arch shadows
-    P.box('trim', 0.04, 0.12, wr * 2.3, sx * (W / 2 + 0.005), wr + wr * 0.92, wz1);
-    P.box('trim', 0.04, 0.12, wr * 2.3, sx * (W / 2 + 0.005), wr + wr * 0.92, wz2);
+    P.wheel(sx * (W / 2 - 0.12), wr, wz1, wr, 0.22, sp.rimF);
+    P.wheel(sx * (W / 2 - 0.12), wr, wz2, wr, 0.22, sp.rimF);
   }
+  wheelWell(P, W, clr, wz1, wr, ra);
+  wheelWell(P, W, clr, wz2, wr, ra);
   // bumpers, grille
   P.box('trim', W - 0.1, 0.13, 0.08, 0, clr + 0.12, r - 0.03);
   P.box('trim', W - 0.1, 0.13, 0.08, 0, clr + 0.12, f + 0.02);
@@ -154,6 +174,9 @@ function buildCarBody(P, sp, em, extraRear = 0) {
     const hx = sx * (W / 2 - 0.23), hy = noseH - 0.1;
     P.box('head', 0.36, 0.1, 0.06, hx, hy, f + 0.02);
     em.push(emitter('head', hx, hy, f + 0.08, 1));
+    // daytime running light strip above the lamp (lit on LED cars)
+    P.box('drl', 0.32, 0.025, 0.05, hx - sx * 0.01, hy + 0.068, f + 0.015);
+    for (const k of [-1, 0, 1]) em.push(emitter('drl', hx + k * 0.12, hy + 0.068, f + 0.07, 1, 0.5));
     const ind = sx > 0 ? 'indL' : 'indR';
     P.box(ind, 0.07, 0.08, 0.07, sx * (W / 2 - 0.03), hy, f - 0.02);
     em.push(emitter(ind, sx * (W / 2 - 0.03), hy, f + 0.03, 1, 0.8));
@@ -168,9 +191,9 @@ function buildCarBody(P, sp, em, extraRear = 0) {
 function buildVan(P, em) {
   const L = 5.9, W = 2.0, H = 2.5, clr = 0.2;
   const f = L / 2, r = -L / 2;
+  const ra = 0.41;
   P.extrudeSide('paint', [
-    [r + 0.08, clr],
-    [f - 0.25, clr],
+    ...archedSill(r + 0.08, f - 0.25, clr, [r + 1.15, f - 0.85], 0.34, ra),
     [f, clr + 0.3],
     [f, 0.98],
     [f - 0.55, 1.2],
@@ -187,9 +210,9 @@ function buildVan(P, em) {
     P.box('glass', 0.14, 0.18, 0.01, sx * (W / 2 + 0.09), 1.45, f - 1.065);
     P.wheel(sx * (W / 2 - 0.15), 0.34, f - 0.85, 0.34, 0.24);
     P.wheel(sx * (W / 2 - 0.15), 0.34, r + 1.15, 0.34, 0.24);
-    P.box('trim', 0.03, 0.08, 0.8, sx * (W / 2 + 0.01), 0.8, f - 0.85);
-    P.box('trim', 0.03, 0.08, 0.8, sx * (W / 2 + 0.01), 0.8, r + 1.15);
   }
+  wheelWell(P, W, clr, f - 0.85, 0.34, ra);
+  wheelWell(P, W, clr, r + 1.15, 0.34, ra);
   P.box('glass', W * 0.36, 0.45, 0.02, W * 0.21, 1.85, r - 0.03);
   P.box('glass', W * 0.36, 0.45, 0.02, -W * 0.21, 1.85, r - 0.03);
   P.box('trim', 0.02, H - 0.4, 0.03, 0, 1.4, r - 0.04);
@@ -367,12 +390,18 @@ function buildCaravan(P, em) {
 // ---------------- variant assembly ----------------
 const variantCache = new Map();
 
-function buildVariant(variant) {
+/** Lowered look: body sits closer to bigger wheels with dark rims. */
+function lowered(sp) {
+  const d = 0.05;
+  return { ...sp, clr: sp.clr - d, H: sp.H - d, belt: sp.belt - d, noseH: sp.noseH - d, tailH: sp.tailH - d, wr: sp.wr + 0.015, archGap: 0.035, rimF: 0.76 };
+}
+
+function buildVariant(variant, low = false) {
   const meta = VARIANTS[variant];
   const out = { variant, meta, front: null, trailer: null, emFront: [], emTrailer: [], hitchZ: 0, axleDist: 0, trailerKind: null };
   if (CAR_SPECS[variant]) {
     const P = new Parts();
-    buildCarBody(P, CAR_SPECS[variant], out.emFront);
+    buildCarBody(P, low ? lowered(CAR_SPECS[variant]) : CAR_SPECS[variant], out.emFront);
     out.front = P.build();
   } else if (variant === 'van') {
     const P = new Parts();
@@ -413,9 +442,10 @@ function buildVariant(variant) {
   return out;
 }
 
-export function getVariantGeo(variant) {
-  if (!variantCache.has(variant)) variantCache.set(variant, buildVariant(variant));
-  return variantCache.get(variant);
+export function getVariantGeo(variant, low = false) {
+  const key = variant + (low ? ':low' : '');
+  if (!variantCache.has(key)) variantCache.set(key, buildVariant(variant, low));
+  return variantCache.get(key);
 }
 
 // ---------------- materials ----------------
@@ -423,6 +453,7 @@ export const SHARED = {};
 let envIntensity = 1;
 export function initVehicleMaterials() {
   SHARED.glass = new THREE.MeshStandardMaterial({ color: 0x0e1418, metalness: 0.1, roughness: 0.06, envMapIntensity: 1.4 });
+  SHARED.glassTint = new THREE.MeshStandardMaterial({ color: 0x010102, metalness: 0.5, roughness: 0.03, envMapIntensity: 1.8 });
   SHARED.trim = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: 0.75, metalness: 0.0 });
   SHARED.chrome = new THREE.MeshStandardMaterial({ color: 0xb9bec2, roughness: 0.3, metalness: 1.0 });
   SHARED.plate = new THREE.MeshStandardMaterial({ color: 0xf0bd00, roughness: 0.45, emissive: 0xf0bd00, emissiveIntensity: 0 });
@@ -475,7 +506,7 @@ function lightMat(color, emissive) {
  * Build a vehicle visual. Returns an object with root group and parts.
  */
 export function createVehicleVisual(variant, rng, opts = {}) {
-  const G = getVariantGeo(variant);
+  const G = getVariantGeo(variant, !!opts.low);
   const root = new THREE.Group();
   const mats = {
     head: lightMat(0xdfe6ea, 0xfff4e0),
@@ -483,6 +514,7 @@ export function createVehicleVisual(variant, rng, opts = {}) {
     indL: lightMat(0x6b3e00, 0xff8a10),
     indR: lightMat(0x6b3e00, 0xff8a10),
     marker: lightMat(0x6b3e00, 0xff8a10),
+    drl: lightMat(0xc8ced2, 0xeaf2ff),
   };
   const bodyColor = opts.color ?? pickWeighted(rng, variant === 'truck' || variant === 'rigid' ? TRUCK_CAB : CAR_COLORS);
   const paint = paintMaterial(bodyColor, variant === 'truck' || variant === 'rigid');
@@ -501,14 +533,16 @@ export function createVehicleVisual(variant, rng, opts = {}) {
     switch (slot) {
       case 'paint': return paint;
       case 'paint2': return paint2;
-      case 'head': case 'tail': case 'indL': case 'indR': case 'marker': return mats[slot];
+      case 'head': case 'tail': case 'indL': case 'indR': case 'marker': case 'drl': return mats[slot];
       default: return SHARED[slot] || SHARED.trim;
     }
   };
+  const bySlot = {};
   const makePart = (slots) => {
     const g = new THREE.Group();
     for (const [slot, geo] of Object.entries(slots)) {
       const mesh = new THREE.Mesh(geo, matFor(slot));
+      (bySlot[slot] ||= []).push(mesh);
       mesh.castShadow = slot === 'paint' || slot === 'paint2' || slot === 'trim';
       mesh.receiveShadow = slot === 'paint' || slot === 'paint2';
       g.add(mesh);
@@ -538,7 +572,22 @@ export function createVehicleVisual(variant, rng, opts = {}) {
     axle: new THREE.Vector3(),
     axleInit: false,
     blink: 0,
+    bySlot,
+    look: null,
   };
+}
+
+const HEAD_EMISSIVE = { std: 0xfff4e0, led: 0xf2f7ff, xenon: 0xe6eeff, halogen: 0xffdca0 };
+
+/** Repaint a (possibly pooled) car visual for a look from archetypes.js. */
+export function applyLook(vis, look) {
+  vis.look = look;
+  if (!look) return;
+  const paint = paintMaterial(look.color);
+  for (const m of vis.bySlot.paint || []) m.material = paint;
+  const glass = look.tint ? SHARED.glassTint : SHARED.glass;
+  for (const m of vis.bySlot.glass || []) m.material = glass;
+  vis.mats.head.emissive.setHex(HEAD_EMISSIVE[look.lights] ?? HEAD_EMISSIVE.std);
 }
 
 export function setLayerRecursive(obj, layer) {

@@ -51,3 +51,8 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 `npm run abtest -- anticipation=0 anticipation=1` compares traffic settings over many seeds
 (hard braking, emergency stops, truck overtakes, lane changes, speed).
 `node tools/glare.js <dir>` sets up a night scene with cars close behind and oncoming, for checking headlight glare.
+`node tools/lineup.js <dir>` parks one car of each archetype next to you (sides, fronts, mirror; day and night) for look-dev.
+
+**Driver archetypes** (`src/archetypes.js`): a persona sets both a car's look (paint, stance, tint,
+light signature) and, about 70% of the time, its driving style. Currently Leasebak, Patser and
+Pensioner; `archetypes` in config.js scales how common they are. Try `?scenario=archetypes`.

@@ -20,7 +20,7 @@ export const DEFAULTS = {
   rangeAhead: 1500, // simulated distance ahead of you (m)
   rangeBehind: 900, // simulated distance behind you (m)
   mix: { car: 0.69, van: 0.11, truck: 0.17, caravan: 0.03 },
-  speeders: 0.09, // share of cars that want limit + 12..37
+  speeders: 0.06, // share of ordinary cars (archetypes add their own) that want limit + 12..37
   slowpokes: 0.1, // share of cars that want limit - 4..12
   middleLaneHoggers: 0.07, // share of drivers who ignore keep-right
   speedSpreadKmh: 4, // std-dev of 'normal' drivers around limit + 2
@@ -28,6 +28,7 @@ export const DEFAULTS = {
   truckOvertakeEagerness: 1.0, // 0 = never overtake, 2 = elephant races galore
   coolness: 0.99, // ACC model: 0 = plain IDM (brakes hard on any close cut-in), ~1 = calm drop-back
   anticipation: 1.0, // scales how early AI reads merges and plans overtakes (0 = purely reactive)
+  archetypes: 1.0, // share of cars with a recognisable driver archetype (0 = all ordinary)
   politeness: 1.0, // scales how much AI lets others in / moves right for faster cars
 
   // --- player car ---

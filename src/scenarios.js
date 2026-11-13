@@ -6,6 +6,8 @@
 // Positions are relative to you: ds metres ahead (+) or behind (-).
 // Lanes are numbered from the right: 0 is the rightmost lane.
 // `kmh` is the starting speed, `want` the driver's desired speed (default = kmh).
+// `persona` makes the car an archetype from archetypes.js (look + driving,
+// always true to type here); without `want` it keeps the archetype's speed.
 // `params` overrides driver parameters from traffic.js makeVehicle(), e.g.
 // T (headway s), p (politeness), bias (keep-right urge), tSignal, coop, strict.
 import { KMH, mulberry32 } from './util.js';
@@ -45,6 +47,24 @@ export const SCENARIOS = {
     ],
   },
 
+  archetypes: {
+    title: 'Read the mirror',
+    about:
+      'Three lanes. A pensioner potters along ahead of you, a leasebak closes in from behind in the ' +
+      'middle lane, and a patser is somewhere behind it. Can you tell who is who from the mirror alone?',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 14,
+    player: { lane: 0, kmh: 100, want: 103 },
+    vehicles: [
+      { tag: 'pensioner', type: 'car', variant: 'hatch', persona: 'pensioner', lane: 0, ds: 140, kmh: 90 },
+      { tag: 'leasebak', type: 'car', variant: 'estate', persona: 'leasebak', lane: 1, ds: -150, kmh: 125 },
+      { tag: 'patser', type: 'car', variant: 'hatch', persona: 'patser', lane: 1, ds: -240, kmh: 130, want: 140 },
+      { tag: 'family', type: 'car', variant: 'suv', lane: 1, ds: 110, kmh: 104 },
+      { tag: 'truck', type: 'truck', variant: 'truck', lane: 0, ds: 520, kmh: 83 },
+    ],
+  },
+
   hogger: {
     title: 'Middle-lane hogger',
     about:
@@ -73,15 +93,17 @@ export function applyScenario(traffic, sc, sPlayer, { includeYou = false } = {})
   if (includeYou) specs.push({ tag: 'you', type: 'car', variant: 'estate', lane: sc.player.lane, ds: 0, kmh: sc.player.kmh, want: sc.player.want });
   const placed = [];
   for (const spec of specs) {
-    const veh = traffic.makeVehicle(spec.type, spec.variant);
+    const veh = traffic.makeVehicle(spec.type, spec.variant, spec.persona ?? null, true);
     veh.tag = spec.tag;
     veh.lane = veh.targetLane = spec.lane;
     veh.u = traffic.dir * (sPlayer + spec.ds);
     veh.v = spec.kmh * KMH;
     veh.latLocal = laneLat(spec.lane);
-    const want = spec.want ?? spec.kmh;
-    if (veh.type === 'car' || veh.type === 'van') veh.limitOffset = want - traffic.limitKmh;
-    else veh.ownMax = want;
+    const want = spec.want ?? (spec.persona ? null : spec.kmh);
+    if (want != null) {
+      if (veh.type === 'car' || veh.type === 'van') veh.limitOffset = want - traffic.limitKmh;
+      else veh.ownMax = want;
+    }
     traffic.applyLimit(veh);
     veh.v0 = veh.v0base;
     Object.assign(veh, spec.params || {});

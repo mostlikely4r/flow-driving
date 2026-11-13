@@ -1,6 +1,7 @@
 // Places vehicle models from the traffic simulation into the world and feeds
 // their lamps into the glow / beam systems.
-import { createVehicleVisual } from './vehicles.js';
+import { createVehicleVisual, applyLook } from './vehicles.js';
+import { lookFor } from './archetypes.js';
 import { mulberry32, clamp } from './util.js';
 import { CONFIG } from './config.js';
 
@@ -9,6 +10,14 @@ const COL = {
   tail: [1, 0.05, 0.015],
   ind: [1, 0.42, 0.02],
 };
+// Headlight colour per light signature (see archetypes.js).
+const HEAD = {
+  std: COL.head,
+  led: [0.86, 0.93, 1],
+  xenon: [0.8, 0.88, 1],
+  halogen: [1, 0.8, 0.5],
+};
+const DRL = [0.9, 0.95, 1];
 
 export class TrafficView {
   constructor(scene, road, glow, beams) {
@@ -20,9 +29,16 @@ export class TrafficView {
     this.rng = mulberry32(1234);
   }
 
+  static poolKey(variant, look) {
+    return variant + (look && look.low ? ':low' : '');
+  }
+
   add(veh) {
-    const list = this.pool.get(veh.variant);
-    const vis = list && list.length ? list.pop() : createVehicleVisual(veh.variant, this.rng);
+    const look = lookFor(veh);
+    const key = TrafficView.poolKey(veh.variant, look);
+    const list = this.pool.get(key);
+    const vis = list && list.length ? list.pop() : createVehicleVisual(veh.variant, this.rng, { low: look?.low });
+    applyLook(vis, look);
     vis.axleInit = false;
     vis.root.visible = true;
     veh.vis = vis;
@@ -33,8 +49,9 @@ export class TrafficView {
     const vis = veh.vis;
     if (!vis) return;
     this.scene.remove(vis.root);
-    if (!this.pool.has(veh.variant)) this.pool.set(veh.variant, []);
-    this.pool.get(veh.variant).push(vis);
+    const key = TrafficView.poolKey(veh.variant, vis.look);
+    if (!this.pool.has(key)) this.pool.set(key, []);
+    this.pool.get(key).push(vis);
     veh.vis = null;
   }
 
@@ -75,10 +92,19 @@ export class TrafficView {
       switch (e.kind) {
         case 'head':
           if (!st.head) continue;
-          [r, g, b] = COL.head;
+          // LED cars show their running-light strip by day, not the lamp
+          if (!st.night && st.lights === 'led') continue;
+          [r, g, b] = HEAD[st.lights] || COL.head;
           size = st.night ? 1.05 : 0.32;
-          inten = st.night ? 4.2 : 0.9;
+          inten = st.night ? (st.lights === 'halogen' ? 3.3 : 4.2) : st.lights === 'halogen' ? 0.6 : 0.9;
           wide = 0.0;
+          break;
+        case 'drl':
+          if (st.lights !== 'led') continue;
+          [r, g, b] = DRL;
+          size = st.night ? 0.42 : 0.3;
+          inten = st.night ? 1.3 : 1.25;
+          wide = 0.15;
           break;
         case 'tail':
           if (!st.night && !st.brake) continue;
@@ -175,10 +201,12 @@ export class TrafficView {
         m.indL.emissiveIntensity = indL ? 6 : 0;
         m.indR.emissiveIntensity = indR ? 6 : 0;
         m.marker.emissiveIntensity = night ? 2.5 : 0;
+        const lights = vis.look ? vis.look.lights : 'std';
+        m.drl.emissiveIntensity = lights === 'led' ? 5 : 0;
 
         const dist = Math.abs(ds);
         if (dist < 1500) {
-          const st = { night, brake: veh.brake, indL, indR, head: true };
+          const st = { night, brake: veh.brake, indL, indR, head: true, lights };
           TrafficView.glowPart(this.glow, vis.front, vis.emFront, cam, st);
           if (vis.trailer) TrafficView.glowPart(this.glow, vis.trailer, vis.emTrailer, cam, st);
         }

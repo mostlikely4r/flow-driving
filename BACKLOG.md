@@ -55,7 +55,7 @@ prototype) before committing to them.
 | F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | |
 | F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | done: `?scenario=` + `npm run scenario` |
 | F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | done (O key, dev mode) |
-| F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered | Readable | 5 | S | Low | P0 | done, needs playtest |
+| F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered. A small quality-of-life option, off by default | Readable | 5 | S | Low | P0 | done, playtested; labels made smaller |
 | F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | done: per-driver `antic` skill (archetypes will set it), menu knob |
 | F-18 | **Cut-in overreaction**: IDM brakes up to −9 m/s² when a slightly slower car merges in ~20 m ahead. Real drivers drop back gently. Fix: blend IDM with Treiber's constant-acceleration heuristic (the ACC model) | Authentic | 5 | S | Low | P0 | done: `coolness` 0.99 in config.js |
 | F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
@@ -63,9 +63,10 @@ prototype) before committing to them.
 | F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | |
 | F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 3 | M | Med | P3 | deferred: generic but convincing is fine |
 | F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 3 | L | Med | P3 | deferred |
-| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | |
-| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | |
-| F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | |
+| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | slice 1 done: Leasebak, Patser, Pensioner; hoggers ignore politeness. Next: Family, White van, EV smoothie |
+| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | slice 1 done: palette, lowered + big rims, tint, LED / xenon / halogen. Needs playtest: by day the tells are subtle |
+| F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | done: real wheel arches cut into the body |
+| F-19 | **Dev overlay v2**: everything the expanded overlay shows now, plus predicted paths, target gaps and lane-change intent drawn in the world | Readable | 3 | M | Low | P2 | later; separate from the AR overlay |
 | F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | |
 | F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | |
 
@@ -105,8 +106,14 @@ prototype) before committing to them.
 - F-18 A/B (`coolness=0` vs `0.99`): emergency stops 14 → 0, hard braking 0.19 → 0.00 s/veh-h,
   no collisions, tailgating unchanged, truck overtaking +50%, avg speed −0.6 km/h. Same pattern
   at density 20 and on 2 lanes.
-- In `hogger`, the hogger moves right within 5 s because politeness reacts to you behind. Real
-  hoggers ignore that, so the hogger should get its own politeness rules (F-14).
+- ~~In `hogger`, the hogger moves right within 5 s because politeness reacts to you behind.~~
+  Hoggers now have near-zero politeness: only flashing (F) moves them.
+- F-14 A/B (`archetypes=0` vs `1`): no collisions or emergency stops; tight gaps (<0.6 s)
+  0.3 → 1.8 s/veh-h (patsers and leasebaks tailgate, as intended), lane changes +14%, avg −0.9 km/h.
+- In `archetypes`, the patser cuts back in front of the leasebak at 0.4 s and later undertakes on
+  the right at 141 km/h. That's the character working.
+- By day a sun glint on a car's glass can bloom into what looks like a lamp. Minor, look at it with
+  F-10.
 
 ## Parking lot
 
@@ -116,7 +123,8 @@ prototype) before committing to them.
   speed. Revisit later.
 - Replay / rewind a situation to watch it again from above.
 - Archetypes based on nationality, e.g. foreign trucks. Too close to stereotyping real groups; we stick to cars and driving habits.
-- AI flashes its lights at you when you drive at night without lights (follows F-01).
+- AI flashes its lights at you when you drive at night without lights (follows F-01). The leasebak
+  flashing you when you block the left lane belongs here too.
 - Gentle "driving style" feedback through other drivers' reactions, such as being flashed at for
   hogging a lane, instead of a score.
 

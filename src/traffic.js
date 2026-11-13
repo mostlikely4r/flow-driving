@@ -16,6 +16,7 @@ import { CONFIG } from './config.js';
 import { KMH, mulberry32, gauss, clamp, pickWeighted, lcProfile, lcProfileDeriv } from './util.js';
 import { laneLat } from './layout.js';
 import { VARIANTS, TYPE_VARIANTS } from './variants.js';
+import { pickPersona, applyPersona } from './archetypes.js';
 
 const TYPE_PARAMS = {
   car: { a: 1.5, b: 2.1, s0: 2.0, Tmean: 1.25, Tsd: 0.3 },
@@ -130,7 +131,7 @@ export class Traffic {
   }
 
   // ---------------- driver generation ----------------
-  makeVehicle(type, variant) {
+  makeVehicle(type, variant, persona, forcePersona = false) {
     const r = this.rng;
     const tp = TYPE_PARAMS[type];
     const meta = VARIANTS[variant];
@@ -223,6 +224,11 @@ export class Traffic {
     veh.wanderA = 0.05 + r() * 0.14;
     veh.wanderW = 0.08 + r() * 0.25;
     veh.wanderPh = r() * 6.28;
+    // Archetype: look and (usually) driving style. See archetypes.js.
+    if (persona === undefined) persona = type === 'car' ? pickPersona(variant, r) : null;
+    applyPersona(veh, persona, r, forcePersona);
+    // Hoggers don't notice you behind them: only flashing moves them.
+    if (veh.hogger) veh.p = Math.min(veh.p, 0.04);
     return veh;
   }
 
@@ -509,7 +515,7 @@ export class Traffic {
   // ---------------- spawning ----------------
   /** Try to insert a vehicle at road position s. Returns vehicle or null. */
   insertAt(s, lane, type, variant, opts = {}) {
-    const veh = this.makeVehicle(type, variant);
+    const veh = this.makeVehicle(type, variant, opts.persona, opts.persona != null);
     lane = lane ?? this.pickLane(veh);
     if (lane > this.maxLaneFor(veh)) lane = 0;
     veh.lane = veh.targetLane = lane;
