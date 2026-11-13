@@ -16,7 +16,7 @@ export const ARCHETYPES = {
     name: 'Leasebak',
     variants: { estate: 0.3, sedan: 0.3 },
     colors: [[0x1a1b1d, 5], [0x34373b, 6], [0x55595e, 3], [0x1d2b4d, 1.5]],
-    lights: 'led',
+    lights: 'bar',
     loyalty: 0.7,
     // Experienced and in a hurry: fast, short headway, reads the road well
     // (lifts early instead of braking late), not very polite.
@@ -36,7 +36,7 @@ export const ARCHETYPES = {
     name: 'Patser',
     variants: { hatch: 0.16 },
     colors: [[0x0c0c0d, 8], [0x1a1b1d, 3], [0xe9eaea, 1]],
-    lights: 'xenon',
+    lights: 'angel',
     low: true,
     tint: true,
     loyalty: 0.7,
@@ -62,7 +62,7 @@ export const ARCHETYPES = {
     name: 'Pensioner',
     variants: { hatch: 0.28 },
     colors: [[0x9a9fa3, 6], [0xc9b98f, 3], [0x7a6a55, 2], [0x8aa3b5, 2], [0x274030, 1.5], [0x6b2430, 1]],
-    lights: 'halogen',
+    lights: 'round',
     loyalty: 0.75,
     // Under the limit, keeps right, signals early and long, leaves big gaps,
     // very polite and sees everything coming.
@@ -132,6 +132,6 @@ export function lookFor(veh) {
   if (veh.type !== 'car') return null;
   const r = mulberry32(veh.seed ^ 0x5eed);
   const a = veh.persona && ARCHETYPES[veh.persona];
-  if (!a) return { color: pickWeighted(r, NORMAL_COLORS), lights: r() < 0.35 ? 'led' : 'std', low: false, tint: false };
+  if (!a) return { color: pickWeighted(r, NORMAL_COLORS), lights: r() < 0.4 ? 'modern' : 'std', low: false, tint: false };
   return { color: pickWeighted(r, a.colors), lights: a.lights, low: !!a.low, tint: !!a.tint };
 }

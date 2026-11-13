@@ -52,6 +52,8 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 (hard braking, emergency stops, truck overtakes, lane changes, speed).
 `node tools/glare.js <dir>` sets up a night scene with cars close behind and oncoming, for checking headlight glare.
 `node tools/lineup.js <dir>` parks one car of each archetype next to you (sides, fronts, mirror; day and night) for look-dev.
+`node tools/night.js <dir>` shoots the night mood on an unlit stretch and inside a sodium-lit one
+(uses the `window.__game.teleport(s)` debug hook).
 
 **Driver archetypes** (`src/archetypes.js`): a persona sets both a car's look (paint, stance, tint,
 light signature) and, about 70% of the time, its driving style. Currently Leasebak, Patser and

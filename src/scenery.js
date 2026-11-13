@@ -6,6 +6,9 @@ import { innerEdge, outerEdgeLine, pavementEdge, guardrailLat, laneLat } from '.
 import * as TX from './textures.js';
 
 export const CHUNK = 200;
+// Most Dutch motorways are unlit nowadays; lighting stays near junctions.
+export const LIT_SHARE = 0.3;
+export const LAMP_EVERY = 50;
 const ROW = 5;
 
 // ---------- geometry accumulation ----------
@@ -105,6 +108,40 @@ export class Scenery {
       emissive: 0xffffff,
       emissiveIntensity: 0,
     });
+    // Retroreflective paint: lines light up inside your own headlight beam and
+    // fade beyond it, so at night you follow the lines your lamps pick out.
+    const beamU = {
+      uBeamPos: { value: new THREE.Vector3() },
+      uBeamDir: { value: new THREE.Vector2(0, 1) },
+      uBeam: { value: 0 },
+      uHigh: { value: 0 },
+    };
+    M.marking.userData.beam = beamU;
+    M.marking.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, beamU);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying vec3 vWPos;\nuniform vec3 uBeamPos;\nuniform vec2 uBeamDir;\nuniform float uBeam;\nuniform float uHigh;',
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          {
+            vec2 d = vWPos.xz - uBeamPos.xz;
+            float along = dot(d, uBeamDir);
+            float side = abs(d.x * uBeamDir.y - d.y * uBeamDir.x);
+            float reach = mix(75.0, 170.0, uHigh);
+            float a = smoothstep(3.0, 9.0, along) * (1.0 - smoothstep(reach * 0.35, reach, along));
+            float w = 3.0 + along * mix(0.16, 0.12, uHigh);
+            float b = a * (1.0 - smoothstep(w * 0.6, w, side));
+            totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * uBeam * b * 0.9;
+          }`,
+        );
+    };
     const conc = TX.concreteTexture();
     M.concrete = new THREE.MeshStandardMaterial({ map: conc, roughness: 0.9, side: THREE.DoubleSide });
     const grass = TX.grassTexture();
@@ -120,10 +157,10 @@ export class Scenery {
     M.tree = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
     M.building = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     M.windowLit = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffc070, emissiveIntensity: 0 });
-    M.lampHead = new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xfff0d8, emissiveIntensity: 0, roughness: 0.4 });
+    M.lampHead = new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xff9a3c, emissiveIntensity: 0, roughness: 0.4 }); // sodium
     M.pool = new THREE.MeshBasicMaterial({
       map: TX.radialTexture(),
-      color: 0xffe2b0,
+      color: 0xffa04a,
       transparent: true,
       opacity: 0.22,
       blending: THREE.AdditiveBlending,
@@ -141,6 +178,11 @@ export class Scenery {
     this.M = M;
   }
 
+  /** Is the motorway lit at s? Lit stretches are 1.6 km long, lamps every 50 m. */
+  litAt(s) {
+    return hash01(Math.floor(s / 1600), 4) < LIT_SHARE;
+  }
+
   setNight(mode) {
     const night = mode === 'night';
     const dusk = mode === 'dusk';
@@ -151,7 +193,7 @@ export class Scenery {
     M.windowLit.emissiveIntensity = night ? 2.2 : dusk ? 1.2 : 0;
     M.lampHead.emissiveIntensity = night ? 9 : dusk ? 4 : 0;
     M.pool.visible = night || dusk;
-    M.pool.opacity = night ? 0.24 : 0.08;
+    M.pool.opacity = night ? 0.13 : 0.06;
     for (const ch of this.chunks.values()) for (const m of ch.signMats) m.emissiveIntensity = night ? m.userData.nightE : 0;
     this.signNightFactor = night;
   }
@@ -332,10 +374,10 @@ export class Scenery {
     }
 
     // ---- lighting (lit stretches)
-    if (hash01(Math.floor(s0 / 1600), 4) < 0.3) {
+    if (this.litAt(s0)) {
       const pool = bucket('pool');
       const lamps = bucket('lampHead');
-      for (let s = Math.ceil(s0 / 50) * 50; s < s1; s += 50) {
+      for (let s = Math.ceil(s0 / LAMP_EVERY) * LAMP_EVERY; s < s1; s += LAMP_EVERY) {
         const p = road.sample(s, {});
         const x = p.x - ox, z = p.z - oz;
         posts.addGeo(new THREE.CylinderGeometry(0.1, 0.14, 12, 8), mat(x, 6, z, p.h));

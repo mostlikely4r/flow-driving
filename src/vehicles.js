@@ -111,7 +111,74 @@ function wheelWell(P, W, y, wz, wr, ra) {
   P.box('trim', W - 0.5, top - y, ra * 2 - 0.04, 0, (top + y) / 2, wz);
 }
 
-function buildCarBody(P, sp, em, extraRear = 0) {
+// Round lens facing along z.
+function disc(P, slot, rad, x, y, z, depth = 0.05) {
+  return P.add(slot, new THREE.CylinderGeometry(rad, rad, depth, 16), x, y, z, Math.PI / 2, 0, 0);
+}
+
+/**
+ * Head and tail lamps. Signatures:
+ *   std    rectangular lamps (older / ordinary car)
+ *   modern slimmer lamps, cool white, split tail glow
+ *   bar    slim LED headlamps with a running-light strip, full-width rear light bar (leasebak)
+ *   angel  small round projectors with ring running lights, smoked tails (patser)
+ *   round  big round warm lamps, pairs of small round tails (pensioner)
+ */
+function carLamps(P, em, W, f, r, hy, ty, sig) {
+  for (const sx of [1, -1]) {
+    const hx = sx * (W / 2 - 0.23), tx = sx * (W / 2 - 0.2);
+    // ---- front
+    if (sig === 'round') {
+      disc(P, 'head', 0.085, hx, hy + 0.01, f + 0.02);
+      em.push(emitter('head', hx, hy + 0.01, f + 0.08, 1, 1.15));
+    } else if (sig === 'angel') {
+      disc(P, 'head', 0.055, hx, hy, f + 0.02);
+      em.push(emitter('head', hx, hy, f + 0.08, 1, 0.85));
+      P.add('drl', new THREE.TorusGeometry(0.085, 0.013, 6, 20), hx, hy, f + 0.035);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        em.push(emitter('drl', hx + Math.cos(a) * 0.085, hy + Math.sin(a) * 0.085, f + 0.08, 1, 0.32));
+      }
+    } else if (sig === 'bar') {
+      P.box('head', 0.34, 0.06, 0.06, hx, hy - 0.01, f + 0.02);
+      em.push(emitter('head', hx, hy - 0.01, f + 0.08, 1, 0.9));
+      P.box('drl', 0.36, 0.022, 0.05, hx - sx * 0.01, hy + 0.045, f + 0.015);
+      for (const k of [-1.5, -0.5, 0.5, 1.5]) em.push(emitter('drl', hx - sx * 0.01 + k * 0.085, hy + 0.045, f + 0.07, 1, 0.42));
+    } else if (sig === 'modern') {
+      P.box('head', 0.38, 0.075, 0.06, hx, hy, f + 0.02);
+      em.push(emitter('head', hx, hy, f + 0.08, 1));
+    } else {
+      P.box('head', 0.36, 0.1, 0.06, hx, hy, f + 0.02);
+      em.push(emitter('head', hx, hy, f + 0.08, 1));
+    }
+    // ---- rear
+    if (sig === 'round') {
+      for (const k of [-1, 1]) {
+        disc(P, 'tail', 0.055, tx + k * 0.08, ty, r - 0.03);
+        em.push(emitter('tail', tx + k * 0.08, ty, r - 0.08, -1, 0.6));
+      }
+    } else if (sig === 'bar') {
+      P.box('tail', 0.3, 0.07, 0.06, tx, ty + 0.02, r - 0.03);
+      em.push(emitter('tail', tx, ty + 0.02, r - 0.08, -1, 0.8));
+    } else if (sig === 'modern') {
+      P.box('tail', 0.4, 0.08, 0.06, tx, ty + 0.02, r - 0.03);
+      em.push(emitter('tail', tx - sx * 0.08, ty + 0.02, r - 0.08, -1, 0.75));
+      em.push(emitter('tail', tx + sx * 0.1, ty + 0.02, r - 0.08, -1, 0.75));
+    } else {
+      P.box('tail', 0.38, 0.13, 0.06, tx, ty, r - 0.03);
+      em.push(emitter('tail', tx, ty, r - 0.08, -1));
+    }
+  }
+  if (sig === 'bar') {
+    // full-width light bar between the tail lamps
+    const half = W / 2 - 0.36;
+    P.box('tail', half * 2, 0.03, 0.05, 0, ty + 0.035, r - 0.025);
+    const n = 6;
+    for (let i = 0; i < n; i++) em.push(emitter('tail', -half + ((i + 0.5) / n) * half * 2, ty + 0.035, r - 0.07, -1, 0.42));
+  }
+}
+
+function buildCarBody(P, sp, em, extraRear = 0, sig = 'std') {
   const { L, W, H, belt, clr, hood, ws, deck, rw, noseH, tailH, wr } = sp;
   const f = L / 2, r = -L / 2;
   const wz1 = f - 0.82, wz2 = r + 0.78;
@@ -166,17 +233,11 @@ function buildCarBody(P, sp, em, extraRear = 0) {
   // plates (Dutch yellow)
   P.box('plate', 0.52, 0.115, 0.02, 0, clr + 0.33, r - 0.06);
   P.box('plate', 0.52, 0.115, 0.02, 0, clr + 0.27, f + 0.07);
-  // lights
+  // lights: the shape depends on the light signature (see archetypes.js)
+  carLamps(P, em, W, f, r, noseH - 0.1, tailH - 0.13, sig);
   for (const sx of [1, -1]) {
     const tx = sx * (W / 2 - 0.2), ty = tailH - 0.13;
-    P.box('tail', 0.38, 0.13, 0.06, tx, ty, r - 0.03);
-    em.push(emitter('tail', tx, ty, r - 0.08, -1));
-    const hx = sx * (W / 2 - 0.23), hy = noseH - 0.1;
-    P.box('head', 0.36, 0.1, 0.06, hx, hy, f + 0.02);
-    em.push(emitter('head', hx, hy, f + 0.08, 1));
-    // daytime running light strip above the lamp (lit on LED cars)
-    P.box('drl', 0.32, 0.025, 0.05, hx - sx * 0.01, hy + 0.068, f + 0.015);
-    for (const k of [-1, 0, 1]) em.push(emitter('drl', hx + k * 0.12, hy + 0.068, f + 0.07, 1, 0.5));
+    const hy = noseH - 0.1;
     const ind = sx > 0 ? 'indL' : 'indR';
     P.box(ind, 0.07, 0.08, 0.07, sx * (W / 2 - 0.03), hy, f - 0.02);
     em.push(emitter(ind, sx * (W / 2 - 0.03), hy, f + 0.03, 1, 0.8));
@@ -396,12 +457,12 @@ function lowered(sp) {
   return { ...sp, clr: sp.clr - d, H: sp.H - d, belt: sp.belt - d, noseH: sp.noseH - d, tailH: sp.tailH - d, wr: sp.wr + 0.015, archGap: 0.035, rimF: 0.76 };
 }
 
-function buildVariant(variant, low = false) {
+function buildVariant(variant, low = false, sig = 'std') {
   const meta = VARIANTS[variant];
   const out = { variant, meta, front: null, trailer: null, emFront: [], emTrailer: [], hitchZ: 0, axleDist: 0, trailerKind: null };
   if (CAR_SPECS[variant]) {
     const P = new Parts();
-    buildCarBody(P, low ? lowered(CAR_SPECS[variant]) : CAR_SPECS[variant], out.emFront);
+    buildCarBody(P, low ? lowered(CAR_SPECS[variant]) : CAR_SPECS[variant], out.emFront, 0, sig);
     out.front = P.build();
   } else if (variant === 'van') {
     const P = new Parts();
@@ -442,9 +503,13 @@ function buildVariant(variant, low = false) {
   return out;
 }
 
-export function getVariantGeo(variant, low = false) {
-  const key = variant + (low ? ':low' : '');
-  if (!variantCache.has(key)) variantCache.set(key, buildVariant(variant, low));
+export function getVariantGeo(variant, low = false, sig = 'std') {
+  if (!CAR_SPECS[variant]) {
+    low = false;
+    sig = 'std';
+  }
+  const key = `${variant}:${low ? 'low' : ''}:${sig}`;
+  if (!variantCache.has(key)) variantCache.set(key, buildVariant(variant, low, sig));
   return variantCache.get(key);
 }
 
@@ -506,7 +571,7 @@ function lightMat(color, emissive) {
  * Build a vehicle visual. Returns an object with root group and parts.
  */
 export function createVehicleVisual(variant, rng, opts = {}) {
-  const G = getVariantGeo(variant, !!opts.low);
+  const G = getVariantGeo(variant, !!opts.low, opts.lights || 'std');
   const root = new THREE.Group();
   const mats = {
     head: lightMat(0xdfe6ea, 0xfff4e0),
@@ -577,7 +642,7 @@ export function createVehicleVisual(variant, rng, opts = {}) {
   };
 }
 
-const HEAD_EMISSIVE = { std: 0xfff4e0, led: 0xf2f7ff, xenon: 0xe6eeff, halogen: 0xffdca0 };
+const HEAD_EMISSIVE = { std: 0xfff4e0, modern: 0xf2f7ff, bar: 0xf2f7ff, angel: 0xe0eaff, round: 0xffd894 };
 
 /** Repaint a (possibly pooled) car visual for a look from archetypes.js. */
 export function applyLook(vis, look) {
@@ -588,6 +653,8 @@ export function applyLook(vis, look) {
   const glass = look.tint ? SHARED.glassTint : SHARED.glass;
   for (const m of vis.bySlot.glass || []) m.material = glass;
   vis.mats.head.emissive.setHex(HEAD_EMISSIVE[look.lights] ?? HEAD_EMISSIVE.std);
+  // smoked tail lenses on the patser
+  vis.mats.tail.color.setHex(look.lights === 'angel' ? 0x1a0204 : 0x5a0606);
 }
 
 export function setLayerRecursive(obj, layer) {

@@ -16,8 +16,8 @@ const MODES = {
     fog: 0x8a7e86, fogNear: 200, fogFar: 3000, exposure: 0.75, bloom: 0.35, envI: 0.6,
   },
   night: {
-    sun: 0x8ea6e0, sunI: 0.07, hemiSky: 0x1d2742, hemiGround: 0x070806, hemiI: 0.07,
-    fog: 0x070a12, fogNear: 60, fogFar: 2600, exposure: 1.0, bloom: 0.75, envI: 0.25,
+    sun: 0x8ea6e0, sunI: 0.035, hemiSky: 0x1d2742, hemiGround: 0x070806, hemiI: 0.035,
+    fog: 0x030408, fogNear: 60, fogFar: 2600, exposure: 1.0, bloom: 0.75, envI: 0.12,
   },
 };
 
@@ -72,11 +72,11 @@ export class Environment {
         vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
         fragmentShader: `varying vec3 vDir; void main(){
           float h = vDir.y;
-          vec3 zen = vec3(0.004,0.006,0.016);
-          vec3 hor = vec3(0.05,0.042,0.04);   // light pollution, orange-ish
-          vec3 c = mix(hor, zen, smoothstep(-0.02, 0.35, h));
-          c += vec3(0.04,0.025,0.012) * exp(-max(h,0.0)*18.0);
-          if (h < 0.0) c = vec3(0.012,0.012,0.013);
+          vec3 zen = vec3(0.002,0.003,0.009);
+          vec3 hor = vec3(0.012,0.011,0.013);  // a faint town glow on the horizon
+          vec3 c = mix(hor, zen, smoothstep(-0.02, 0.3, h));
+          c += vec3(0.012,0.008,0.004) * exp(-max(h,0.0)*22.0);
+          if (h < 0.0) c = vec3(0.004,0.004,0.005);
           gl_FragColor = vec4(c,1.0);
         }`,
       }),
@@ -93,7 +93,7 @@ export class Environment {
       const th = 2 * Math.PI * u, y = 0.08 + v * 0.92;
       const r = Math.sqrt(1 - y * y);
       pos.set([Math.cos(th) * r * 3800, y * 3800, Math.sin(th) * r * 3800], i * 3);
-      const b = Math.pow(rng(), 3) * 0.9 + 0.08;
+      const b = Math.pow(rng(), 3) * 0.7 + 0.04;
       col.set([b, b, b * 1.1], i * 3);
     }
     const sg = new THREE.BufferGeometry();
@@ -167,7 +167,7 @@ export class Environment {
     this.scene.fog.color.set(m.fog);
     this.scene.fog.near = m.fogNear;
     this.scene.fog.far = m.fogFar;
-    this.scene.background = night ? new THREE.Color(0x020308) : null;
+    this.scene.background = night ? new THREE.Color(0x010204) : null;
     this.scene.environment = this.envFor(mode);
     this.scene.environmentIntensity = m.envI;
     this.renderer.toneMappingExposure = m.exposure;

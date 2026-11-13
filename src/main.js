@@ -9,7 +9,8 @@ import { KMH, clamp, approach, mulberry32 } from './util.js';
 import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Player } from './player.js';
-import { Scenery } from './scenery.js';
+import { Scenery, LAMP_EVERY } from './scenery.js';
+import { innerEdge } from './layout.js';
 import { Environment } from './environment.js';
 import { GlowSystem, BeamSystem } from './fx.js';
 import { TrafficView } from './trafficView.js';
@@ -92,6 +93,46 @@ const headHigh = new THREE.SpotLight(0xf6f8ff, 0, 450, 0.3, 0.6, 1.0);
 headHigh.position.set(0, 0.75, 2.3);
 headHigh.target.position.set(0, 0.8, 100);
 playerVis.front.add(headHigh, headHigh.target);
+
+// Street lamps on lit stretches: two real lights that hop from lamp to lamp
+// with you, so sodium light sweeps over the car (and the cockpit) one lamp at
+// a time. Distant lamps are glow sprites only.
+const SODIUM = [1, 0.6, 0.22];
+const streetLights = [0, 1].map(() => {
+  const l = new THREE.SpotLight(0xff9a3c, 0, 48, 1.1, 0.7, 1.3);
+  scene.add(l, l.target);
+  return l;
+});
+function updateStreetLamps(night, dusk) {
+  const on = night || dusk;
+  const s = player.s;
+  const base = Math.floor(s / LAMP_EVERY) * LAMP_EVERY;
+  // the two lamps around you, our side of the median
+  for (let i = 0; i < 2; i++) {
+    const l = streetLights[i];
+    const sl = base + i * LAMP_EVERY;
+    if (!on || !scenery.litAt(sl)) {
+      l.intensity = 0;
+      continue;
+    }
+    const p = road.sample(sl);
+    l.position.set(p.x + p.nx * 2.9, 11.8, p.z + p.nz * 2.9);
+    const c = innerEdge() + CONFIG.lanes * CONFIG.laneWidth * 0.45;
+    l.target.position.set(p.x + p.nx * c, 0, p.z + p.nz * c);
+    l.target.updateMatrixWorld();
+    l.intensity = night ? 320 : 120;
+  }
+  if (!on) return;
+  // glowing lamp heads, both carriageways, receding into the distance
+  const k = night ? 1 : 0.4;
+  for (let sl = base - 4 * LAMP_EVERY; sl < s + 1600; sl += LAMP_EVERY) {
+    if (!scenery.litAt(sl)) continue;
+    const p = road.sample(sl);
+    for (const sg of [1, -1]) {
+      glow.add(p.x + p.nx * sg * 2.9, 11.85, p.z + p.nz * sg * 2.9, SODIUM[0] * 2.2 * k, SODIUM[1] * 2.2 * k, SODIUM[2] * 2.2 * k, 0.9);
+    }
+  }
+}
 
 // ---------------------------------------------------------------- cockpit interior
 const cockpit = new THREE.Group();
@@ -652,8 +693,17 @@ function frame(now) {
   const lights = player.lightsOn;
   TrafficView.pose(playerVis, player.x, player.z, player.yaw, clamp(-player.acc * 0.004, -0.012, 0.018), 0);
   steeringWheel.rotation.z = -player.steerVis * 1.6;
-  for (const l of headLows) l.intensity = lights ? (mode === 'night' ? 130 : 70) : 0;
-  headHigh.intensity = lights && (player.highBeam || player.flashT > 0) ? 520 : 0;
+  // The real lights stay weak so a white van ahead isn't blown out; the road
+  // itself is lit by a ground beam below and the retroreflective lines.
+  for (const l of headLows) l.intensity = lights ? (mode === 'night' ? 26 : 22) : 0;
+  {
+    const bu = scenery.M.marking.userData.beam;
+    bu.uBeamPos.value.set(player.x, 0, player.z);
+    bu.uBeamDir.value.set(Math.sin(player.yaw), Math.cos(player.yaw));
+    bu.uBeam.value = lights ? (mode === 'night' ? 1 : mode === 'dusk' ? 0.35 : 0) : 0;
+    bu.uHigh.value = player.highBeam || player.flashT > 0 ? 1 : 0;
+  }
+  headHigh.intensity = lights && (player.highBeam || player.flashT > 0) ? 260 : 0;
 
   updateCamera(dt, ctl.pad);
   playerVis.root.updateMatrixWorld(true);
@@ -666,6 +716,15 @@ function frame(now) {
   glow.begin(camWorld);
   beams.begin(camWorld);
   view.update([traffic, oncoming], player.s, camWorld, night, time);
+  updateStreetLamps(mode === 'night', mode === 'dusk');
+  if (lights && night) {
+    // your own dipped beam on the road (ground-only, like the AI cars')
+    const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw);
+    const high = player.highBeam || player.flashT > 0;
+    const hx = player.x + fx * 2.4, hz = player.z + fz * 2.4;
+    beams.add(hx, hz, fx, fz, 0.3, 38, 2.4, 10.5, 0.035, 0.5);
+    if (high) beams.add(hx, hz, fx, fz, 6, 110, 4, 22, 0.036, 0.35, 0.95, 0.97, 1);
+  }
   glow.end();
   beams.end();
   // the player's own lamps
@@ -761,4 +820,15 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // debug handle
-window.__game = { player, traffic, oncoming, road, scene, renderer, CONFIG };
+window.__game = {
+  player, traffic, oncoming, road, scene, renderer, CONFIG, scenery,
+  /** Debug / look-dev: jump to distance s along the road with fresh traffic. */
+  teleport(s) {
+    for (const tr of [traffic, oncoming]) for (const v of tr.vehicles) view.remove(v);
+    player.s = s;
+    player.placeInLane(player.lane, Math.max(60, player.v * 3.6));
+    makeTraffic();
+    Object.assign(window.__game, { traffic, oncoming });
+    scenery.update(player.s, 999);
+  },
+};
