@@ -123,6 +123,87 @@ export const ARCHETYPES = {
       veh.tPrep = lerp(r, 1.0, 1.8);
     },
   },
+  family: {
+    name: 'Family',
+    variants: { suv: 0.32, estate: 0.12 },
+    colors: [[0x2e5aa8, 5], [0x8e1c1c, 4], [0x3f6f7a, 2], [0x5b5f63, 2], [0xe9eaea, 2]],
+    lights: 'tall',
+    loyalty: 0.7,
+    // The calm baseline: steady at the limit, normal gaps, keeps right,
+    // signals properly, makes room. Nothing to read, which is the point.
+    drive(veh, r) {
+      veh.limitOffset = lerp(r, -1, 4);
+      veh.T = lerp(r, 1.4, 1.8);
+      veh.p = lerp(r, 0.4, 0.6);
+      veh.coop = 1;
+      veh.strict = true;
+      veh.hogger = false;
+      veh.bias = lerp(r, 0.3, 0.45);
+      veh.antic = lerp(r, 0.5, 0.75);
+      veh.tSignal = lerp(r, 1.6, 2.4);
+      veh.lcDur = lerp(r, 4.0, 5.0);
+      veh.tSafe = lerp(r, 0.7, 1.0);
+      veh.bSafe = lerp(r, 1.8, 2.4);
+      veh.driftMax = lerp(r, 0.15, 0.3);
+      veh.press = lerp(r, 0, 0.15);
+      veh.tPrep = lerp(r, 0.6, 1.2);
+    },
+  },
+  whitevan: {
+    name: 'White van',
+    variants: { van: 0.4 },
+    colors: [[0xf2f3f3, 10], [0xe4e6e6, 2]],
+    lights: 'rack',
+    loyalty: 0.75,
+    // Bestelbus: faster than a van should be, pushes on in the middle lane,
+    // sits close and edges out early so you know it wants past.
+    drive(veh, r) {
+      veh.limitOffset = lerp(r, 6, 18);
+      veh.T = lerp(r, 0.8, 1.1);
+      veh.a *= 1.15;
+      veh.p = lerp(r, 0, 0.15);
+      veh.coop = r() < 0.3 ? 1 : 0;
+      veh.strict = r() < 0.6;
+      veh.hogger = false;
+      veh.bias = lerp(r, 0.04, 0.14); // happy in the middle lane
+      veh.antic = lerp(r, 0.4, 0.7);
+      veh.tSignal = lerp(r, 0.6, 1.2);
+      veh.lcDur = lerp(r, 3.4, 4.2);
+      veh.tSafe = lerp(r, 0.35, 0.55);
+      veh.bSafe = lerp(r, 2.8, 3.6);
+      veh.driftMax = lerp(r, 0.3, 0.5);
+      veh.press = lerp(r, 0.7, 1);
+      veh.tPrep = lerp(r, 0.2, 0.5);
+    },
+  },
+  ev: {
+    name: 'EV smoothie',
+    variants: { sedan: 0.14, hatch: 0.06 },
+    colors: [[0xf2f3f3, 6], [0x2e5aa8, 3], [0xb9bec2, 3], [0x1d2b4d, 1]],
+    lights: 'ev',
+    loyalty: 0.75,
+    // Exactly at the limit on cruise control, perfectly smooth: gentle on
+    // the pedals, reads everything early. Often camps in the middle lane.
+    drive(veh, r) {
+      veh.limitOffset = lerp(r, -0.5, 0.5);
+      veh.T = lerp(r, 1.3, 1.7);
+      veh.a *= 0.85;
+      veh.b *= 0.85;
+      veh.p = lerp(r, 0.2, 0.4);
+      veh.coop = r() < 0.6 ? 1 : 0;
+      veh.strict = true;
+      veh.hogger = r() < 0.35;
+      veh.bias = veh.hogger ? lerp(r, -0.05, 0.02) : lerp(r, 0.2, 0.35);
+      veh.antic = lerp(r, 0.85, 1);
+      veh.tSignal = lerp(r, 2.0, 3.0);
+      veh.lcDur = lerp(r, 5.0, 6.0);
+      veh.tSafe = lerp(r, 0.7, 1.0);
+      veh.bSafe = lerp(r, 1.5, 2.0);
+      veh.driftMax = lerp(r, 0.12, 0.25);
+      veh.press = lerp(r, 0, 0.1);
+      veh.tPrep = lerp(r, 0.6, 1.0);
+    },
+  },
 };
 
 const NORMAL_COLORS = [
@@ -169,9 +250,10 @@ export function applyPersona(veh, persona, r, force = false) {
 
 /** Visual look for a vehicle: deterministic from its seed. */
 export function lookFor(veh) {
-  if (veh.type !== 'car') return null;
+  if (veh.type !== 'car' && veh.type !== 'van') return null;
   const r = mulberry32(veh.seed ^ 0x5eed);
   const a = veh.persona && ARCHETYPES[veh.persona];
+  if (!a && veh.type === 'van') return null; // ordinary vans keep their random paint
   if (!a) return { color: pickWeighted(r, NORMAL_COLORS), lights: r() < 0.4 ? 'modern' : 'std', low: false, tint: false };
   return { color: pickWeighted(r, a.colors), lights: a.lights, low: !!a.low, tint: !!a.tint };
 }

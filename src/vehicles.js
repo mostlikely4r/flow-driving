@@ -124,6 +124,8 @@ function disc(P, slot, rad, x, y, z, depth = 0.05) {
  *   angel  small round projectors with ring running lights, smoked tails (patser)
  *   round  big round warm lamps, pairs of small round tails (pensioner)
  *   eco    small twin projectors, L-shaped tails (grijze sok)
+ *   tall   squarer lamps, tall vertical tails up the rear pillars (family)
+ *   ev     one thin light line across the nose and one across the tail (EV smoothie)
  */
 function carLamps(P, em, W, f, r, hy, ty, sig) {
   for (const sx of [1, -1]) {
@@ -145,6 +147,13 @@ function carLamps(P, em, W, f, r, hy, ty, sig) {
       em.push(emitter('head', hx, hy - 0.01, f + 0.08, 1, 0.9));
       P.box('drl', 0.36, 0.022, 0.05, hx - sx * 0.01, hy + 0.045, f + 0.015);
       for (const k of [-1.5, -0.5, 0.5, 1.5]) em.push(emitter('drl', hx - sx * 0.01 + k * 0.085, hy + 0.045, f + 0.07, 1, 0.42));
+    } else if (sig === 'tall') {
+      P.box('head', 0.32, 0.13, 0.06, hx, hy, f + 0.02);
+      em.push(emitter('head', hx, hy, f + 0.08, 1));
+    } else if (sig === 'ev') {
+      // small projectors under the light line (the line itself is added below)
+      P.box('head', 0.14, 0.05, 0.06, hx, hy - 0.07, f + 0.02);
+      em.push(emitter('head', hx, hy - 0.07, f + 0.08, 1, 0.8));
     } else if (sig === 'eco') {
       for (const k of [-1, 1]) {
         P.box('head', 0.1, 0.07, 0.06, hx + k * 0.08, hy, f + 0.02);
@@ -166,6 +175,12 @@ function carLamps(P, em, W, f, r, hy, ty, sig) {
     } else if (sig === 'bar') {
       P.box('tail', 0.3, 0.07, 0.06, tx, ty + 0.02, r - 0.03);
       em.push(emitter('tail', tx, ty + 0.02, r - 0.08, -1, 0.8));
+    } else if (sig === 'tall') {
+      // tall upright strips at the corners, up toward the roof
+      P.box('tail', 0.09, 0.5, 0.06, tx + sx * 0.1, ty + 0.14, r - 0.03);
+      for (const k of [-0.06, 0.12, 0.3]) em.push(emitter('tail', tx + sx * 0.1, ty + k, r - 0.08, -1, 0.5));
+    } else if (sig === 'ev') {
+      // only the full-width line (below)
     } else if (sig === 'eco') {
       // an L: a vertical strip at the outer edge, a short arm running inward
       const ox = tx + sx * 0.12;
@@ -180,6 +195,18 @@ function carLamps(P, em, W, f, r, hy, ty, sig) {
     } else {
       P.box('tail', 0.38, 0.13, 0.06, tx, ty, r - 0.03);
       em.push(emitter('tail', tx, ty, r - 0.08, -1));
+    }
+  }
+  if (sig === 'ev') {
+    // one thin line across the front and one across the back
+    const half = W / 2 - 0.12;
+    P.box('drl', half * 2, 0.025, 0.05, 0, hy + 0.03, f + 0.015);
+    P.box('tail', half * 2, 0.04, 0.05, 0, ty + 0.02, r - 0.025);
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      const x = -half + ((i + 0.5) / n) * half * 2;
+      em.push(emitter('drl', x, hy + 0.03, f + 0.07, 1, 0.36));
+      em.push(emitter('tail', x, ty + 0.02, r - 0.07, -1, 0.42));
     }
   }
   if (sig === 'bar') {
@@ -262,7 +289,7 @@ function buildCarBody(P, sp, em, extraRear = 0, sig = 'std') {
   if (extraRear) P.box('trim', 0.08, 0.08, extraRear, 0, clr + 0.25, r - extraRear / 2); // tow bar
 }
 
-function buildVan(P, em) {
+function buildVan(P, em, rack = false) {
   const L = 5.9, W = 2.0, H = 2.5, clr = 0.2;
   const f = L / 2, r = -L / 2;
   const ra = 0.41;
@@ -287,6 +314,21 @@ function buildVan(P, em) {
   }
   wheelWell(P, W, clr, f - 0.85, 0.34, ra);
   wheelWell(P, W, clr, r + 1.15, 0.34, ra);
+  if (rack) {
+    // Bestelbus tells, readable from behind: a roof rack with a ladder that
+    // sticks out past the back, and a company stripe along the sides and doors.
+    const rl = L - 1.7, rz = r + rl / 2 + 0.1;
+    for (const sx of [1, -1]) {
+      P.box('trim', 0.06, 0.06, rl, sx * (W / 2 - 0.1), H + 0.2, rz);
+      for (let i = 0; i < 4; i++) P.box('trim', 0.05, 0.2, 0.05, sx * (W / 2 - 0.1), H + 0.1, r + 0.2 + i * ((rl - 0.3) / 3));
+    }
+    for (let i = 0; i < 4; i++) P.box('trim', W - 0.2, 0.05, 0.06, 0, H + 0.22, r + 0.2 + i * ((rl - 0.3) / 3));
+    const ll = L - 1.6, lz = r - 0.3 + ll / 2;
+    for (const lx of [0.42, 0.02]) P.box('chrome', 0.05, 0.05, ll, lx, H + 0.29, lz);
+    for (let i = 0; i < 10; i++) P.box('chrome', 0.4, 0.03, 0.035, 0.22, H + 0.29, r - 0.2 + i * ((ll - 0.3) / 9));
+    for (const sx of [1, -1]) P.box('paint2', 0.02, 0.26, L - 2.0, sx * (W / 2 + 0.004), 1.25, r + (L - 2.0) / 2 + 0.1);
+    P.box('paint2', W - 0.1, 0.22, 0.02, 0, 1.47, r - 0.035);
+  }
   P.box('glass', W * 0.36, 0.45, 0.02, W * 0.21, 1.85, r - 0.03);
   P.box('glass', W * 0.36, 0.45, 0.02, -W * 0.21, 1.85, r - 0.03);
   P.box('trim', 0.02, H - 0.4, 0.03, 0, 1.4, r - 0.04);
@@ -479,7 +521,7 @@ function buildVariant(variant, low = false, sig = 'std') {
     out.front = P.build();
   } else if (variant === 'van') {
     const P = new Parts();
-    buildVan(P, out.emFront);
+    buildVan(P, out.emFront, sig === 'rack');
     out.front = P.build();
   } else if (variant === 'truck') {
     const P = new Parts();
@@ -519,7 +561,7 @@ function buildVariant(variant, low = false, sig = 'std') {
 export function getVariantGeo(variant, low = false, sig = 'std') {
   if (!CAR_SPECS[variant]) {
     low = false;
-    sig = 'std';
+    if (!(variant === 'van' && sig === 'rack')) sig = 'std';
   }
   const key = `${variant}:${low ? 'low' : ''}:${sig}`;
   if (!variantCache.has(key)) variantCache.set(key, buildVariant(variant, low, sig));
@@ -595,7 +637,9 @@ export function createVehicleVisual(variant, rng, opts = {}) {
     drl: lightMat(0xc8ced2, 0xeaf2ff),
   };
   const bodyColor = opts.color ?? pickWeighted(rng, variant === 'truck' || variant === 'rigid' ? TRUCK_CAB : CAR_COLORS);
-  const paint = paintMaterial(bodyColor, variant === 'truck' || variant === 'rigid');
+  // commercial vehicles get plain paint: a big glossy flat back mirrors your headlights straight back
+  const flatPaint = variant === 'truck' || variant === 'rigid' || variant === 'van';
+  const paint = paintMaterial(bodyColor, flatPaint);
   let paint2 = paint;
   let trailerKind = null;
   if (variant === 'truck') {
@@ -603,6 +647,9 @@ export function createVehicleVisual(variant, rng, opts = {}) {
     paint2 = paintMaterial(pickWeighted(rng, TRAILER), true);
   } else if (variant === 'rigid') {
     paint2 = paintMaterial(pickWeighted(rng, TRAILER), true);
+  } else if (variant === 'van') {
+    // company stripe (only on the white-van geometry)
+    paint2 = paintMaterial(pickWeighted(rng, [[0x1f5fbf, 3], [0xe0661a, 2], [0x2f8a3c, 2], [0xb3202a, 2], [0x1a1b1d, 1]]), true);
   } else if (variant === 'caravan') {
     trailerKind = 'caravan';
     paint2 = paintMaterial(pickWeighted(rng, CARAVAN), true);
@@ -655,13 +702,13 @@ export function createVehicleVisual(variant, rng, opts = {}) {
   };
 }
 
-const HEAD_EMISSIVE = { std: 0xfff4e0, modern: 0xf2f7ff, bar: 0xf2f7ff, angel: 0xe0eaff, round: 0xffd894, eco: 0xf4f6ff };
+const HEAD_EMISSIVE = { std: 0xfff4e0, modern: 0xf2f7ff, bar: 0xf2f7ff, angel: 0xe0eaff, round: 0xffd894, eco: 0xf4f6ff, tall: 0xfff4e0, ev: 0xf0f6ff };
 
 /** Repaint a (possibly pooled) car visual for a look from archetypes.js. */
 export function applyLook(vis, look) {
   vis.look = look;
   if (!look) return;
-  const paint = paintMaterial(look.color);
+  const paint = paintMaterial(look.color, vis.variant === 'van');
   for (const m of vis.bySlot.paint || []) m.material = paint;
   const glass = look.tint ? SHARED.glassTint : SHARED.glass;
   for (const m of vis.bySlot.glass || []) m.material = glass;

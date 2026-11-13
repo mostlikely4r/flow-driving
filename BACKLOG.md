@@ -63,8 +63,8 @@ prototype) before committing to them.
 | F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | done: remembers who it overtakes, heads back right once clear |
 | F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 3 | M | Med | P3 | deferred: generic but convincing is fine |
 | F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 3 | L | Med | P3 | deferred |
-| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | done so far: Leasebak, Patser, Pensioner, Grijze sok (seeks trucks to slipstream). Archetype speeds now really apply in random traffic (bug: they were set after the limit). Next: Family, White van, EV smoothie |
-| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | slice 1 done: palette, lowered + big rims, tint, and a lamp shape per archetype: leasebak LED strip + full-width rear bar, patser angel-eye rings + smoked tails, pensioner round warm lamps, grijze sok twin projectors + L-shaped tails |
+| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | done: Leasebak, Patser, Pensioner, Grijze sok, Family, White van, EV smoothie. Vans can be archetypes too. `?scenario=cast` shows them all |
+| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | slice 1 done: palette, lowered + big rims, tint, and a lamp shape per archetype: leasebak LED strip + full-width rear bar, patser angel-eye rings + smoked tails, pensioner round warm lamps, grijze sok twin projectors + L-shaped tails, family tall upright tails, EV one thin light line front and back, white van roof rack + ladder + company stripe |
 | F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | done: real wheel arches cut into the body |
 | F-28 | **Night mood**: dark sky, cars read as their lights, unlit motorway with occasional sodium-lit stretches whose light sweeps over the car lamp by lamp, white lines that light up in your own beam (retroreflective) | Authentic | 4 | S | Low | P1 | done, needs playtest |
 | F-19 | **Dev overlay v2**: everything the expanded overlay shows now, plus predicted paths, target gaps and lane-change intent drawn in the world | Readable | 3 | M | Low | P2 | later; separate from the AR overlay |
@@ -116,6 +116,11 @@ prototype) before committing to them.
   overtakes. Found while testing: persona speeds were never applied in random traffic (applyLimit
   ran before the persona). With that fixed, `archetypes=0` vs `1` over 24 seeds: 0 collisions,
   0 emergency stops, lane changes +46%, truck overtaking +49% (slow pensioners and soks in lane 0).
+- All seven archetypes, A/B `archetypes=0` vs `1` (24 seeds; density 20 on 2 and 3 lanes): 0 collisions,
+  0 emergency stops. In `cast` every gap under 0.6 s is a patser or leasebak cutting in; nobody
+  brakes harder than 2 m/s². The scenario summary now says who a short gap was behind, and when.
+- Any van in your lane at night was blown out by your dipped beams: glossy clearcoat on a big flat
+  back mirrors the light straight back. Vans now get plain commercial paint, like trucks.
 - Fixed a merge race: two cars from either side could start moving into the same middle lane in
   one step without seeing each other (one emergency stop in the A/B). A car now occupies its target
   lane the moment it starts moving, and aborts if a car converging from the other side is too close.

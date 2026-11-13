@@ -58,5 +58,5 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 (uses the `window.__game.teleport(s)` debug hook).
 
 **Driver archetypes** (`src/archetypes.js`): a persona sets both a car's look (paint, stance, tint,
-light signature) and, about 70% of the time, its driving style. Currently Leasebak, Patser,
-Pensioner and Grijze sok (eco driver that slipstreams trucks, `?scenario=sok`); `archetypes` in config.js scales how common they are. Try `?scenario=archetypes`.
+light signature) and, about 70% of the time, its driving style. Leasebak, Patser, Pensioner,
+Grijze sok (slipstreams trucks, `?scenario=sok`), Family, White van and EV smoothie; `?scenario=cast` shows them all; `archetypes` in config.js scales how common they are. Try `?scenario=archetypes`.

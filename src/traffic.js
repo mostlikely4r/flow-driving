@@ -237,7 +237,7 @@ export class Traffic {
     veh.passing = null; // the vehicle we pulled out to overtake (F-09)
     veh.returnT = 0;
     // Archetype: look and (usually) driving style. See archetypes.js.
-    if (persona === undefined) persona = type === 'car' ? pickPersona(variant, r) : null;
+    if (persona === undefined) persona = type === 'car' || type === 'van' ? pickPersona(variant, r) : null;
     applyPersona(veh, persona, r, forcePersona);
     // the persona may change the desired speed
     this.applyLimit(veh);

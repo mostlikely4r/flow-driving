@@ -60,8 +60,30 @@ export const SCENARIOS = {
       { tag: 'pensioner', type: 'car', variant: 'hatch', persona: 'pensioner', lane: 0, ds: 140, kmh: 90 },
       { tag: 'leasebak', type: 'car', variant: 'estate', persona: 'leasebak', lane: 1, ds: -150, kmh: 125 },
       { tag: 'patser', type: 'car', variant: 'hatch', persona: 'patser', lane: 1, ds: -240, kmh: 130, want: 140 },
-      { tag: 'family', type: 'car', variant: 'suv', lane: 1, ds: 110, kmh: 104 },
+      { tag: 'family', type: 'car', variant: 'suv', persona: 'family', lane: 1, ds: 110, kmh: 104 },
       { tag: 'truck', type: 'truck', variant: 'truck', lane: 0, ds: 520, kmh: 83 },
+    ],
+  },
+
+  cast: {
+    title: 'The whole cast',
+    about:
+      'Three lanes. Every archetype in one stretch: an EV camping in the middle lane, a white van ' +
+      'pushing up behind it, a family car, a pensioner, a grijze sok behind a truck, and a leasebak ' +
+      'and patser coming up fast. Watch the mirror and the lights.',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 16,
+    player: { lane: 0, kmh: 98, want: 102 },
+    vehicles: [
+      { tag: 'truck', type: 'truck', variant: 'truck', lane: 0, ds: 260, kmh: 84 },
+      { tag: 'sok', type: 'car', variant: 'sedan', persona: 'sok', lane: 0, ds: 228, kmh: 84 },
+      { tag: 'ev', type: 'car', variant: 'sedan', persona: 'ev', lane: 1, ds: 80, kmh: 100, params: { hogger: true, bias: -0.03, p: 0.03 } },
+      { tag: 'van', type: 'van', variant: 'van', persona: 'whitevan', lane: 1, ds: -60, kmh: 112 },
+      { tag: 'family', type: 'car', variant: 'suv', persona: 'family', lane: 0, ds: 60, kmh: 100 },
+      { tag: 'pensioner', type: 'car', variant: 'hatch', persona: 'pensioner', lane: 0, ds: 140, kmh: 90 },
+      { tag: 'leasebak', type: 'car', variant: 'estate', persona: 'leasebak', lane: 2, ds: -220, kmh: 128 },
+      { tag: 'patser', type: 'car', variant: 'hatch', persona: 'patser', lane: 1, ds: -330, kmh: 132, want: 140 },
     ],
   },
 

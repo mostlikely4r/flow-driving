@@ -82,7 +82,10 @@ for (let i = 0; i < seconds / dt; i++) {
     }
     s.maxDecel = Math.max(s.maxDecel, -veh.acc);
     const ld = leaderIn(tr.lanes[veh.lane], veh);
-    if (ld && veh.v > 1) s.minGapT = Math.min(s.minGapT, gapBetween(ld, veh) / veh.v);
+    if (ld && veh.v > 1 && gapBetween(ld, veh) / veh.v < s.minGapT) {
+      s.minGapT = gapBetween(ld, veh) / veh.v;
+      s.minGapWho = `${ld.isPlayer ? 'you' : ld.tag || ld.drives || ld.type} @${t.toFixed(0)}s`;
+    }
   }
 }
 console.log('\nsummary            lane  km/h  max decel  min time gap  telegraphed');
@@ -90,6 +93,6 @@ for (const veh of vehicles) {
   const s = st.get(veh);
   const gone = !tr.vehicles.includes(veh);
   console.log(
-    `  ${veh.tag.padEnd(16)} ${String(veh.lane).padStart(4)}  ${String(kmh(veh.v)).padStart(4)}  ${s.maxDecel.toFixed(1).padStart(6)} m/s²  ${s.minGapT === Infinity ? '     –  ' : s.minGapT.toFixed(2).padStart(6) + ' s'}  ${s.tells.length ? s.tells.map((x) => x.toFixed(1) + 's').join(', ') : '–'}${gone ? '  (left range)' : ''}`,
+    `  ${veh.tag.padEnd(16)} ${String(veh.lane).padStart(4)}  ${String(kmh(veh.v)).padStart(4)}  ${s.maxDecel.toFixed(1).padStart(6)} m/s²  ${s.minGapT === Infinity ? '     –  ' : s.minGapT.toFixed(2).padStart(6) + ' s'}${s.minGapT < 0.6 ? ` (behind ${s.minGapWho})` : ''}  ${s.tells.length ? s.tells.map((x) => x.toFixed(1) + 's').join(', ') : '–'}${gone ? '  (left range)' : ''}`,
   );
 }

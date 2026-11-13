@@ -29,7 +29,8 @@ try {
       const g = window.__game, p = g.player, tr = g.traffic, v = p.v;
       for (const veh of [...tr.vehicles]) if (veh.lineup) veh.u = tr.dir * (p.s + 1400); // park old ones far ahead
       return layout.map(([ds, dl, variant, persona]) => {
-        const veh = tr.insertAt(p.s - 900, p.lane + dl, 'car', variant, { v, persona });
+        let veh = null; // try a few spots: real traffic may be in the way
+        for (let k = 0; k < 8 && !veh; k++) veh = tr.insertAt(p.s - 900 - k * 60, p.lane + dl, variant === 'van' ? 'van' : 'car', variant, { v, persona });
         if (!veh) return 'fail';
         veh.lineup = true;
         veh.u = tr.dir * (p.s + ds);

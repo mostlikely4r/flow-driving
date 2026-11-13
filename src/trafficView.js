@@ -17,7 +17,10 @@ const HEAD = {
   bar: [0.86, 0.93, 1],
   angel: [0.78, 0.86, 1],
   round: [1, 0.78, 0.45],
+  ev: [0.86, 0.93, 1],
 };
+// signatures with a running-light strip or ring, shown by day instead of the lamp
+const DRL_SIGS = new Set(['bar', 'angel', 'ev']);
 const DRL = [0.9, 0.95, 1];
 
 export class TrafficView {
@@ -94,14 +97,14 @@ export class TrafficView {
         case 'head':
           if (!st.head) continue;
           // cars with running-light strips or rings show those by day, not the lamp
-          if (!st.night && (st.lights === 'bar' || st.lights === 'angel')) continue;
+          if (!st.night && DRL_SIGS.has(st.lights)) continue;
           [r, g, b] = HEAD[st.lights] || COL.head;
           size = st.night ? 1.05 : 0.32;
           inten = st.night ? (st.lights === 'round' ? 3.3 : 4.2) : st.lights === 'round' ? 0.6 : 0.9;
           wide = 0.0;
           break;
         case 'drl':
-          if (st.lights !== 'bar' && st.lights !== 'angel') continue;
+          if (!DRL_SIGS.has(st.lights)) continue;
           [r, g, b] = DRL;
           size = st.night ? 0.42 : 0.3;
           inten = st.night ? 1.3 : 1.25;
@@ -204,7 +207,7 @@ export class TrafficView {
         m.indR.emissiveIntensity = indR ? 6 : 0;
         m.marker.emissiveIntensity = night ? 2.5 : 0;
         const lights = vis.look ? vis.look.lights : 'std';
-        m.drl.emissiveIntensity = lights === 'bar' || lights === 'angel' ? 5 : 0;
+        m.drl.emissiveIntensity = DRL_SIGS.has(lights) ? 5 : 0;
 
         const dist = Math.abs(ds);
         if (dist < 1500) {
