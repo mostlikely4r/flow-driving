@@ -59,6 +59,8 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 `node tools/night.js <dir>` shoots the night mood on an unlit stretch and inside a sodium-lit one
 (uses the `window.__game.teleport(s)` debug hook).
 
+**Radio** (`src/radio.js`, Y): your own music folder (menu, Esc) or live NPO stations. Streams use a plain `<audio>` element on purpose: routing cross-origin streams through Web Audio plays silence.
+
 **Driver archetypes** (`src/archetypes.js`): a persona sets both a car's look (paint, stance, tint,
 light signature) and, about 70% of the time, its driving style. Leasebak, Patser, Pensioner,
 Grijze sok (slipstreams trucks, `?scenario=sok`), Family, White van and EV smoothie; `?scenario=cast` shows them all; `archetypes` in config.js scales how common they are. Try `?scenario=archetypes`.

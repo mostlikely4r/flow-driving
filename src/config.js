@@ -58,6 +58,8 @@ export const DEFAULTS = {
 
   // --- audio ---
   volume: 0.8,
+  radioVolume: 0.5,
+  radioStreams: true, // live Dutch radio over the internet (Y to tune)
 
   seed: 20261112,
 };

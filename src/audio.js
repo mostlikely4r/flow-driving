@@ -196,6 +196,31 @@ export class AudioEngine {
     }
   }
 
+  /** Car horn while held: two detuned square tones through a horn-ish bandpass. */
+  horn(on) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    if (!this.hornGain) {
+      this.hornGain = ctx.createGain();
+      this.hornGain.gain.value = 0;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 900;
+      f.Q.value = 0.9;
+      for (const hz of [415, 495]) {
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        o.frequency.value = hz;
+        o.connect(f);
+        o.start();
+      }
+      f.connect(this.hornGain).connect(this.master);
+    }
+    const t = ctx.currentTime;
+    this.hornGain.gain.cancelScheduledValues(t);
+    this.hornGain.gain.setTargetAtTime(on && !this.muted ? 0.11 : 0, t, on ? 0.012 : 0.03);
+  }
+
   tick(on) {
     if (!this.ctx || this.muted) return;
     const ctx = this.ctx;

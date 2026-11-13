@@ -759,6 +759,11 @@ export class Traffic {
       }
       veh.T += (tT - veh.T) * Math.min(1, dt * 0.4);
       veh.acc = this.computeAcc(veh);
+      // startled by a horn: a short tap of the brakes
+      if (veh.startleT > 0) {
+        veh.startleT -= dt;
+        veh.acc = Math.min(veh.acc, -1.3);
+      }
     }
     for (const veh of this.vehicles) this.laneLogic(veh, dt);
     for (const veh of this.vehicles) {
@@ -796,6 +801,48 @@ export class Traffic {
       this.buildLanes(player);
       this.maintain(sPlayer);
     }
+  }
+
+  /**
+   * Player sounded the horn (F-03). Mild, Dutch reactions: a driver changing
+   * lanes into you abandons it; the car right ahead gives a startled tap of the
+   * brakes (and, in a left lane, takes the hint to move over); a car alongside
+   * flinches and won't come over for a bit. Returns who reacted, for the log.
+   */
+  honkFrom(player) {
+    const who = [];
+    for (const veh of this.vehicles) {
+      const d = veh.u - player.u; // + ahead
+      if (d < -20 || d > 70) continue;
+      const mine = player.lanesOcc.includes(veh.lane);
+      const into = !mine && player.lanesOcc.includes(veh.targetLane) && veh.state !== 'none';
+      if (into) {
+        if (veh.state === 'signal') this.cancelChange(veh);
+        else if (veh.lcT < 0.6) {
+          const from = veh.lane;
+          veh.lane = veh.targetLane;
+          veh.targetLane = from;
+          veh.lcT = 1 - veh.lcT;
+          veh.indicator = -veh.indicator;
+          veh.signalLane = -1;
+        }
+        veh.cooldown = Math.max(veh.cooldown, 6);
+        veh.startleT = 0.4;
+        who.push({ veh, how: 'abandons the lane change' });
+      } else if (mine && d > 0 && gapBetween(veh, player) < 50) {
+        veh.startleT = 0.5;
+        if (veh.lane > 0) {
+          veh.pressureT = Math.max(veh.pressureT, 5);
+          veh.decT = Math.min(veh.decT, 0.4);
+        }
+        who.push({ veh, how: 'startled tap of the brakes' });
+      } else if (!mine && Math.abs(d) < 12 && player.lanesOcc.some((l) => Math.abs(l - veh.lane) === 1)) {
+        veh.startleT = 0.3;
+        veh.cooldown = Math.max(veh.cooldown, 5);
+        who.push({ veh, how: 'flinches' });
+      }
+    }
+    return who;
   }
 
   /** Player flashed headlights: the vehicle ahead in our lane feels pressure. */

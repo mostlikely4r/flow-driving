@@ -10,6 +10,7 @@ export const KEYS = {
   lookRight: ['KeyX'],
   lookBack: ['KeyB'],
   flash: ['KeyF'],
+  horn: ['Space'],
 };
 
 export class Input {

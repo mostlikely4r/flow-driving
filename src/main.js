@@ -18,6 +18,7 @@ import { createVehicleVisual, initVehicleMaterials, setVehicleNight, setLayerRec
 import { setMaxAnisotropy } from './textures.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
+import { Radio } from './radio.js';
 import { Hud } from './hud.js';
 import { Stats } from './stats.js';
 import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
@@ -371,6 +372,7 @@ makeTraffic();
 // ---------------------------------------------------------------- state
 const input = new Input(renderer.domElement);
 const audio = new AudioEngine();
+const radio = new Radio((t, k) => hud.toast(t, k));
 const hud = new Hud();
 const stats = new Stats();
 const overlay = new Overlay(document.getElementById('overlay'));
@@ -381,6 +383,11 @@ let viewIdx = 0;
 let paused = true;
 let started = false;
 let lookYaw = 0, lookPitch = 0;
+let hornOn = false;
+// Shoulder check (F-13): tap Z / X for a quick glance over the shoulder at the
+// blind spot, hold to keep looking.
+const glance = { left: 0, right: 0 };
+const SHOULDER_L = 2.35, SHOULDER_R = -2.2; // rad, about 135° / 125°
 let chaseYaw = player.yaw;
 let time = 0;
 let lastBlink = false;
@@ -414,6 +421,9 @@ hud.buildMenu((key, v) => {
   else if (key === 'trafficDensity') traffic.density = v;
   else if (key === 'oncomingDensity') oncoming.density = v;
   else if (key === 'volume') audio.setVolume(v);
+  else if (key === 'radioVolume') radio.setVolume(v);
+  else if (key === 'radioFolder') radio.setFiles(v);
+  else if (key === 'radioStreams' && !v && typeof radio.source === 'number') radio.tune('off');
   else if (key === 'fov') {
     camera.fov = v;
     camera.updateProjectionMatrix();
@@ -426,6 +436,10 @@ hud.buildMenu((key, v) => {
 const startEl = document.getElementById('start');
 function setPaused(p) {
   paused = p;
+  if (p && hornOn) {
+    hornOn = false;
+    audio.horn(false);
+  }
   document.getElementById('menu').classList.toggle('hidden', !p || !started);
 }
 startEl.addEventListener('click', () => {
@@ -440,6 +454,7 @@ startEl.addEventListener('click', () => {
   } else if (SCENARIO_NAME) hud.toast(`Unknown scenario "${SCENARIO_NAME}"`, 'bad');
 });
 document.getElementById('btnresume').onclick = () => setPaused(false);
+window.addEventListener('blur', () => { if (hornOn) { hornOn = false; audio.horn(false); } });
 
 // ---------------------------------------------------------------- input handling
 function handlePresses(pad) {
@@ -473,6 +488,12 @@ function handlePresses(pad) {
         break;
       case 'KeyQ':
         player.indicator(-1);
+        break;
+      case 'KeyZ':
+        glance.left = 0.75;
+        break;
+      case 'KeyX':
+        glance.right = 0.75;
         break;
       case 'KeyE':
         player.indicator(1);
@@ -522,8 +543,12 @@ function handlePresses(pad) {
         hud.toggle(hud.statsEl);
         hud.showStats(stats);
         break;
+      case 'KeyY':
+        radio.next();
+        break;
       case 'KeyM':
         audio.setMuted(!audio.muted);
+        radio.setMuted(audio.muted);
         hud.toast(audio.muted ? 'Sound off' : 'Sound on');
         break;
       case 'KeyI':
@@ -617,13 +642,21 @@ const _v3 = new THREE.Vector3();
 function updateCamera(dt, pad) {
   const v = VIEWS[viewIdx];
   let target = 0;
-  if (input.is('lookLeft')) target = 1.2;
-  else if (input.is('lookRight')) target = -1.2;
+  glance.left = Math.max(0, glance.left - dt);
+  glance.right = Math.max(0, glance.right - dt);
+  let rate = 9;
+  if (input.is('lookLeft') || glance.left > 0) {
+    target = SHOULDER_L;
+    rate = 13; // a quick head turn
+  } else if (input.is('lookRight') || glance.right > 0) {
+    target = SHOULDER_R;
+    rate = 13;
+  }
   else if (input.is('lookBack')) target = Math.PI * 0.97;
   else if (input.mouseLook.active) target = input.mouseLook.yaw;
   else if (pad && Math.abs(pad.lookX) > 0.15) target = -pad.lookX * 1.4;
   if (pad && pad.held(1)) target = Math.PI * 0.97;
-  lookYaw += (target - lookYaw) * approach(9, dt);
+  lookYaw += (target - lookYaw) * approach(rate, dt);
   const pt = input.mouseLook.active ? input.mouseLook.pitch : 0;
   lookPitch += (pt - lookPitch) * approach(9, dt);
   if (!input.mouseLook.active) input.mouseLook.yaw *= 1 - approach(6, dt);
@@ -640,7 +673,10 @@ function updateCamera(dt, pad) {
       camera.layers.disable(LAYER_SELF); // the body shell would block the view from inside
       // slight head motion with acceleration
       const lean = clamp(-player.acc * 0.006, -0.03, 0.03);
-      camera.position.set(0.37 + Math.sin(lookYaw) * 0.08, 1.22, -0.17 + lean);
+      // turning the head over the shoulder also moves it: forward and toward
+      // the window, so you see past the B-pillar into the blind spot
+      const turn = Math.min(1, Math.abs(lookYaw) / 2.3);
+      camera.position.set(0.37 + Math.sin(lookYaw) * 0.08 + Math.sign(lookYaw) * 0.07 * turn, 1.22 + 0.02 * turn, -0.17 + lean + 0.1 * turn);
       camera.near = 0.06;
     } else {
       camera.position.set(0, 1.3, 1.0);
@@ -686,6 +722,15 @@ function frame(now) {
       oncoming.step(dt / tsub, player.s, null);
     }
     stats.update(dt, player, traffic, (t, k) => hud.toast(t, k));
+    // horn (F-03): sound while held; drivers react once per press
+    {
+      const h = input.is('horn');
+      if (h !== hornOn) {
+        hornOn = h;
+        audio.horn(h);
+        if (h) traffic.honkFrom(player.proxy);
+      }
+    }
     if (player.flashT <= 0 && input.is('flash')) {
       player.flashT = 0.6;
       const who = traffic.flashFrom(player.proxy);
@@ -855,6 +900,7 @@ requestAnimationFrame(frame);
 
 // debug handle
 window.__game = {
+  radio,
   player, traffic, oncoming, road, scene, renderer, CONFIG, scenery,
   /** Debug / look-dev: jump to distance s along the road with fresh traffic. */
   teleport(s) {

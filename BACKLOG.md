@@ -52,7 +52,7 @@ prototype) before committing to them.
 |---|---|---|---|---|---|---|---|
 | F-01 | Headlight toggle works at night (lights are currently forced on) | Authentic | 3 | S | Low | P0 | done |
 | F-02 | Fix bloom on nearby headlights: cap the glow from close cars and use proper dipped-beam aim | Authentic | 4 | S | Low | P0 | done, needs playtest |
-| F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | |
+| F-03 | Horn (H). AI reacts mildly: a startled tap of the brakes, or abandoning a lane change into you | Authentic | 2 | S | Low | P1 | done, on Space (H is help): two-tone horn; a car changing lanes into you abandons it, the car ahead taps its brakes and (in a left lane) moves over, a car alongside flinches and holds its lane |
 | F-04 | **Scenario harness**: set up a seeded, repeatable situation such as "2 lanes, truck ahead, speeder behind" from a menu or URL | Readable | 5 | M | Low | P0 | done: `?scenario=` + `npm run scenario` |
 | F-05 | **AI intent debug overlay**: shows each car's desired lane, its target gap and why it won't merge | Readable | 4 | S | Low | P0 | done (O key, dev mode) |
 | F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered. A small quality-of-life option, off by default | Readable | 5 | S | Low | P0 | done, playtested; labels made smaller |
@@ -68,8 +68,8 @@ prototype) before committing to them.
 | F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | done: real wheel arches cut into the body |
 | F-28 | **Night mood**: dark sky, cars read as their lights, unlit motorway with occasional sodium-lit stretches whose light sweeps over the car lamp by lamp, white lines that light up in your own beam (retroreflective) | Authentic | 4 | S | Low | P1 | done, needs playtest |
 | F-19 | **Dev overlay v2**: everything the expanded overlay shows now, plus predicted paths, target gaps and lane-change intent drawn in the world | Readable | 3 | M | Low | P2 | later; separate from the AR overlay |
-| F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | |
-| F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | |
+| F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | done: Y tunes off / my music / NPO Radio 1, 2, 3FM, Klassiek, 5. Folder picked in the menu each session (files stay local); streams can be turned off in the menu. Later: remember the folder, car-speaker EQ |
+| F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | done: Z / X tap = quick glance (~135° / 125°, head moves toward the window), hold = keep looking |
 
 ### M2: The road breathes
 

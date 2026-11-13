@@ -116,6 +116,9 @@ export class Hud {
       ['accTimeGap', 'ACC time gap (s)', 'range', [1, 3, 0.1]],
       ['fov', 'Field of view', 'range', [45, 90, 1]],
       ['volume', 'Volume', 'range', [0, 1, 0.05]],
+      ['radioVolume', 'Radio volume (Y = tune)', 'range', [0, 1, 0.05]],
+      ['radioStreams', 'Live radio stations (internet)', 'check'],
+      ['radioFolder', 'My music', 'folder', 'Choose music folder…'],
       ['shadows', 'Shadows *', 'check'],
       ['bloom', 'Bloom', 'check'],
       ['headlightGlare', 'Headlight glare', 'range', [0, 2, 0.1]],
@@ -162,6 +165,22 @@ export class Hud {
         row.appendChild(val);
         box.appendChild(row);
         continue;
+      } else if (type === 'folder') {
+        // a folder of your own music; files stay on your computer
+        const pick = document.createElement('input');
+        pick.type = 'file';
+        pick.multiple = true;
+        pick.webkitdirectory = true;
+        pick.style.display = 'none';
+        pick.onchange = () => pick.files.length && onChange(key, pick.files);
+        input = document.createElement('button');
+        input.type = 'button';
+        input.textContent = opt;
+        input.onclick = (e) => {
+          e.preventDefault();
+          pick.click();
+        };
+        row.appendChild(pick);
       } else if (type === 'check') {
         input = document.createElement('input');
         input.type = 'checkbox';
