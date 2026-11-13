@@ -110,8 +110,9 @@ export class TrafficView {
         case 'tail':
           if (!st.night && !st.brake) continue;
           [r, g, b] = COL.tail;
-          size = st.brake ? (st.night ? 0.85 : 0.55) : 0.55;
-          inten = (st.night ? 1.0 : 0) + (st.brake ? 2.6 : 0);
+          // Tail lights glow less than headlights: present, never a red haze.
+          size = st.brake ? (st.night ? 0.6 : 0.5) : 0.4;
+          inten = (st.night ? 0.5 : 0) + (st.brake ? (st.night ? 1.5 : 2.4) : 0);
           wide = 0.35;
           break;
         case 'indL':
@@ -198,7 +199,7 @@ export class TrafficView {
         const indR = veh.indicator === 1 && blinkOn;
         const m = vis.mats;
         m.head.emissiveIntensity = night ? 3 : 0.8;
-        m.tail.emissiveIntensity = (night ? 1.3 : 0) + (veh.brake ? 4 : 0);
+        m.tail.emissiveIntensity = (night ? 0.9 : 0) + (veh.brake ? (night ? 2.6 : 4) : 0);
         m.indL.emissiveIntensity = indL ? 6 : 0;
         m.indR.emissiveIntensity = indR ? 6 : 0;
         m.marker.emissiveIntensity = night ? 2.5 : 0;
@@ -215,7 +216,7 @@ export class TrafficView {
           const fx = Math.sin(yaw), fz = Math.cos(yaw);
           const half = veh.frontLen / 2;
           const big = veh.type === 'truck';
-          beams.add(x + fx * half, z + fz * half, fx, fz, 0.3, big ? 40 : 34, 2.2, big ? 11 : 9.5, 0.035, big ? 0.5 : 0.42);
+          beams.add(x + fx * half, z + fz * half, fx, fz, 0.3, big ? 32 : 26, 2.2, big ? 9 : 8, 0.035, big ? 0.2 : 0.16);
         }
       }
     }

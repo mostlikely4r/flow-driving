@@ -134,9 +134,9 @@ export class Scenery {
             vec2 d = vWPos.xz - uBeamPos.xz;
             float along = dot(d, uBeamDir);
             float side = abs(d.x * uBeamDir.y - d.y * uBeamDir.x);
-            float reach = mix(75.0, 170.0, uHigh);
-            float a = smoothstep(3.0, 9.0, along) * (1.0 - smoothstep(reach * 0.35, reach, along));
-            float w = 3.0 + along * mix(0.16, 0.12, uHigh);
+            float reach = mix(105.0, 210.0, uHigh);
+            float a = smoothstep(3.0, 9.0, along) * (1.0 - smoothstep(reach * 0.45, reach, along));
+            float w = 3.5 + along * mix(0.17, 0.13, uHigh);
             float b = a * (1.0 - smoothstep(w * 0.6, w, side));
             totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * uBeam * b * 0.9;
           }`,

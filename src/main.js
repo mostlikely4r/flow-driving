@@ -695,7 +695,7 @@ function frame(now) {
   steeringWheel.rotation.z = -player.steerVis * 1.6;
   // The real lights stay weak so a white van ahead isn't blown out; the road
   // itself is lit by a ground beam below and the retroreflective lines.
-  for (const l of headLows) l.intensity = lights ? (mode === 'night' ? 26 : 22) : 0;
+  for (const l of headLows) l.intensity = lights ? (mode === 'night' ? 16 : 16) : 0;
   {
     const bu = scenery.M.marking.userData.beam;
     bu.uBeamPos.value.set(player.x, 0, player.z);
@@ -703,7 +703,7 @@ function frame(now) {
     bu.uBeam.value = lights ? (mode === 'night' ? 1 : mode === 'dusk' ? 0.35 : 0) : 0;
     bu.uHigh.value = player.highBeam || player.flashT > 0 ? 1 : 0;
   }
-  headHigh.intensity = lights && (player.highBeam || player.flashT > 0) ? 260 : 0;
+  headHigh.intensity = lights && (player.highBeam || player.flashT > 0) ? 110 : 0;
 
   updateCamera(dt, ctl.pad);
   playerVis.root.updateMatrixWorld(true);
@@ -734,7 +734,7 @@ function frame(now) {
   const indL = (player.ind === -1 || player.hazard) && blink;
   const indR = (player.ind === 1 || player.hazard) && blink;
   pm.head.emissiveIntensity = lights ? 3 : 0.8;
-  pm.tail.emissiveIntensity = (lights ? 1.3 : 0) + (pBrake ? 4 : 0);
+  pm.tail.emissiveIntensity = (lights ? 0.9 : 0) + (pBrake ? (night ? 2.6 : 4) : 0);
   pm.indL.emissiveIntensity = indL ? 6 : 0;
   pm.indR.emissiveIntensity = indR ? 6 : 0;
   if (VIEWS[viewIdx] === 'chase') {

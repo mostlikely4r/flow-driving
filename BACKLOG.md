@@ -87,7 +87,7 @@ prototype) before committing to them.
 
 | ID | Feature | Pillar | Value | Effort | Risk | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| F-30 | Road network graph: replace the single endless road with connected segments (architecture work) | — | 5 | XL | High | P2 | split needed |
+| F-30 | Road network graph: replace the single endless road with connected segments (architecture work) | — | 5 | XL | High | P2 | split needed. Street lighting then follows the map (junctions, specific sections) instead of random 1.6 km stretches |
 | F-31 | Player takes an exit onto an N-road (80 km/h, single carriageway, oncoming traffic) | Authentic | 4 | L | Med | P2 | |
 | F-32 | Klaverblad (cloverleaf) junction between two motorways, including weaving traffic | Authentic | 4 | XL | High | P3 | split needed |
 | F-33 | Navigation: voice and HUD arrow, with the blue signs matching the route | Authentic | 4 | M | Low | P2 | |
