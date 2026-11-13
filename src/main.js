@@ -649,7 +649,9 @@ let last = performance.now();
 const camWorld = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // rAF's timestamp can be earlier than the performance.now() taken at start-up:
+  // never let dt go negative (it drove the keyboard pedals to full brake).
+  const dt = clamp((now - last) / 1000, 0, 0.05);
   last = now;
   const ctl = input.controls(dt);
   handlePresses(ctl.pad);

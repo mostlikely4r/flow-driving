@@ -30,6 +30,9 @@ export const ARCHETYPES = {
       veh.tSignal = lerp(r, 0.8, 1.4);
       veh.lcDur = lerp(r, 2.8, 3.6);
       veh.tSafe = lerp(r, 0.4, 0.6);
+      veh.driftMax = lerp(r, 0.35, 0.55); // edges out, visibly impatient
+      veh.press = lerp(r, 0.6, 0.9); // sits on the bumper of whatever is slow
+      veh.tPrep = lerp(r, 0.3, 0.7);
     },
   },
   patser: {
@@ -56,6 +59,9 @@ export const ARCHETYPES = {
       veh.lcDur = lerp(r, 2.2, 3.0);
       veh.tSafe = lerp(r, 0.25, 0.4);
       veh.bSafe = lerp(r, 3.5, 4.2);
+      veh.driftMax = lerp(r, 0.03, 0.1); // no warning
+      veh.press = lerp(r, 0.85, 1);
+      veh.tPrep = lerp(r, 0, 0.15);
     },
   },
   pensioner: {
@@ -81,6 +87,9 @@ export const ARCHETYPES = {
       veh.tSafe = lerp(r, 1.0, 1.5);
       veh.tSafePlayer = veh.tSafe + 0.4;
       veh.bSafe = lerp(r, 1.2, 1.8);
+      veh.driftMax = lerp(r, 0.08, 0.18);
+      veh.press = 0;
+      veh.tPrep = lerp(r, 1.5, 2.5); // a good long look in the mirror first
     },
   },
 };

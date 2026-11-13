@@ -141,7 +141,7 @@ export class Overlay {
   }
 
   text(veh, traffic, player, dev, full) {
-    if (dev) return this.devText(veh, full);
+    if (dev) return this.devText(veh, full, traffic);
     if (this.mode === 'ar-abs') return String(Math.round(veh.v * KMH));
     const r = Math.round((veh.v - player.v) * KMH);
     return r > 0 ? `+${r}` : r < 0 ? `−${-r}` : '±0';
@@ -180,7 +180,7 @@ export class Overlay {
     el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
   }
 
-  devText(veh, full) {
+  devText(veh, full, traffic) {
     const f = [];
     if (veh.limitOffset > 10) f.push('SPD');
     else if (veh.limitOffset < -3) f.push('SLOW');
@@ -190,14 +190,17 @@ export class Overlay {
     if (veh.pressureT > 0) f.push('PRESSED');
     const who = veh.persona ? (veh.drives ? veh.persona : `${veh.persona}-look, drives normal`) : veh.variant;
     const head = `#${veh.id}${veh.tag ? ' "' + veh.tag + '"' : ''} ${who}${f.length ? ' · ' + f.join(' ') : ''}`;
-    const stShort = veh.state === 'signal' ? ` sig${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.state === 'move' ? ` mov${veh.targetLane > veh.lane ? 'L' : 'R'}` : '';
+    const stShort = veh.state === 'signal' ? ` sig${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.state === 'move' ? ` mov${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.intent >= 0 ? ` want${veh.intent > veh.lane ? 'L' : 'R'}` : '';
     if (!full) return `${veh.tag ? veh.tag : veh.drives || '#' + veh.id} ${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)}${f.length ? ' ' + f[0] : ''}${stShort}`;
     const sp = `${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s · p ${veh.p.toFixed(2)} · ant ${(veh.antic ?? 0).toFixed(2)}`;
     let st;
     const dir = (t) => (t > veh.lane ? 'L' : 'R');
     if (veh.state === 'signal') st = `signal ${dir(veh.targetLane)} ${veh.signalT.toFixed(1)}/${veh.tSignal.toFixed(1)}s`;
     else if (veh.state === 'move') st = `moving ${dir(veh.targetLane)} ${Math.round(veh.lcT * 100)}%`;
+    else if (veh.intent >= 0 && veh.intentSince != null) st = `wants ${dir(veh.intent)} ${(traffic.time - veh.intentSince).toFixed(1)}s · drift ${Math.abs(veh.drift).toFixed(2)}m`;
     else st = veh.cooldown > 0 ? `cooldown ${veh.cooldown.toFixed(1)}s` : 'cruising';
+    if (veh.passing) st += ' · passing';
+    if (veh.returnT > 0) st += ' · going back right';
     if (veh.anticOn) st += ` · easing for ${veh.anticOn.isPlayer ? 'YOU' : veh.anticOn.tag || '#' + veh.anticOn.id}`;
     const ev = (e, name) => (e ? `${name} ${e.margin >= 0 ? '+' : ''}${e.margin.toFixed(2)}${e.safe ? '' : ' unsafe'}` : `${name} –`);
     const wish = `${ev(veh.dbgL, 'L')} | ${ev(veh.dbgR, 'R')}`;

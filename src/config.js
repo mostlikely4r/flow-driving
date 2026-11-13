@@ -28,6 +28,7 @@ export const DEFAULTS = {
   truckOvertakeEagerness: 1.0, // 0 = never overtake, 2 = elephant races galore
   coolness: 0.99, // ACC model: 0 = plain IDM (brakes hard on any close cut-in), ~1 = calm drop-back
   anticipation: 1.0, // scales how early AI reads merges and plans overtakes (0 = purely reactive)
+  telegraph: 1.0, // scales how much AI shows lane changes in advance (drift, closing up, mirror-check delay); 0 = off
   archetypes: 1.0, // share of cars with a recognisable driver archetype (0 = all ordinary)
   politeness: 1.0, // scales how much AI lets others in / moves right for faster cars
 

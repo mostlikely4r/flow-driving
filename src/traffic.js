@@ -224,9 +224,25 @@ export class Traffic {
     veh.wanderA = 0.05 + r() * 0.14;
     veh.wanderW = 0.08 + r() * 0.25;
     veh.wanderPh = r() * 6.28;
+    // Telegraphing: how a driver shows a lane change before making it.
+    //   driftMax: how far it edges toward the lane line (m)
+    //   press:    how much it closes up on a slow car while waiting to pull out (0..1)
+    //   tPrep:    time between wanting a lane and signalling (mirror check), s
+    veh.intent = -1; // lane it wants but hasn't signalled for yet
+    veh.intentSince = null;
+    veh.drift = 0;
+    veh.driftMax = 0.15 + r() * 0.3;
+    veh.press = type === 'truck' ? r() * 0.2 : r() * r() * 0.45;
+    veh.tPrep = type === 'truck' ? 0.8 + r() * 1.2 : 0.4 + r() * 1.0;
+    veh.passing = null; // the vehicle we pulled out to overtake (F-09)
+    veh.returnT = 0;
     // Archetype: look and (usually) driving style. See archetypes.js.
     if (persona === undefined) persona = type === 'car' ? pickPersona(variant, r) : null;
     applyPersona(veh, persona, r, forcePersona);
+    const tg = CONFIG.telegraph ?? 1;
+    veh.driftMax *= tg;
+    veh.press *= tg;
+    veh.tPrep *= tg;
     // Hoggers don't notice you behind them: only flashing moves them.
     if (veh.hogger) veh.p = Math.min(veh.p, 0.04);
     return veh;
@@ -330,6 +346,22 @@ export class Traffic {
         }
       }
     }
+    // Gap seeking: while signalling, line up with the gap instead of waiting
+    // blindly. Drop in behind a car alongside or just ahead in the target lane,
+    // and lift a little when a faster car is passing, so it clears sooner.
+    if (veh.state === 'signal') {
+      const tl = this.lanes[veh.targetLane];
+      const nl = leaderIn(tl, veh);
+      if (nl && !nl.isPlayer && nl.v < veh.v + 2) {
+        const g = gapBetween(nl, veh);
+        if (g < 25) a = Math.min(a, Math.max(idm(veh, nl, 0.5), -1.2));
+      }
+      const nf = followerIn(tl, veh);
+      if (nf && nf !== veh && nf.v > veh.v + 1) {
+        const g = gapBetween(veh, nf);
+        if (g < 15) a = Math.min(a, -0.4);
+      }
+    }
     return a;
   }
 
@@ -359,6 +391,7 @@ export class Traffic {
         if (g < 2 || e.v >= veh.v) continue; // alongside, or not slower: no conflict
         let likely = 0;
         if (e.signalLane === veh.lane) likely = 1;
+        else if (e.intent === veh.lane && an > 0.3) likely = 0.35 * an; // edging toward our lane
         else if (an > 0.5 && ln < veh.lane && !e.isPlayer) {
           // car to our right, stuck behind something slower, and it wants to go faster
           const ld = leaderIn(list, e);
@@ -414,7 +447,8 @@ export class Traffic {
     let inc = selfish + p * (dNf + dOf);
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
-    const bias = baseBias + (veh.pressureT > 0 ? 0.25 : 0);
+    // after an overtake, going back right is the plan (F-09)
+    const bias = baseBias + (veh.pressureT > 0 ? 0.25 : 0) + (veh.returnT > 0 && t < veh.lane ? 0.2 : 0);
     const left = t > veh.lane;
     const need = left ? veh.thr + bias : veh.thr - bias;
     // Nobody moves LEFT just to be nice to the car behind: politeness may hold
@@ -431,9 +465,25 @@ export class Traffic {
       veh.indOffT -= dt;
       if (veh.indOffT <= 0) veh.indicator = 0;
     }
+    veh.returnT = Math.max(0, (veh.returnT || 0) - dt);
+    // F-09 follow-through: once clear of the vehicle we overtook, head back right
+    if (veh.passing) {
+      const pv = veh.passing;
+      veh.passingT += dt;
+      if (veh.state === 'none' && pv.lane < veh.lane && gapBetween(veh, pv) > 8 + veh.v * 0.6) {
+        veh.passing = null;
+        veh.cooldown = Math.min(veh.cooldown, 0.3);
+        veh.decT = Math.min(veh.decT, 0.3);
+        veh.returnT = 8;
+      } else if (veh.passingT > 45 || pv.lane >= veh.lane) veh.passing = null;
+    }
     if (veh.state === 'none') {
       veh.cooldown -= dt;
       veh.decT -= dt;
+      if (veh.cooldown > 0) {
+        veh.intent = -1;
+        veh.intentSince = null;
+      }
       if (veh.decT > 0 || veh.cooldown > 0) return;
       veh.decT = 0.5 + this.rng() * 0.7;
       let best = null;
@@ -448,7 +498,17 @@ export class Traffic {
         if (!ev.wants) continue;
         if (!best || ev.margin > best.ev.margin) best = { t, ev };
       }
-      if (!best) return;
+      // Intent: wanting a lane shows (drift, pressure) before any signal.
+      if (!best) {
+        veh.intent = -1;
+        veh.intentSince = null;
+        return;
+      }
+      if (veh.intent !== best.t) {
+        veh.intent = best.t;
+        veh.intentSince = this.time;
+      }
+      if (this.time - veh.intentSince < (veh.tPrep ?? 0)) return; // checking the mirror
       const left = best.t > veh.lane;
       // Signal if safe, or signal and wait for a gap when we really want it:
       // going left to overtake, or going right (keep-right / back in after an
@@ -472,6 +532,14 @@ export class Traffic {
         if (ev.safe && ev.margin > -0.3) {
           veh.state = 'move';
           veh.lcT = 0;
+          // remember who we're overtaking, to come back in after passing
+          if (t > veh.lane) {
+            const ld = leaderIn(this.lanes[veh.lane], veh);
+            if (ld && !ld.isPlayer && ld.v < veh.v0 - 3 * KMH && gapBetween(ld, veh) < 80) {
+              veh.passing = ld;
+              veh.passingT = 0;
+            }
+          }
           return;
         }
         if (veh.recheckT <= 0) {
@@ -497,6 +565,9 @@ export class Traffic {
         veh.lane = veh.targetLane;
         veh.state = 'none';
         veh.lcT = 0;
+        veh.drift = 0;
+        veh.intent = -1;
+        veh.intentSince = null;
         veh.signalLane = -1;
         veh.indOffT = 0.3 + this.rng() * 0.8;
         veh.cooldown = 2.5 + this.rng() * 5;
@@ -506,6 +577,8 @@ export class Traffic {
 
   cancelChange(veh) {
     veh.state = 'none';
+    veh.intent = -1;
+    veh.intentSince = null;
     veh.signalLane = -1;
     veh.targetLane = veh.lane;
     veh.indOffT = 0.2;
@@ -627,6 +700,11 @@ export class Traffic {
     this.buildLanes(player);
     for (const veh of this.vehicles) {
       veh.v0 = veh.v0base * (1 + 0.012 * Math.sin(this.time * veh.jitterW + veh.jitterPh));
+      // Pressure: closing up on a slow car while waiting to pull out left.
+      if (veh.Tbase == null) veh.Tbase = veh.T;
+      const pushing = veh.intent > veh.lane || (veh.state === 'signal' && veh.targetLane > veh.lane);
+      const tT = pushing ? Math.max(0.45, veh.Tbase * (1 - 0.4 * (veh.press || 0))) : veh.Tbase;
+      veh.T += (tT - veh.T) * Math.min(1, dt * 0.4);
       veh.acc = this.computeAcc(veh);
     }
     for (const veh of this.vehicles) this.laneLogic(veh, dt);
@@ -641,10 +719,19 @@ export class Traffic {
       const prev = veh.latLocal;
       let lat;
       if (veh.state === 'move') {
+        // the drift built up before the move blends out as the car crosses
         const p = lcProfile(veh.lcT);
-        lat = laneLat(veh.lane) + (laneLat(veh.targetLane) - laneLat(veh.lane)) * p;
+        lat = laneLat(veh.lane) + (laneLat(veh.targetLane) - laneLat(veh.lane)) * p + (veh.drift || 0) * (1 - p);
       } else {
-        lat = laneLat(veh.lane);
+        // Drift toward the lane we want: half way while just wanting it, fully
+        // while signalling. Often the first thing you notice.
+        const want = veh.state === 'signal' ? veh.targetLane : veh.intent;
+        let target = 0;
+        if (want >= 0 && want !== veh.lane) {
+          target = Math.sign(laneLat(want) - laneLat(veh.lane)) * (veh.driftMax || 0) * (veh.state === 'signal' ? 1 : 0.5);
+        }
+        veh.drift = (veh.drift || 0) + clamp(target - (veh.drift || 0), -0.3 * dt, 0.3 * dt);
+        lat = laneLat(veh.lane) + veh.drift;
       }
       lat += veh.wanderA * Math.sin(this.time * veh.wanderW + veh.wanderPh);
       veh.latLocal = lat;

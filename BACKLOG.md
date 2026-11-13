@@ -58,9 +58,9 @@ prototype) before committing to them.
 | F-17 | **AR speed overlay**: speed of other cars (relative or absolute) over the windscreen and in the mirrors, warm colours when closing in, decluttered. A small quality-of-life option, off by default | Readable | 5 | S | Low | P0 | done, playtested; labels made smaller |
 | F-06 | AI anticipation: plans an overtake *before* closing in on a slower vehicle, instead of braking first and then swerving | Readable | 5 | M | Med | P0 | done: per-driver `antic` skill (archetypes will set it), menu knob |
 | F-18 | **Cut-in overreaction**: IDM brakes up to −9 m/s² when a slightly slower car merges in ~20 m ahead. Real drivers drop back gently. Fix: blend IDM with Treiber's constant-acceleration heuristic (the ACC model) | Authentic | 5 | S | Low | P0 | done: `coolness` 0.99 in config.js |
-| F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | |
-| F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | |
-| F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | |
+| F-07 | AI telegraphing: drifts toward the lane line, signals for 2–3 s and makes small speed adjustments before changing lanes | Readable | 5 | M | Med | P1 | done: intent phase (drift, closing up, mirror-check delay), gap seeking while signalling; style per archetype; `telegraph` knob |
+| F-08 | Speeders read the road ahead: they lift off early when a car in front signals left, rather than braking late | Readable | 4 | M | Med | P1 | mostly covered by F-06 + F-07: anticipating drivers now also react to a car edging toward their lane. Revisit after playtest |
+| F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | done: remembers who it overtakes, heads back right once clear |
 | F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 3 | M | Med | P3 | deferred: generic but convincing is fine |
 | F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 3 | L | Med | P3 | deferred |
 | F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | slice 1 done: Leasebak, Patser, Pensioner; hoggers ignore politeness. Next: Family, White van, EV smoothie |
@@ -113,6 +113,14 @@ prototype) before committing to them.
   0.3 → 1.8 s/veh-h (patsers and leasebaks tailgate, as intended), lane changes +14%, avg −0.9 km/h.
 - In `archetypes`, the patser cuts back in front of the leasebak at 0.4 s and later undertakes on
   the right at 141 km/h. That's the character working.
+- F-07/F-09 telegraph time (`npm run scenario`, new column): ordinary drivers 2.3–4.0 s from first
+  visible sign to moving, patser ~1 s. In `elephant` the speeder now lifts off (peak 1.6 m/s²)
+  instead of braking for 5.6 s. A/B (`telegraph=0` vs `1`, 12 seeds): 0 collisions and 0 emergency
+  stops with telegraphing, −10% lane changes, truck overtaking +35%, avg +0.4 km/h. Also 0/0 at
+  density 20, on 2 lanes and over 24 seeds. (With `telegraph=0` the default run had 2 collisions:
+  the instant, unannounced lane changes are the risky ones.)
+- Fixed: on the first frame `dt` could be negative, which drove the keyboard pedals to full brake and
+  switched cruise control off at the start of a scenario.
 - By day a sun glint on a car's glass can bloom into what looks like a lamp. Minor, look at it with
   F-10.
 
