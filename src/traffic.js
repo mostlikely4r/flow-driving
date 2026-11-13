@@ -239,6 +239,9 @@ export class Traffic {
     // Archetype: look and (usually) driving style. See archetypes.js.
     if (persona === undefined) persona = type === 'car' ? pickPersona(variant, r) : null;
     applyPersona(veh, persona, r, forcePersona);
+    // the persona may change the desired speed
+    this.applyLimit(veh);
+    veh.v0 = veh.v0base;
     const tg = CONFIG.telegraph ?? 1;
     veh.driftMax *= tg;
     veh.press *= tg;
@@ -443,8 +446,25 @@ export class Traffic {
     if (nf && gapBetween(veh, nf) < 200) dNf = idm(nf, veh) - idm(nf, nl);
     const p = veh.p + (veh.pressureT > 0 ? 0.6 : 0);
     const kv = veh.type === 'truck' ? 0.15 * veh.eager : 0.15;
-    const selfish = aNew - aOld + kv * (this.expSpeed(veh, nl) - this.expSpeed(veh, ol));
-    let inc = selfish + p * (dNf + dOf);
+    let kvTerm = kv * (this.expSpeed(veh, nl) - this.expSpeed(veh, ol));
+    let accTerm = aNew - aOld;
+    // Truck lovers (grijze sok) are happy at truck speed: they stay behind
+    // their truck, and slot in behind one in the next lane right.
+    // A "truck" here is a truck, or a car already tucked in behind one (a convoy).
+    let love = 0;
+    if (veh.truckLove) {
+      const tk = (l) => l && (l.type === 'truck' || l.drafting) && gapBetween(l, veh) < 300;
+      if (tk(ol) && !tk(nl)) {
+        kvTerm *= 1 - veh.truckLove; // passing it gains nothing worth the fuel
+        love = -0.6 * veh.truckLove;
+      } else if (!tk(ol) && tk(nl) && t < veh.lane) {
+        kvTerm *= 1 - veh.truckLove; // its speed is fine
+        accTerm = Math.max(accTerm, -0.3);
+        love = 0.3 * veh.truckLove;
+      }
+    }
+    const selfish = accTerm + kvTerm;
+    const inc = selfish + p * (dNf + dOf) + love;
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
     // after an overtake, going back right is the plan (F-09)
@@ -532,6 +552,10 @@ export class Traffic {
         if (ev.safe && ev.margin > -0.3) {
           veh.state = 'move';
           veh.lcT = 0;
+          // Occupy the target lane now, so a car merging into it from the
+          // other side later in this same step sees us.
+          const tl = this.lanes[t];
+          if (!tl.includes(veh)) tl.splice(firstAbove(tl, veh.u), 0, veh);
           // remember who we're overtaking, to come back in after passing
           if (t > veh.lane) {
             const ld = leaderIn(this.lanes[veh.lane], veh);
@@ -550,9 +574,11 @@ export class Traffic {
     } else if (veh.state === 'move') {
       veh.lcT += dt / veh.lcDur;
       if (veh.lcT < 0.3) {
-        // abort if it suddenly became dangerous
+        // abort if it suddenly became dangerous: someone closing fast behind,
+        // or a car merging into the same lane from the other side
         const nf = followerIn(this.lanes[veh.targetLane], veh);
-        if (nf && nf !== veh && idm(nf, veh) < -5) {
+        const nl = leaderIn(this.lanes[veh.targetLane], veh);
+        if ((nf && nf !== veh && idm(nf, veh) < -5) || (nl && nl.state === 'move' && idm(veh, nl) < -4)) {
           const from = veh.lane;
           veh.lane = veh.targetLane;
           veh.targetLane = from;
@@ -703,7 +729,16 @@ export class Traffic {
       // Pressure: closing up on a slow car while waiting to pull out left.
       if (veh.Tbase == null) veh.Tbase = veh.T;
       const pushing = veh.intent > veh.lane || (veh.state === 'signal' && veh.targetLane > veh.lane);
-      const tT = pushing ? Math.max(0.45, veh.Tbase * (1 - 0.4 * (veh.press || 0))) : veh.Tbase;
+      let tT = pushing ? Math.max(0.45, veh.Tbase * (1 - 0.4 * (veh.press || 0))) : veh.Tbase;
+      // Slipstreaming: tuck in closer behind a truck (grijze sok)
+      veh.drafting = false;
+      if (veh.Tdraft && veh.state === 'none') {
+        const ld = leaderIn(this.lanes[veh.lane], veh);
+        if (ld && ld.type === 'truck' && gapBetween(ld, veh) < 90) {
+          tT = Math.min(tT, veh.Tdraft);
+          veh.drafting = true;
+        }
+      }
       veh.T += (tT - veh.T) * Math.min(1, dt * 0.4);
       veh.acc = this.computeAcc(veh);
     }

@@ -65,6 +65,25 @@ export const SCENARIOS = {
     ],
   },
 
+  sok: {
+    title: 'Grijze sok',
+    about:
+      'Three lanes. A grijze sok comes past you in the middle lane looking for a truck to tuck in behind; ' +
+      'another one already sits behind the truck ahead. An ordinary driver at the same speed follows. ' +
+      'Who overtakes the truck, and who settles in behind it?',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 15,
+    player: { lane: 0, kmh: 86, want: 88 },
+    vehicles: [
+      { tag: 'truck', type: 'truck', variant: 'truck', lane: 0, ds: 150, kmh: 84 },
+      { tag: 'sok', type: 'car', variant: 'sedan', persona: 'sok', lane: 0, ds: 113, kmh: 84 },
+      { tag: 'seeker', type: 'car', variant: 'hatch', persona: 'sok', lane: 1, ds: 25, kmh: 94 },
+      { tag: 'truck2', type: 'truck', variant: 'truck', lane: 0, ds: 600, kmh: 82 },
+      { tag: 'normal', type: 'car', variant: 'estate', persona: null, lane: 1, ds: -90, kmh: 94, want: 96 },
+    ],
+  },
+
   hogger: {
     title: 'Middle-lane hogger',
     about:

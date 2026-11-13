@@ -188,6 +188,7 @@ export class Overlay {
     if (veh.coop) f.push('coop');
     if (!veh.strict) f.push('undertakes');
     if (veh.pressureT > 0) f.push('PRESSED');
+    if (veh.drafting) f.push('DRAFT');
     const who = veh.persona ? (veh.drives ? veh.persona : `${veh.persona}-look, drives normal`) : veh.variant;
     const head = `#${veh.id}${veh.tag ? ' "' + veh.tag + '"' : ''} ${who}${f.length ? ' · ' + f.join(' ') : ''}`;
     const stShort = veh.state === 'signal' ? ` sig${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.state === 'move' ? ` mov${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.intent >= 0 ? ` want${veh.intent > veh.lane ? 'L' : 'R'}` : '';

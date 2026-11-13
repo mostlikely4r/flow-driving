@@ -92,6 +92,37 @@ export const ARCHETYPES = {
       veh.tPrep = lerp(r, 1.5, 2.5); // a good long look in the mirror first
     },
   },
+  sok: {
+    name: 'Grijze sok',
+    variants: { hatch: 0.12, sedan: 0.14 },
+    colors: [[0x8d9296, 6], [0x6e7378, 5], [0xa9aeb0, 3], [0x7d8c96, 2], [0x5e6a5c, 1]],
+    lights: 'eco',
+    loyalty: 0.75,
+    // Fuel-economy driver: well under the limit, gentle on the pedals, coasts
+    // early, and seeks out a truck to sit behind (closer than it should, for
+    // the slipstream). Once there it stays: overtaking a truck costs fuel.
+    drive(veh, r) {
+      veh.limitOffset = lerp(r, -10, -4); // cruises a bit under the limit until it finds a truck
+      veh.T = lerp(r, 1.5, 1.9);
+      veh.Tdraft = lerp(r, 0.95, 1.25); // tucked in behind a truck
+      veh.truckLove = lerp(r, 0.7, 1);
+      veh.a *= 0.7;
+      veh.p = lerp(r, 0.4, 0.7);
+      veh.coop = 1;
+      veh.strict = true;
+      veh.hogger = false;
+      veh.bias = lerp(r, 0.4, 0.55);
+      veh.antic = lerp(r, 0.8, 1);
+      veh.tSignal = lerp(r, 1.8, 2.6);
+      veh.lcDur = lerp(r, 4.5, 5.5);
+      veh.tSafe = lerp(r, 0.8, 1.2);
+      veh.tSafePlayer = veh.tSafe + 0.4;
+      veh.bSafe = lerp(r, 1.4, 2.0);
+      veh.driftMax = lerp(r, 0.1, 0.2);
+      veh.press = 0;
+      veh.tPrep = lerp(r, 1.0, 1.8);
+    },
+  },
 };
 
 const NORMAL_COLORS = [

@@ -123,6 +123,7 @@ function disc(P, slot, rad, x, y, z, depth = 0.05) {
  *   bar    slim LED headlamps with a running-light strip, full-width rear light bar (leasebak)
  *   angel  small round projectors with ring running lights, smoked tails (patser)
  *   round  big round warm lamps, pairs of small round tails (pensioner)
+ *   eco    small twin projectors, L-shaped tails (grijze sok)
  */
 function carLamps(P, em, W, f, r, hy, ty, sig) {
   for (const sx of [1, -1]) {
@@ -144,6 +145,11 @@ function carLamps(P, em, W, f, r, hy, ty, sig) {
       em.push(emitter('head', hx, hy - 0.01, f + 0.08, 1, 0.9));
       P.box('drl', 0.36, 0.022, 0.05, hx - sx * 0.01, hy + 0.045, f + 0.015);
       for (const k of [-1.5, -0.5, 0.5, 1.5]) em.push(emitter('drl', hx - sx * 0.01 + k * 0.085, hy + 0.045, f + 0.07, 1, 0.42));
+    } else if (sig === 'eco') {
+      for (const k of [-1, 1]) {
+        P.box('head', 0.1, 0.07, 0.06, hx + k * 0.08, hy, f + 0.02);
+        em.push(emitter('head', hx + k * 0.08, hy, f + 0.08, 1, 0.7));
+      }
     } else if (sig === 'modern') {
       P.box('head', 0.38, 0.075, 0.06, hx, hy, f + 0.02);
       em.push(emitter('head', hx, hy, f + 0.08, 1));
@@ -160,6 +166,13 @@ function carLamps(P, em, W, f, r, hy, ty, sig) {
     } else if (sig === 'bar') {
       P.box('tail', 0.3, 0.07, 0.06, tx, ty + 0.02, r - 0.03);
       em.push(emitter('tail', tx, ty + 0.02, r - 0.08, -1, 0.8));
+    } else if (sig === 'eco') {
+      // an L: a vertical strip at the outer edge, a short arm running inward
+      const ox = tx + sx * 0.12;
+      P.box('tail', 0.045, 0.22, 0.06, ox, ty - 0.03, r - 0.03);
+      P.box('tail', 0.24, 0.045, 0.06, ox - sx * 0.12, ty - 0.12, r - 0.03);
+      for (const k of [0.06, -0.03, -0.12]) em.push(emitter('tail', ox, ty + k, r - 0.08, -1, 0.42));
+      for (const k of [0.09, 0.18]) em.push(emitter('tail', ox - sx * k, ty - 0.12, r - 0.08, -1, 0.42));
     } else if (sig === 'modern') {
       P.box('tail', 0.4, 0.08, 0.06, tx, ty + 0.02, r - 0.03);
       em.push(emitter('tail', tx - sx * 0.08, ty + 0.02, r - 0.08, -1, 0.75));
@@ -642,7 +655,7 @@ export function createVehicleVisual(variant, rng, opts = {}) {
   };
 }
 
-const HEAD_EMISSIVE = { std: 0xfff4e0, modern: 0xf2f7ff, bar: 0xf2f7ff, angel: 0xe0eaff, round: 0xffd894 };
+const HEAD_EMISSIVE = { std: 0xfff4e0, modern: 0xf2f7ff, bar: 0xf2f7ff, angel: 0xe0eaff, round: 0xffd894, eco: 0xf4f6ff };
 
 /** Repaint a (possibly pooled) car visual for a look from archetypes.js. */
 export function applyLook(vis, look) {

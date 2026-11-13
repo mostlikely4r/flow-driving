@@ -63,8 +63,8 @@ prototype) before committing to them.
 | F-09 | Overtake follow-through: cars return right promptly after passing, and drivers queued behind react to it | Authentic | 4 | S | Low | P1 | done: remembers who it overtakes, heads back right once clear |
 | F-10 | Car models spike: compare improved procedural cars with imported CC0 glTF models on one test car | Quality | 3 | M | Med | P3 | deferred: generic but convincing is fine |
 | F-11 | Car models rollout: about 8 distinct vehicles, each with its own light layout (based on the F-10 outcome) | Quality | 3 | L | Med | P3 | deferred |
-| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | slice 1 done: Leasebak, Patser, Pensioner; hoggers ignore politeness. Next: Family, White van, EV smoothie |
-| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | slice 1 done: palette, lowered + big rims, tint, and a lamp shape per archetype: leasebak LED strip + full-width rear bar, patser angel-eye rings + smoked tails, pensioner round warm lamps |
+| F-14 | **Driver archetypes**: a persona decides both the look and the behaviour (speed, headway, politeness, lane habits). Tendencies, not guarantees, roughly 70/30 | Readable | 5 | M | Med | P1 | done so far: Leasebak, Patser, Pensioner, Grijze sok (seeks trucks to slipstream). Archetype speeds now really apply in random traffic (bug: they were set after the limit). Next: Family, White van, EV smoothie |
+| F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | slice 1 done: palette, lowered + big rims, tint, and a lamp shape per archetype: leasebak LED strip + full-width rear bar, patser angel-eye rings + smoked tails, pensioner round warm lamps, grijze sok twin projectors + L-shaped tails |
 | F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | done: real wheel arches cut into the body |
 | F-28 | **Night mood**: dark sky, cars read as their lights, unlit motorway with occasional sodium-lit stretches whose light sweeps over the car lamp by lamp, white lines that light up in your own beam (retroreflective) | Authentic | 4 | S | Low | P1 | done, needs playtest |
 | F-19 | **Dev overlay v2**: everything the expanded overlay shows now, plus predicted paths, target gaps and lane-change intent drawn in the world | Readable | 3 | M | Low | P2 | later; separate from the AR overlay |
@@ -111,6 +111,14 @@ prototype) before committing to them.
   Hoggers now have near-zero politeness: only flashing (F) moves them.
 - F-14 A/B (`archetypes=0` vs `1`): no collisions or emergency stops; tight gaps (<0.6 s)
   0.3 → 1.8 s/veh-h (patsers and leasebaks tailgate, as intended), lane changes +14%, avg −0.9 km/h.
+- Grijze sok: spends 29% of its time behind a truck or truck convoy, vs 3.5% for other cars.
+  In `sok`, it slots in behind the truck + sok convoy at 14 s and stays; the ordinary driver
+  overtakes. Found while testing: persona speeds were never applied in random traffic (applyLimit
+  ran before the persona). With that fixed, `archetypes=0` vs `1` over 24 seeds: 0 collisions,
+  0 emergency stops, lane changes +46%, truck overtaking +49% (slow pensioners and soks in lane 0).
+- Fixed a merge race: two cars from either side could start moving into the same middle lane in
+  one step without seeing each other (one emergency stop in the A/B). A car now occupies its target
+  lane the moment it starts moving, and aborts if a car converging from the other side is too close.
 - In `archetypes`, the patser cuts back in front of the leasebak at 0.4 s and later undertakes on
   the right at 141 km/h. That's the character working.
 - F-07/F-09 telegraph time (`npm run scenario`, new column): ordinary drivers 2.3–4.0 s from first
@@ -149,6 +157,7 @@ prototype) before committing to them.
 | Leasebak (lease car) | Dark grey or black German-style estate or sedan, LED light strips | 120–135 in the left lane, slightly short headway, flashes you |
 | Patser | Cheap black hatch, lowered, tinted windows, big wheels | Erratic: short gaps, late cut-ins, overtakes on the right when frustrated |
 | Pensioner | Small silver hatch or a caravan, yellowish halogen lights | Under the limit, stays right, signals early and long, very polite |
+| Grijze sok | Grey or silver hatch or sedan, L-shaped tails | Eco driver: 90–96 until it finds a truck, then tucks in behind it (~1.1 s) and stays; gentle, coasts early |
 | Family | Mid-blue or red SUV or estate | Steady at the limit, normal gaps, cooperative |
 | White van (bestelbus) | White van, roof rack | Faster than you'd expect, pushes in the middle lane |
 | EV smoothie | White or blue clean sedan, thin light bar | Exactly at the limit, perfectly smooth, often hogs the middle lane |

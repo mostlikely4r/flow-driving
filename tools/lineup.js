@@ -44,12 +44,12 @@ try {
     }, layout);
     const view = async (n) => { for (let i = 0; i < n; i++) await page.keyboard.press('KeyV'); };
     // sides: chase view, one car each side, and two more a bit ahead
-    console.log(tod, await place([[3, 1, 'hatch', 'patser'], [3, -1, 'estate', 'leasebak'], [14, 1, 'hatch', 'pensioner'], [14, -1, 'suv', null]]));
+    console.log(tod, await place([[3, 1, 'hatch', 'patser'], [3, -1, 'estate', 'leasebak'], [14, 1, 'hatch', 'pensioner'], [14, -1, 'sedan', 'sok']]));
     await view(2); // cockpit -> bonnet -> chase
     await sleep(600);
     await page.screenshot({ path: `${out}/${tod}-sides.png` });
     // fronts: bonnet view looking back (hold B)
-    console.log(tod, await place([[-11, 1, 'hatch', 'patser'], [-11, -1, 'estate', 'leasebak'], [-24, 1, 'hatch', 'pensioner'], [-24, -1, 'suv', null]]));
+    console.log(tod, await place([[-11, 1, 'hatch', 'patser'], [-11, -1, 'estate', 'leasebak'], [-24, 1, 'hatch', 'pensioner'], [-24, -1, 'sedan', 'sok']]));
     await view(2); // chase -> cockpit -> bonnet
     await page.keyboard.down('KeyB');
     await sleep(900);
