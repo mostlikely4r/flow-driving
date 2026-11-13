@@ -33,8 +33,10 @@ const glowFS = /* glsl */ `
     vec2 c = gl_PointCoord - 0.5;
     float r = length(c) * 2.0;
     if (r > 1.0) discard;
-    float halo = exp(-r * r * 5.0) * 0.55;
-    float core = exp(-r * r * 38.0) * 2.2;
+    // The sprite draws its own round halo and keeps the core's peak modest:
+    // very hot pixels make the bloom blur spread in a boxy pattern.
+    float halo = exp(-r * r * 4.0) * 0.6 * (1.0 - smoothstep(0.8, 1.0, r));
+    float core = exp(-r * r * 30.0) * 1.4;
     gl_FragColor = vec4(vColor * (halo + core), 1.0);
   }
 `;

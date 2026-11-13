@@ -119,6 +119,19 @@ prototype) before committing to them.
 - All seven archetypes, A/B `archetypes=0` vs `1` (24 seeds; density 20 on 2 and 3 lanes): 0 collisions,
   0 emergency stops. In `cast` every gap under 0.6 s is a patser or leasebak cutting in; nobody
   brakes harder than 2 m/s². The scenario summary now says who a short gap was behind, and when.
+- Playtest 1 feedback (speeds): "everyone under the limit". `tools/speeds.js` showed drivers wanted
+  ~102 but drove ~91 by day: nearly everyone sits in a queue behind a slightly slower car, the left
+  lane included (it fills with cars at 95-100 that pulled out to pass something slower). Lane-change
+  appetite (`speedGain`) changed nothing. Changes: ordinary drivers aim for limit +6 (sd 3), vans
+  at the limit, more and faster speeders (night x1.7: left lane p90 ~147 at 130), half the traffic
+  at night, a "move over for the faster car behind you" urge, +5 km/h while passing, default
+  density 12 -> 10. Result by day: drivers want 101/106/111 (p10/50/90), drive 83/95/105; night
+  103/128/137. Day is still ~10 under what drivers want: the queueing model compresses more than
+  real Dutch traffic does. Next lever: a deeper look at how left-lane queues dissolve.
+- Night (playtest 1): your dipped beams now dim when a car is close ahead (imitates the cut-off),
+  softer clearcoat; street lamps fade in/out over 100 m instead of switching; bloom was boxy because
+  three's blur truncates its Gaussian at 1 sigma (a box filter): coefficients recomputed, lamp meshes
+  glow softer at night so round sprites carry the flare.
 - Any van in your lane at night was blown out by your dipped beams: glossy clearcoat on a big flat
   back mirrors the light straight back. Vans now get plain commercial paint, like trucks.
 - Fixed a merge race: two cars from either side could start moving into the same middle lane in

@@ -15,15 +15,21 @@ export const DEFAULTS = {
   speedLimitNight: 130,
 
   // --- traffic ---
-  trafficDensity: 12, // vehicles per km per lane, your direction
+  trafficDensity: 10, // vehicles per km per lane, your direction
   oncomingDensity: 9, // vehicles per km per lane, other carriageway
   rangeAhead: 1500, // simulated distance ahead of you (m)
   rangeBehind: 900, // simulated distance behind you (m)
   mix: { car: 0.69, van: 0.11, truck: 0.17, caravan: 0.03 },
-  speeders: 0.06, // share of ordinary cars (archetypes add their own) that want limit + 12..37
-  slowpokes: 0.1, // share of cars that want limit - 4..12
+  speeders: 0.07, // share of ordinary cars (archetypes add their own) that want limit + 10..45 (mostly 10-20)
+  nightSpeeders: 1.7, // more of them at night
+  nightTraffic: 0.5, // traffic density at night, relative to the setting (dusk: 0.8)
+  slowpokes: 0.06, // share of cars that want limit - 3..9
   middleLaneHoggers: 0.07, // share of drivers who ignore keep-right
-  speedSpreadKmh: 4, // std-dev of 'normal' drivers around limit + 2
+  passBoostKmh: 5, // a little extra speed while passing someone
+  moveOver: 0.25, // urge to keep right when a faster car is close behind you
+  speedGain: 1, // how much a few km/h faster is worth to a car driver when choosing a lane
+  normalOffsetKmh: 6, // ordinary drivers aim for limit + this...
+  speedSpreadKmh: 3, // ...give or take this (std-dev)
   truckSpeedKmh: 84, // trucks are limited (80 + GPS/tolerance)
   truckOvertakeEagerness: 1.0, // 0 = never overtake, 2 = elephant races galore
   coolness: 0.99, // ACC model: 0 = plain IDM (brakes hard on any close cut-in), ~1 = calm drop-back

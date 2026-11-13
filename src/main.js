@@ -82,6 +82,7 @@ scene.add(playerVis.root);
 // headlights (real lights)
 // decay 1 keeps the road near the bumper from blowing out while still reaching ~60 m
 const headLows = [];
+let headDim = 1; // see the cut-off note in the frame loop
 for (const sx of [1, -1]) {
   const l = new THREE.SpotLight(0xfff4e6, 0, 200, 0.5, 0.8, 1.0);
   l.position.set(sx * 0.7, 0.68, 2.3);
@@ -98,7 +99,7 @@ playerVis.front.add(headHigh, headHigh.target);
 // with you, so sodium light sweeps over the car (and the cockpit) one lamp at
 // a time. Distant lamps are glow sprites only.
 const SODIUM = [1, 0.6, 0.22];
-const streetLights = [0, 1].map(() => {
+const streetLights = [0, 1, 2].map(() => {
   const l = new THREE.SpotLight(0xff9a3c, 0, 48, 1.1, 0.7, 1.3);
   scene.add(l, l.target);
   return l;
@@ -107,10 +108,14 @@ function updateStreetLamps(night, dusk) {
   const on = night || dusk;
   const s = player.s;
   const base = Math.floor(s / LAMP_EVERY) * LAMP_EVERY;
-  // the two lamps around you, our side of the median
-  for (let i = 0; i < 2; i++) {
+  // the three lamps around you, our side of the median. Each fades in as you
+  // approach and out behind you, so there's no jump when one becomes "real".
+  for (let i = 0; i < 3; i++) {
     const l = streetLights[i];
     const sl = base + i * LAMP_EVERY;
+    const d = sl - s; // -50..100
+    const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+    const w = d >= 0 ? 1 - sm(2 * LAMP_EVERY * 0.4, 2 * LAMP_EVERY, d) : 1 - sm(LAMP_EVERY * 0.2, LAMP_EVERY, -d);
     if (!on || !scenery.litAt(sl)) {
       l.intensity = 0;
       continue;
@@ -120,7 +125,7 @@ function updateStreetLamps(night, dusk) {
     const c = innerEdge() + CONFIG.lanes * CONFIG.laneWidth * 0.45;
     l.target.position.set(p.x + p.nx * c, 0, p.z + p.nz * c);
     l.target.updateMatrixWorld();
-    l.intensity = night ? 320 : 120;
+    l.intensity = (night ? 260 : 100) * w;
   }
   if (!on) return;
   // glowing lamp heads, both carriageways, receding into the distance
@@ -301,7 +306,16 @@ camera.layers.enable(LAYER_SELF);
 camera.layers.enable(LAYER_COCKPIT);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.3, 0.45, 0.88);
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.3, 0, 0.88);
+// Round bloom: three's blur uses sigma = kernel radius, cut off at one sigma,
+// which is nearly a box filter, so a bright lamp blooms into a square.
+// Use a proper Gaussian that has faded out by the kernel edge.
+for (const m of bloom.separableBlurMaterials) {
+  const c = m.uniforms.gaussianCoefficients.value;
+  const sigma = c.length / 2.4;
+  for (let i = 0; i < c.length; i++) c[i] = Math.exp((-0.5 * i * i) / (sigma * sigma));
+}
+bloom.compositeMaterial.uniforms.bloomFactors.value = [1.0, 0.8, 0.6, 0.4, 0.25];
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -378,6 +392,10 @@ function applyTime(m) {
   scenery.setNight(m);
   setVehicleNight(m === 'night');
   const lim = speedLimitKmh();
+  for (const t of [traffic, oncoming]) {
+    t.night = m === 'night';
+    t.densityScale = m === 'night' ? CONFIG.nightTraffic : m === 'dusk' ? 0.8 : 1;
+  }
   traffic.setLimit(lim);
   oncoming.setLimit(lim);
   player.lightsOn = m !== 'day';
@@ -697,7 +715,21 @@ function frame(now) {
   steeringWheel.rotation.z = -player.steerVis * 1.6;
   // The real lights stay weak so a white van ahead isn't blown out; the road
   // itself is lit by a ground beam below and the retroreflective lines.
-  for (const l of headLows) l.intensity = lights ? (mode === 'night' ? 16 : 16) : 0;
+  // A real dipped beam has a sharp cut-off: close behind a car it only lights
+  // the bumper. Our cone has none, so dim the real lights when a vehicle is
+  // close ahead (or just beside) in the beam, else its back blinds you.
+  {
+    let near = Infinity;
+    for (const veh of traffic.vehicles) {
+      const dl = veh.u - player.s - (veh.len + player.len) / 2;
+      const dlat = Math.abs(veh.latLocal - player.lat);
+      if (dl < -1 || dl > 40 || dlat > 4.5) continue;
+      near = Math.min(near, Math.max(0.5, dl) * (dlat > 2 ? 1.8 : 1));
+    }
+    const f = Math.pow(clamp(near / 32, 0.1, 1), 1.3);
+    headDim += (f - headDim) * Math.min(1, dt * 5);
+  }
+  for (const l of headLows) l.intensity = lights ? 16 * headDim : 0;
   {
     const bu = scenery.M.marking.userData.beam;
     bu.uBeamPos.value.set(player.x, 0, player.z);
@@ -735,8 +767,8 @@ function frame(now) {
   const pBrake = player.brake > 0.05 || (player.acc < -1 && !player.cc.on);
   const indL = (player.ind === -1 || player.hazard) && blink;
   const indR = (player.ind === 1 || player.hazard) && blink;
-  pm.head.emissiveIntensity = lights ? 3 : 0.8;
-  pm.tail.emissiveIntensity = (lights ? 0.9 : 0) + (pBrake ? (night ? 2.6 : 4) : 0);
+  pm.head.emissiveIntensity = lights ? (night ? 1.3 : 3) : 0.8;
+  pm.tail.emissiveIntensity = (lights ? 0.5 : 0) + (pBrake ? (night ? 1.5 : 4) : 0);
   pm.indL.emissiveIntensity = indL ? 6 : 0;
   pm.indR.emissiveIntensity = indR ? 6 : 0;
   if (VIEWS[viewIdx] === 'chase') {

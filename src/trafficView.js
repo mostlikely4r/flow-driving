@@ -100,7 +100,7 @@ export class TrafficView {
           if (!st.night && DRL_SIGS.has(st.lights)) continue;
           [r, g, b] = HEAD[st.lights] || COL.head;
           size = st.night ? 1.05 : 0.32;
-          inten = st.night ? (st.lights === 'round' ? 3.3 : 4.2) : st.lights === 'round' ? 0.6 : 0.9;
+          inten = st.night ? (st.lights === 'round' ? 3.0 : 3.8) : st.lights === 'round' ? 0.6 : 0.9;
           wide = 0.0;
           break;
         case 'drl':
@@ -201,13 +201,15 @@ export class TrafficView {
         const indL = veh.indicator === -1 && blinkOn;
         const indR = veh.indicator === 1 && blinkOn;
         const m = vis.mats;
-        m.head.emissiveIntensity = night ? 3 : 0.8;
-        m.tail.emissiveIntensity = (night ? 0.9 : 0) + (veh.brake ? (night ? 2.6 : 4) : 0);
+        // At night the lamp meshes glow only softly: the round glow sprites carry
+        // the flare, so bloom doesn't turn every box-shaped lamp into a rectangle.
+        m.head.emissiveIntensity = night ? 1.3 : 0.8;
+        m.tail.emissiveIntensity = (night ? 0.5 : 0) + (veh.brake ? (night ? 1.5 : 4) : 0);
         m.indL.emissiveIntensity = indL ? 6 : 0;
         m.indR.emissiveIntensity = indR ? 6 : 0;
         m.marker.emissiveIntensity = night ? 2.5 : 0;
         const lights = vis.look ? vis.look.lights : 'std';
-        m.drl.emissiveIntensity = DRL_SIGS.has(lights) ? 5 : 0;
+        m.drl.emissiveIntensity = DRL_SIGS.has(lights) ? (night ? 2.2 : 5) : 0;
 
         const dist = Math.abs(ds);
         if (dist < 1500) {

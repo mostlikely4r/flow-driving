@@ -588,7 +588,7 @@ export function paintMaterial(hex, flat = false) {
   if (!paintCache.has(key)) {
     const m = flat
       ? new THREE.MeshStandardMaterial({ color: hex, roughness: 0.55, metalness: 0.05 })
-      : new THREE.MeshPhysicalMaterial({ color: hex, roughness: 0.38, metalness: 0.45, clearcoat: 1.0, clearcoatRoughness: 0.12 });
+      : new THREE.MeshPhysicalMaterial({ color: hex, roughness: 0.38, metalness: 0.45, clearcoat: 1.0, clearcoatRoughness: 0.28 });
     paintCache.set(key, m);
   }
   return paintCache.get(key);

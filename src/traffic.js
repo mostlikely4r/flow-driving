@@ -169,10 +169,15 @@ export class Traffic {
     veh.ownMax = 999;
     if (type === 'car' || type === 'van') {
       const x = r();
-      if (x < CONFIG.speeders) veh.limitOffset = 12 + r() * 25;
-      else if (x < CONFIG.speeders + CONFIG.slowpokes) veh.limitOffset = -9 + r() * 6;
-      else veh.limitOffset = 2 + gauss(r) * CONFIG.speedSpreadKmh;
-      if (type === 'van') veh.limitOffset = Math.min(veh.limitOffset, 4) - 2 - r() * 4;
+      // Most drivers set the cruise a little over the limit; at night more
+      // people are in a hurry. Speeders: mostly 10-20 over, a few far more.
+      const speeders = CONFIG.speeders * (this.night ? CONFIG.nightSpeeders : 1);
+      if (x < speeders) {
+        const y = r();
+        veh.limitOffset = 10 + y * y * 35;
+      } else if (x < speeders + CONFIG.slowpokes) veh.limitOffset = -9 + r() * 6;
+      else veh.limitOffset = clamp(CONFIG.normalOffsetKmh + gauss(r) * CONFIG.speedSpreadKmh, -2, 12);
+      if (type === 'van') veh.limitOffset = Math.min(veh.limitOffset, 6) - r() * 3;
     } else if (type === 'truck') {
       veh.limitFactor = 0;
       veh.ownMax = clamp(CONFIG.truckSpeedKmh + gauss(r) * 1.6, 79, 90);
@@ -445,7 +450,7 @@ export class Traffic {
     let dNf = 0;
     if (nf && gapBetween(veh, nf) < 200) dNf = idm(nf, veh) - idm(nf, nl);
     const p = veh.p + (veh.pressureT > 0 ? 0.6 : 0);
-    const kv = veh.type === 'truck' ? 0.15 * veh.eager : 0.15;
+    const kv = veh.type === 'truck' ? 0.15 * veh.eager : 0.15 * (CONFIG.speedGain ?? 1);
     let kvTerm = kv * (this.expSpeed(veh, nl) - this.expSpeed(veh, ol));
     let accTerm = aNew - aOld;
     // Truck lovers (grijze sok) are happy at truck speed: they stay behind
@@ -468,7 +473,15 @@ export class Traffic {
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
     // after an overtake, going back right is the plan (F-09)
-    const bias = baseBias + (veh.pressureT > 0 ? 0.25 : 0) + (veh.returnT > 0 && t < veh.lane ? 0.2 : 0);
+    // Someone faster sitting behind you is a reason to move over (most
+    // drivers do, without being flashed). Hoggers don't notice.
+    let behind = 0;
+    if (t < veh.lane && of && !veh.hogger && veh.type !== 'truck') {
+      const want = (of.isPlayer ? of.v : of.v0) - veh.v;
+      const g = gapBetween(veh, of);
+      if (want > 2 * KMH && g < 15 + of.v * 2.2) behind = (CONFIG.moveOver ?? 0.25) * Math.min(1, want / (8 * KMH));
+    }
+    const bias = baseBias + behind + (veh.pressureT > 0 ? 0.25 : 0) + (veh.returnT > 0 && t < veh.lane ? 0.2 : 0);
     const left = t > veh.lane;
     const need = left ? veh.thr + bias : veh.thr - bias;
     // Nobody moves LEFT just to be nice to the car behind: politeness may hold
@@ -653,7 +666,7 @@ export class Traffic {
   }
 
   densityFactor(s) {
-    return clamp(1 + 0.32 * Math.sin(s / 3900 + 1.3) + 0.18 * Math.sin(s / 1370), 0.45, 1.6);
+    return (this.densityScale ?? 1) * clamp(1 + 0.32 * Math.sin(s / 3900 + 1.3) + 0.18 * Math.sin(s / 1370), 0.45, 1.6);
   }
 
   /** Fill the whole simulated range at start. */
@@ -726,6 +739,11 @@ export class Traffic {
     this.buildLanes(player);
     for (const veh of this.vehicles) {
       veh.v0 = veh.v0base * (1 + 0.012 * Math.sin(this.time * veh.jitterW + veh.jitterPh));
+      // Passing someone: put your foot down a little to get it done.
+      if (veh.lane > 0 && veh.type !== 'truck' && veh.type !== 'caravan') {
+        const rl = leaderIn(this.lanes[veh.lane - 1], veh);
+        if (rl && !rl.isPlayer && rl.v < veh.v0 && gapBetween(rl, veh) < 60 && gapBetween(rl, veh) > -rl.len - 30) veh.v0 += (CONFIG.passBoostKmh ?? 0) * KMH;
+      }
       // Pressure: closing up on a slow car while waiting to pull out left.
       if (veh.Tbase == null) veh.Tbase = veh.T;
       const pushing = veh.intent > veh.lane || (veh.state === 'signal' && veh.targetLane > veh.lane);

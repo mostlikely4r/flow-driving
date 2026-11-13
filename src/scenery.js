@@ -193,7 +193,7 @@ export class Scenery {
     M.windowLit.emissiveIntensity = night ? 2.2 : dusk ? 1.2 : 0;
     M.lampHead.emissiveIntensity = night ? 9 : dusk ? 4 : 0;
     M.pool.visible = night || dusk;
-    M.pool.opacity = night ? 0.13 : 0.06;
+    M.pool.opacity = night ? 0.17 : 0.07;
     for (const ch of this.chunks.values()) for (const m of ch.signMats) m.emissiveIntensity = night ? m.userData.nightE : 0;
     this.signNightFactor = night;
   }

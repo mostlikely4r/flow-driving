@@ -51,6 +51,8 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 `npm run abtest -- anticipation=0 anticipation=1` compares traffic settings over many seeds
 (hard braking, emergency stops, truck overtakes, lane changes, speed).
 `node tools/glare.js <dir>` sets up a night scene with cars close behind and oncoming, for checking headlight glare.
+`node tools/speeds.js [dayDensity] [nightDensity]` reports wanted vs driven speeds per archetype and lane.
+
 `node tools/lineup.js <dir>` parks one car of each archetype next to you (sides, fronts, mirror; day and night) for look-dev.
 `node tools/clip.js <scenario> [seconds] [chase|bonnet|cockpit] [off|ar-rel|ar-abs|dev] [out.mp4]` records a video of a scenario (needs ffmpeg).
 `node tools/nightroad.js <dir>` shows an empty unlit road lit only by your own lamps, then traffic.
