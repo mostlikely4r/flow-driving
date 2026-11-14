@@ -59,6 +59,8 @@ export const DEFAULTS = {
   // --- audio ---
   volume: 0.8,
   radioVolume: 0.5,
+  laneMap: 0, // overhead lane map: 0 off, 1 map, 2 map + time-space (U)
+  laneMapSpan: 500, // metres of road it shows (, . to zoom)
   radioStreams: true, // live Dutch radio over the internet (Y to tune)
 
   seed: 20261112,

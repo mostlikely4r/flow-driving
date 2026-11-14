@@ -106,6 +106,42 @@ export const SCENARIOS = {
     ],
   },
 
+  wave: {
+    title: 'A shockwave',
+    about:
+      'Two busy lanes at 90. Half a kilometre ahead a driver brakes hard to 20 km/h for a moment, then ' +
+      'drives on. Watch the lane map (U, twice for the time-space diagram): each driver brakes a little ' +
+      'later and harder than the one ahead, and the wave travels back toward you.',
+    lanes: 2,
+    timeOfDay: 'day',
+    seed: 21,
+    density: 22,
+    player: { lane: 0, kmh: 90, want: 100 },
+    vehicles: (() => {
+      // two dense lanes, ~1.3 s apart, a truck now and then
+      const r = mulberry32(77);
+      const out = [];
+      for (const lane of [0, 1]) {
+        for (let ds = -420, i = 0; ds < 1100; i++) {
+          const truck = lane === 0 && r() < 0.15;
+          const gap = 34 + r() * 16 + (truck ? 14 : 0);
+          ds += gap;
+          if (lane === 0 && Math.abs(ds) < 20) continue; // room for you
+          const kmh = lane === 0 ? 88 : 96;
+          const spec = truck
+            ? { type: 'truck', variant: 'truck', lane, ds, kmh: 84 }
+            : { type: 'car', variant: ['hatch', 'sedan', 'estate', 'suv'][(r() * 4) | 0], lane, ds, kmh, want: kmh + 6 + r() * 8 };
+          out.push({ tag: '', ...spec });
+        }
+      }
+      // the trigger: a car well ahead in your lane
+      const t = out.filter((s) => s.lane === 0 && s.type === 'car' && s.ds > 480)[0];
+      t.tag = 'braker';
+      t.params = { brakeEvent: { at: 6, kmh: 20, decel: 5.5, hold: 2 }, cooldown: 1e9 };
+      return out;
+    })(),
+  },
+
   hogger: {
     title: 'Middle-lane hogger',
     about:

@@ -77,7 +77,8 @@ prototype) before committing to them.
 |---|---|---|---|---|---|---|---|
 | F-20 | On-ramps (AI only): merge lane, acceleration strip, AI zipper-merge and making room | Readable | 5 | L | High | P1 | |
 | F-21 | Exits (AI only): cars move right early and leave the motorway | Authentic | 4 | M | Med | P1 | |
-| F-22 | Bottlenecks and jams: density waves and lane drops that create a jam which forms and dissolves | Readable | 5 | M | Med | P1 | |
+| F-22 | Bottlenecks and jams: density waves and lane drops that create a jam which forms and dissolves | Readable | 5 | M | Med | P1 | groundwork: `?scenario=wave` + `node tools/wave.js`. Finding: a hard brake does travel back as a wave, but it DAMPS (4.5 m/s² right behind, <1 m/s² 600 m back) because drivers react instantly and smoothly. Growing waves need reaction delay (per driver ~0.5-1.5 s, perceiving the leader late) and less anticipation for some drivers |
+| F-32 | **Overhead lane map + time-space diagram** (U, `, .` zoom 120-2000 m): the road straightened, cars coloured by speed, brake/indicator marks, archetype letters; the diagram shows your lane's trajectories over 80 s so waves are visible | Readable | 4 | S | Low | P1 | done |
 | F-23 | Dynamic matrix signs: 70/50 limits ahead of jams, flashing lights, red X lane closures | Authentic | 4 | M | Low | P2 | |
 | F-24 | Rain: wet road reflections, spray behind trucks, wipers, and AI that keeps bigger gaps | Authentic | 4 | L | Med | P2 | |
 | F-25 | Spitsstrook (rush-hour lane): a hard shoulder that opens at rush hour under the matrix signs | Authentic | 3 | M | Low | P2 | |

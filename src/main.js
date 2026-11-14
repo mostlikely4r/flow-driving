@@ -19,6 +19,7 @@ import { setMaxAnisotropy } from './textures.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { Radio } from './radio.js';
+import { LaneMap } from './lanemap.js';
 import { Hud } from './hud.js';
 import { Stats } from './stats.js';
 import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
@@ -376,6 +377,8 @@ const radio = new Radio((t, k) => hud.toast(t, k));
 const hud = new Hud();
 const stats = new Stats();
 const overlay = new Overlay(document.getElementById('overlay'));
+const laneMap = new LaneMap();
+laneMap.setMode(CONFIG.laneMap);
 overlay.setMode(OVERLAY_MODES.includes(CONFIG.overlay) ? CONFIG.overlay : 'off');
 const VIEWS = ['cockpit', 'bonnet', 'chase'];
 const VIEW_NAMES = { cockpit: 'Cockpit', bonnet: 'Bonnet', chase: 'Chase' };
@@ -546,6 +549,21 @@ function handlePresses(pad) {
       case 'KeyY':
         radio.next();
         break;
+      case 'KeyU': {
+        const m = (laneMap.mode + 1) % 3;
+        laneMap.setMode(m);
+        saveSetting('laneMap', m);
+        hud.toast(['Lane map off', 'Lane map', 'Lane map + time-space diagram'][m]);
+        break;
+      }
+      case 'Comma':
+      case 'Period': {
+        if (!laneMap.mode) break;
+        const span = laneMap.zoom(c === 'Period' ? -1 : 1);
+        saveSetting('laneMapSpan', span);
+        hud.toast(`Lane map: ${span} m`);
+        break;
+      }
       case 'KeyM':
         audio.setMuted(!audio.muted);
         radio.setMuted(audio.muted);
@@ -857,6 +875,8 @@ function frame(now) {
     drawDash();
     hud.showStats(stats);
   }
+
+  laneMap.update(dt, traffic, player, traffic.limitKmh, paused || !started);
 
   // ----- render
   const v = VIEWS[viewIdx];

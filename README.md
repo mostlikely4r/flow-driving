@@ -59,6 +59,8 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 `node tools/night.js <dir>` shoots the night mood on an unlit stretch and inside a sodium-lit one
 (uses the `window.__game.teleport(s)` debug hook).
 
+**Lane map** (`src/lanemap.js`, U): overhead view of your carriageway, cars coloured by speed; press U again for a time-space diagram of your lane (waves show as bands creeping down). `,` `.` zoom. `?scenario=wave` provokes one; `node tools/wave.js` measures how it grows or damps.
+
 **Radio** (`src/radio.js`, Y): your own music folder (menu, Esc) or live NPO stations. Streams use a plain `<audio>` element on purpose: routing cross-origin streams through Web Audio plays silence.
 
 **Driver archetypes** (`src/archetypes.js`): a persona sets both a car's look (paint, stance, tint,

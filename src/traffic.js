@@ -759,6 +759,15 @@ export class Traffic {
       }
       veh.T += (tT - veh.T) * Math.min(1, dt * 0.4);
       veh.acc = this.computeAcc(veh);
+      // scripted event (scenarios): brake hard to a speed, hold it, drive on
+      const be = veh.brakeEvent;
+      if (be && this.time >= be.at && this.time < be.at + (be.hold ?? 3) + 30) {
+        const vT = be.kmh * KMH;
+        // (state lives on the vehicle: the spec object is shared between restarts)
+        if (!veh.beReached && veh.v > vT + 0.3) veh.acc = Math.min(veh.acc, -(be.decel ?? 5));
+        else veh.beReached = true;
+        if (veh.beReached && this.time < (veh.beHoldUntil ??= this.time + (be.hold ?? 3))) veh.acc = Math.min(veh.acc, (vT - veh.v) * 2);
+      }
       // startled by a horn: a short tap of the brakes
       if (veh.startleT > 0) {
         veh.startleT -= dt;
