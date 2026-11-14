@@ -1,5 +1,6 @@
 // Records a video clip of a scenario, for judging motion without playing.
-// Usage: node tools/clip.js <scenario> [seconds=25] [view=chase|bonnet|cockpit] [overlay=off|ar-rel|ar-abs|dev] [out=shots/clip.mp4]
+// Usage: node tools/clip.js <scenario> [seconds=25] [view=chase|bonnet|cockpit] [overlay=off|ar-rel|ar-abs|dev|map] [out=shots/clip.mp4]
+// overlay 'map' shows the lane map with the time-space diagram instead.
 // Needs ffmpeg on PATH (puppeteer's screencast uses it).
 import puppeteer from 'puppeteer-core';
 import { spawn, execFileSync } from 'node:child_process';
@@ -20,7 +21,7 @@ const browser = await puppeteer.launch({
 const webm = out.replace(/\.mp4$/, '') + '.webm';
 try {
   const page = await browser.newPage();
-  await page.evaluateOnNewDocument((overlay) => localStorage.setItem('snelweg.settings.v1', JSON.stringify({ overlay, adaptiveCruise: true })), overlay); // ACC, so your car follows instead of rear-ending
+  await page.evaluateOnNewDocument((overlay) => localStorage.setItem('snelweg.settings.v1', JSON.stringify(overlay === 'map' ? { overlay: 'off', laneMap: 2, laneMapSpan: 1000, adaptiveCruise: true } : { overlay, adaptiveCruise: true })), overlay); // ACC, so your car follows instead of rear-ending
   await page.goto(`http://localhost:4799/?scenario=${name}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await sleep(2500);
   await page.mouse.click(640, 360); // start (restarts the scenario)

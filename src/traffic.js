@@ -239,6 +239,8 @@ export class Traffic {
     veh.driftMax = 0.15 + r() * 0.3;
     veh.press = type === 'truck' ? r() * 0.2 : r() * r() * 0.45;
     veh.tPrep = type === 'truck' ? 0.8 + r() * 1.2 : 0.4 + r() * 1.0;
+    // reaction time (s): how late this driver acts on what happens ahead
+    veh.react = type === 'truck' ? 0.7 + r() * 0.5 : 0.5 + r() * 0.8;
     veh.passing = null; // the vehicle we pulled out to overtake (F-09)
     veh.returnT = 0;
     // Archetype: look and (usually) driving style. See archetypes.js.
@@ -420,6 +422,50 @@ export class Traffic {
       }
     }
     return a;
+  }
+
+  /**
+   * Reaction time (F-22): a driver acts on what they decided a moment ago, not
+   * now. This is what lets a hard brake grow as it travels back: each driver
+   * starts braking later than the one ahead and has to brake harder.
+   * Reflex: when a crash is imminent even braking hard, nobody waits.
+   */
+  reactLate(veh, aNow) {
+    const tau = (veh.react ?? 0) * (CONFIG.reactionTime ?? 1);
+    if (!(tau > 0.02)) return aNow;
+    let h = veh.accHist;
+    if (!h) h = veh.accHist = { t: new Float64Array(160), a: new Float32Array(160), i: 0, n: 0 };
+    h.t[h.i] = this.time;
+    h.a[h.i] = aNow;
+    h.i = (h.i + 1) % 160;
+    if (h.n < 160) h.n++;
+    // the decision from tau seconds ago (oldest available while history fills)
+    const want = this.time - tau;
+    let aOld = aNow;
+    for (let k = 1; k <= h.n; k++) {
+      const j = (h.i - k + 320) % 160;
+      aOld = h.a[j];
+      if (h.t[j] <= want) break;
+    }
+    const ld = leaderIn(this.lanes[veh.lane], veh);
+    if (ld) {
+      // reflex: closing so fast that even 6 m/s² wouldn't be enough soon
+      const g = gapBetween(ld, veh);
+      const dv = veh.v - ld.v;
+      if (g < 1.5 || (dv > 0 && g - 1 < (dv * dv) / (2 * 6) + dv * 0.3)) return Math.min(aNow, aOld);
+      // Brake lights further up: seeing the cars ahead of your leader brake,
+      // you lift off before your leader even reacts. This is what keeps real
+      // queues from collapsing at every touch of the brakes.
+      if (!ld.isPlayer && g < veh.v * 2.5) {
+        const l2 = leaderIn(this.lanes[veh.lane], ld);
+        const seen = (ld.brake ? 1 : 0) + (l2 && !l2.isPlayer && l2.brake && gapBetween(l2, ld) < ld.v * 2.5 ? 1 : 0);
+        if (seen && aNow < aOld) {
+          const k = (CONFIG.brakeLightRead ?? 0.5) * (0.5 + 0.5 * (veh.antic ?? 0.5)) * (seen === 2 ? 1 : 0.6);
+          return aOld + (aNow - aOld) * Math.min(1, k);
+        }
+      }
+    }
+    return aOld;
   }
 
   /** MOBIL evaluation of moving veh into lane t. */
@@ -758,7 +804,7 @@ export class Traffic {
         }
       }
       veh.T += (tT - veh.T) * Math.min(1, dt * 0.4);
-      veh.acc = this.computeAcc(veh);
+      veh.acc = this.reactLate(veh, this.computeAcc(veh));
       // scripted event (scenarios): brake hard to a speed, hold it, drive on
       const be = veh.brakeEvent;
       if (be && this.time >= be.at && this.time < be.at + (be.hold ?? 3) + 30) {

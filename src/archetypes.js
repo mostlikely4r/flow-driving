@@ -33,6 +33,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.35, 0.55); // edges out, visibly impatient
       veh.press = lerp(r, 0.6, 0.9); // sits on the bumper of whatever is slow
       veh.tPrep = lerp(r, 0.3, 0.7);
+      veh.react = lerp(r, 0.45, 0.7);
     },
   },
   patser: {
@@ -62,6 +63,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.03, 0.1); // no warning
       veh.press = lerp(r, 0.85, 1);
       veh.tPrep = lerp(r, 0, 0.15);
+      veh.react = lerp(r, 0.35, 0.6); // quick, but sees nothing coming
     },
   },
   pensioner: {
@@ -90,6 +92,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.08, 0.18);
       veh.press = 0;
       veh.tPrep = lerp(r, 1.5, 2.5); // a good long look in the mirror first
+      veh.react = lerp(r, 0.9, 1.4); // slow to react, but leaves room for it
     },
   },
   sok: {
@@ -121,6 +124,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.1, 0.2);
       veh.press = 0;
       veh.tPrep = lerp(r, 1.0, 1.8);
+      veh.react = lerp(r, 0.6, 0.9);
     },
   },
   family: {
@@ -147,6 +151,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.15, 0.3);
       veh.press = lerp(r, 0, 0.15);
       veh.tPrep = lerp(r, 0.6, 1.2);
+      veh.react = lerp(r, 0.7, 1.1); // the kids in the back
     },
   },
   whitevan: {
@@ -174,6 +179,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.3, 0.5);
       veh.press = lerp(r, 0.7, 1);
       veh.tPrep = lerp(r, 0.2, 0.5);
+      veh.react = lerp(r, 0.6, 1.0); // on the phone
     },
   },
   ev: {
@@ -202,6 +208,7 @@ export const ARCHETYPES = {
       veh.driftMax = lerp(r, 0.12, 0.25);
       veh.press = lerp(r, 0, 0.1);
       veh.tPrep = lerp(r, 0.6, 1.0);
+      veh.react = lerp(r, 0.3, 0.5); // the car's ACC does the reacting
     },
   },
 };
