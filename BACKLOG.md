@@ -77,9 +77,9 @@ prototype) before committing to them.
 |---|---|---|---|---|---|---|---|
 | F-20 | On-ramps (AI only): merge lane, acceleration strip, AI zipper-merge and making room | Readable | 5 | L | High | P1 | |
 | F-21 | Exits (AI only): cars move right early and leave the motorway | Authentic | 4 | M | Med | P1 | |
-| F-22 | Bottlenecks and jams: density waves and lane drops that create a jam which forms and dissolves | Readable | 5 | M | Med | P1 | groundwork: `?scenario=wave` + `node tools/wave.js`. Finding: a hard brake does travel back as a wave, but it DAMPS (4.5 m/s² right behind, <1 m/s² 600 m back) because drivers react instantly and smoothly. Step 1 done: per-driver reaction delay (0.3-1.4 s by archetype, `reactionTime` knob + menu) with a crash reflex, and brake-light reading two cars ahead as the stabiliser. A mild brake (to 65) now grows further back (cars 400 m+ drop to ~48); at reactionTime 1.4 it becomes stop-and-go (braking ~4 m/s², max 5), 0 collisions. 1.6 is unsafe (emergency stops). Step 2: bottlenecks (on-ramps, lane drops): homogeneous traffic still doesn't break down by itself even at 30/km/lane |
+| F-22 | Bottlenecks and jams: density waves and lane drops that create a jam which forms and dissolves | Readable | 5 | M | Med | P1 | groundwork: `?scenario=wave` + `node tools/wave.js`. Finding: a hard brake does travel back as a wave, but it DAMPS (4.5 m/s² right behind, <1 m/s² 600 m back) because drivers react instantly and smoothly. Step 1 done: per-driver reaction delay (0.3-1.4 s by archetype, `reactionTime` knob + menu) with a crash reflex, and brake-light reading two cars ahead as the stabiliser. A mild brake (to 65) now grows further back (cars 400 m+ drop to ~48); at reactionTime 1.4 it becomes stop-and-go (braking ~4 m/s², max 5), 0 collisions. 1.6 is unsafe (emergency stops). Step 2 done via F-23: a lane closure is a bottleneck and a jam now forms by itself behind it (3->2 lanes at 9/km/lane: ~30 veh/min get through against ~50 on a plain 2-lane road, so it is harsher than reality, where a merge costs 10-30%). 0 collisions over 8 closure setups. Causes of the low throughput: stragglers zip in from standstill, trucks pull away at 0.45 m/s², queue discharge gaps. Still open: on-ramps |
 | F-32 | **Overhead lane map + time-space diagram** (U, `, .` zoom 120-2000 m): the road straightened, cars coloured by speed, brake/indicator marks, archetype letters; the diagram shows your lane's trajectories over 80 s so waves are visible | Readable | 4 | S | Low | P1 | done |
-| F-23 | Dynamic matrix signs: 70/50 limits ahead of jams, flashing lights, red X lane closures | Authentic | 4 | M | Low | P2 | |
+| F-23 | Dynamic matrix signs: 70/50 limits ahead of jams, flashing lights, red X lane closures | Authentic | 4 | M | Low | P2 | done (`src/msi.js`): gantries every 500 m; queue warning (traffic past a gantry < 35 km/h -> flashing 50 there and one back, 70 before that, clears after 25 s); lane closures (arrow, red crosses, 70 over open lanes, 90 one gantry earlier, end sign); drivers obey with per-archetype margin; arrow-board truck + cones; HUD limit follows; red cross counted in trip stats; shown on the lane map; random closures in free play (`closuresPer10km`, menu); `?scenario=closure`; `node tools/closure.js` |
 | F-24 | Rain: wet road reflections, spray behind trucks, wipers, and AI that keeps bigger gaps | Authentic | 4 | L | Med | P2 | |
 | F-25 | Spitsstrook (rush-hour lane): a hard shoulder that opens at rush hour under the matrix signs | Authentic | 3 | M | Low | P2 | |
 | F-26 | Roadworks: yellow lines, narrowed lanes and a 90 km/h limit | Authentic | 3 | M | Low | P3 | |
@@ -120,6 +120,12 @@ prototype) before committing to them.
 - All seven archetypes, A/B `archetypes=0` vs `1` (24 seeds; density 20 on 2 and 3 lanes): 0 collisions,
   0 emergency stops. In `cast` every gap under 0.6 s is a patser or leasebak cutting in; nobody
   brakes harder than 2 m/s². The scenario summary now says who a short gap was behind, and when.
+- Closures found a braking bug: with a STANDING obstacle the constant-acceleration heuristic (F-18)
+  degenerated to "no braking needed", so cars braked at -2 until the last moment. Fixed (only
+  affects leaders at standstill). Also: a closed lane is now a hard no for lane changes, drivers
+  leave between the arrow and the red cross (each at their own point; patsers and leasebaks ride to
+  the end and zip in), cornered drivers skip the mirror check and signal briefly, a car cutting in
+  right in front gets an immediate reaction instead of a delayed one.
 - Playtest 1 feedback (speeds): "everyone under the limit". `tools/speeds.js` showed drivers wanted
   ~102 but drove ~91 by day: nearly everyone sits in a queue behind a slightly slower car, the left
   lane included (it fills with cars at 95-100 that pulled out to pass something slower). Lane-change

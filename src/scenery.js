@@ -87,6 +87,7 @@ const ROUTES = ['A1', 'A2', 'A12', 'A27', 'A28', 'A15', 'A4', 'A50', 'A16', 'A58
 export class Scenery {
   constructor(scene, road, envMapGetter) {
     this.scene = scene;
+    this.msiSigns = new Map(); // gantry index -> { ch, mats: [per lane] } (faces set by main from msi.js)
     this.road = road;
     this.chunks = new Map();
     this.rotors = [];
@@ -208,6 +209,7 @@ export class Scenery {
       m.dispose();
     }
     this.rotors = this.rotors.filter((r) => r.chunk !== ch.idx);
+    for (const [i, e] of this.msiSigns) if (e.ch === ch) this.msiSigns.delete(i);
   }
 
   update(sPlayer, budget = 2) {
@@ -365,8 +367,8 @@ export class Scenery {
       const hasOverpass = hash01(K, 1) < 0.24;
       const sOver = K * 1000 + 520;
       if (hasOverpass && inChunk(sOver)) this.overpass(sOver, local, bucket, ox, oz, K);
-      const sMatrix = K * 1000 + 160;
-      if (hash01(K, 2) < 0.5 && inChunk(sMatrix)) this.matrixGantry(sMatrix, group, ch, ox, oz, bucket, K);
+      // matrix signs every 500 m (see msi.js for what they show)
+      for (const sMatrix of [K * 1000 + 160, K * 1000 + 660]) if (inChunk(sMatrix)) this.matrixGantry(sMatrix, group, ch, ox, oz, bucket, K);
       const sAnwb = K * 1000 + 860;
       if (hash01(K, 3) < 0.3 && inChunk(sAnwb)) this.anwbGantry(sAnwb, group, ch, ox, oz, bucket, K);
       const sSpeed = K * 1000 + 330;
@@ -525,20 +527,21 @@ export class Scenery {
   matrixGantry(s, group, ch, ox, oz, bucket, K) {
     const p = this.gantryFrame(s, ox, oz, bucket);
     const dark = bucket('dark');
-    const r = hash01(K, 12);
+    const mats = [];
+    this.msiSigns.set(Math.round((s - 160) / 500), { ch, mats, s });
     for (let i = 0; i < CONFIG.lanes; i++) {
       const lat = laneLat(i);
       const x = p.x - ox + p.nx * lat, z = p.z - oz + p.nz * lat;
       dark.addGeo(new THREE.BoxGeometry(1.5, 1.5, 0.3), mat(x, 6.1, z, p.h));
-      let content = '';
-      if (r < 0.15) content = 'end';
-      const t = TX.matrixTexture(content);
+      const t = TX.matrixTexture('');
       const fx = -p.tx * 0.16, fz = -p.tz * 0.16;
       const m = this.signMesh(group, ch, t, 1.36, 1.36, x + fx, 6.1, z + fz, p.h + Math.PI, 0, 0xffffff);
       m.material.userData.nightE = 1.4;
       m.material.userData.dayE = 1.4;
       m.material.emissiveIntensity = 1.4;
       ch.signMats.splice(ch.signMats.indexOf(m.material), 1); // always lit (LED)
+      m.material.userData.face = '';
+      mats[i] = m.material;
     }
   }
 

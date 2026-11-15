@@ -106,6 +106,7 @@ export class Hud {
       ['truckOvertakeEagerness', 'Truck overtaking (elephant races)', 'range', [0, 2.5, 0.1]],
       ['politeness', 'AI politeness', 'range', [0, 2, 0.1]],
       ['anticipation', 'AI anticipation', 'range', [0, 1.5, 0.1]],
+      ['closuresPer10km', 'Lane closures (per 10 km)', 'range', [0, 4, 0.1]],
       ['reactionTime', 'Driver reaction time (× normal; higher = waves grow)', 'range', [0, 1.4, 0.1]],
       ['middleLaneHoggers', 'Middle-lane hoggers', 'range', [0, 0.4, 0.01]],
       ['speeders', 'Speeders', 'range', [0, 0.4, 0.01]],

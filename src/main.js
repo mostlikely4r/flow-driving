@@ -15,7 +15,9 @@ import { Environment } from './environment.js';
 import { GlowSystem, BeamSystem } from './fx.js';
 import { TrafficView } from './trafficView.js';
 import { createVehicleVisual, initVehicleMaterials, setVehicleNight, setLayerRecursive } from './vehicles.js';
-import { setMaxAnisotropy } from './textures.js';
+import { setMaxAnisotropy, matrixTexture } from './textures.js';
+import { MSI, gantryS, gantryIndexAt } from './msi.js';
+import { ClosureView } from './closureView.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { Radio } from './radio.js';
@@ -335,6 +337,8 @@ onResize();
 // ---------------------------------------------------------------- traffic
 const view = new TrafficView(scene, road, glow, beams);
 let traffic, oncoming;
+let msi = null; // matrix signs for our carriageway
+const closureView = new ClosureView(scene, road);
 function makeTraffic() {
   const lim = speedLimitKmh();
   traffic = new Traffic({
@@ -358,6 +362,7 @@ function makeTraffic() {
     onAdd: (v) => view.add(v),
     onRemove: (v) => view.remove(v),
   });
+  msi = traffic.msi = new MSI(traffic);
   player.update(0.001, { steer: 0, throttle: 0, brake: 0, analog: false }, { vehicles: [], lanes: [] });
   if (SCENARIO) startScenario();
   else traffic.initialFill(player.s, player.proxy);
@@ -458,6 +463,60 @@ startEl.addEventListener('click', () => {
 });
 document.getElementById('btnresume').onclick = () => setPaused(false);
 window.addEventListener('blur', () => { if (hornOn) { hornOn = false; audio.horn(false); } });
+
+// ---------------------------------------------------------------- matrix signs and lane closures
+let closureDist = 0; // metres driven since the last roll for a random closure
+let lastGantry = null; // last gantry index you passed
+function updateClosures(dt) {
+  // random closures in free play: set up beyond the simulated traffic, taken
+  // down once well behind you
+  if (!SCENARIO && CONFIG.lanes >= 2) {
+    closureDist += player.v * dt;
+    if (closureDist > 1000) {
+      closureDist -= 1000;
+      const busy = traffic.closures.some((c) => c.s1 > player.s - 500);
+      if (!busy && Math.random() < CONFIG.closuresPer10km / 10) {
+        const lane = Math.random() < 0.55 ? 0 : Math.floor(Math.random() * CONFIG.lanes);
+        const s0 = player.s + CONFIG.rangeAhead + 1200 + Math.random() * 600;
+        traffic.addClosure(lane, s0, s0 + 500 + Math.random() * 1100);
+      }
+    }
+  }
+  for (const c of [...traffic.closures]) if (c.s1 < player.s - CONFIG.rangeBehind - 400) traffic.removeClosure(c);
+  closureView.sync(traffic.closures);
+  // driving under a red cross
+  const gi = gantryIndexAt(player.s);
+  if (lastGantry != null && gi === lastGantry + 1) {
+    const f = msi.face(gi, player.lane);
+    if (f && f.face === 'x') {
+      stats.redCrosses++;
+      hud.toast('Red cross: this lane is closed. In real life that is a hefty fine.', 'bad');
+    }
+  }
+  lastGantry = gi;
+}
+/** Put the current faces on the gantries that exist in the scenery. */
+function updateMatrixSigns(time) {
+  const flashOn = time % 1 < 0.5;
+  for (const [i, e] of scenery.msiSigns) {
+    for (let l = 0; l < e.mats.length; l++) {
+      const m = e.mats[l];
+      if (!m) continue;
+      const f = msi.face(i, l);
+      const key = f ? `${f.face}|${f.flash && flashOn ? 1 : 0}` : '|0';
+      if (m.userData.face === key) continue;
+      m.userData.face = key;
+      const t = matrixTexture(f ? f.face : '', !!(f && f.flash && flashOn));
+      m.map = t;
+      m.emissiveMap = t;
+    }
+  }
+}
+/** The limit that applies to you right now: the matrix sign over your lane, or the normal one. */
+function playerLimit() {
+  const lim = msi ? msi.limitAt(player.s, player.lane) : null;
+  return lim != null ? Math.min(lim, speedLimitKmh()) : speedLimitKmh();
+}
 
 // ---------------------------------------------------------------- input handling
 function handlePresses(pad) {
@@ -740,6 +799,8 @@ function frame(now) {
       oncoming.step(dt / tsub, player.s, null);
     }
     stats.update(dt, player, traffic, (t, k) => hud.toast(t, k));
+    msi.update(dt, player.s);
+    updateClosures(dt);
     // horn (F-03): sound while held; drivers react once per press
     {
       const h = input.is('horn');
@@ -814,6 +875,8 @@ function frame(now) {
   beams.begin(camWorld);
   view.update([traffic, oncoming], player.s, camWorld, night, time);
   updateStreetLamps(mode === 'night', mode === 'dusk');
+  updateMatrixSigns(time);
+  closureView.update(time, glow, mode === 'night');
   if (lights && night) {
     // your own dipped beam on the road (ground-only, like the AI cars')
     const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw);
@@ -868,7 +931,7 @@ function frame(now) {
   }
 
   // HUD
-  hud.update(dt, player, speedLimitKmh(), blink, { vehicles: traffic.vehicles.length + oncoming.vehicles.length });
+  hud.update(dt, player, playerLimit(), blink, { vehicles: traffic.vehicles.length + oncoming.vehicles.length });
   dashT -= dt;
   if (dashT <= 0) {
     dashT = 0.08;

@@ -59,6 +59,8 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 `node tools/night.js <dir>` shoots the night mood on an unlit stretch and inside a sodium-lit one
 (uses the `window.__game.teleport(s)` debug hook).
 
+**Matrix signs and lane closures** (`src/msi.js`, `src/closureView.js`): gantries every 500 m show a queue warning (flashing 50 / 70) behind slow traffic by themselves, and arrow / red cross / 70 around a lane closure. Closures appear at random in free play (`closuresPer10km`), or try `?scenario=closure`. `node tools/closure.js [lanes] [density] [closedLane] [minutes]` checks safety and throughput headless.
+
 **Lane map** (`src/lanemap.js`, U): overhead view of your carriageway, cars coloured by speed; press U again for a time-space diagram of your lane (waves show as bands creeping down). `,` `.` zoom. `?scenario=wave` provokes one; `node tools/wave.js` measures how it grows or damps.
 
 **Radio** (`src/radio.js`, Y): your own music folder (menu, Esc) or live NPO stations. Streams use a plain `<audio>` element on purpose: routing cross-origin streams through Web Audio plays silence.

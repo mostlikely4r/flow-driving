@@ -19,6 +19,7 @@ export class Stats {
     this.hardBrakes = 0;
     this.brakeLatch = false;
     this.collisions = 0;
+    this.redCrosses = 0;
     this.side = new Map();
     this.speedDevSum = 0;
     this.speedDevN = 0;
@@ -113,6 +114,7 @@ export class Stats {
       ['Tailgating (<1 s gap)', `${this.tailgateTime.toFixed(0)} s`],
       ['Hard braking', `${this.hardBrakes}×`],
       ['Collisions', `${this.collisions}×`],
+      ['Red crosses ignored', `${this.redCrosses}×`],
       ['Smoothness', `${(this.speedDevN > 0 ? Math.max(0, 100 - (this.speedDevSum / this.speedDevN) * 120) : 100).toFixed(0)}`],
     ];
   }

@@ -15,6 +15,7 @@
 import { CONFIG } from './config.js';
 import { KMH, mulberry32, gauss, clamp, pickWeighted, lcProfile, lcProfileDeriv } from './util.js';
 import { laneLat } from './layout.js';
+import { gantryIndexAt, gantryS } from './msi.js';
 import { VARIANTS, TYPE_VARIANTS } from './variants.js';
 import { pickPersona, applyPersona } from './archetypes.js';
 
@@ -81,8 +82,10 @@ export function idm(me, lead, Tmul = 1) {
   const vl = lead.v;
   const al = Math.min(lead.acc || 0, me.a);
   let aCah;
-  if (vl * dv <= -2 * gg * al) aCah = (v * v * al) / Math.max(vl * vl - 2 * gg * al, 0.01);
-  else aCah = al - (dv > 0 ? (dv * dv) / (2 * gg) : 0);
+  // (the first case only applies to a leader that is braking; for a standing
+  // obstacle it degenerates to 0 and the car would barely brake)
+  if (al < -0.01 && vl * dv <= -2 * gg * al) aCah = (v * v * al) / Math.max(vl * vl - 2 * gg * al, 0.01);
+  else aCah = al - (dv > 0 ? (dv * dv) / (2 * (vl < 1 ? Math.max(0.3, gg - me.s0 * 0.5) : gg)) : 0); // standing obstacle: stop short of it
   if (aIdm >= aCah) return Math.max(aIdm, -9);
   const b = me.b;
   const acc = (1 - c) * aIdm + c * (aCah + b * Math.tanh((aIdm - aCah) / b));
@@ -114,6 +117,75 @@ export class Traffic {
     this.onAdd = onAdd || (() => {});
     this.onRemove = onRemove || (() => {});
     this.events = []; // lane change events etc. (for debugging/stats)
+    this.closures = []; // lane closures: {lane, s0, s1, obs}
+    this.msi = null; // matrix signs (msi.js), if any
+  }
+
+  /**
+   * Close a lane from s0 to s1 (road positions). Physically it's a block in
+   * the lane (an arrow-board truck and cones at s0): drivers see it as a
+   * stopped vehicle and must merge out before it.
+   */
+  addClosure(lane, s0, s1) {
+    const obs = {
+      id: -1000 - this.closures.length,
+      isObstacle: true,
+      type: 'obstacle',
+      lane,
+      targetLane: lane,
+      state: 'none',
+      u: this.dir * (s0 + s1) / 2,
+      len: s1 - s0,
+      width: 2.6,
+      latLocal: laneLat(lane),
+      v: 0, v0: 0, acc: 0, a: 1, b: 2, T: 1, s0: 2,
+      brake: true,
+      signalLane: -1,
+      indicator: 0,
+    };
+    // the red cross goes up at the last gantry before the closure: you must be
+    // out of the lane by then (stragglers zip in at the end)
+    const sX = gantryS(gantryIndexAt(s0 - 60));
+    const c = { lane, s0, s1, sX, obs };
+    this.closures.push(c);
+    // nobody can be inside the closed stretch or about to run into it
+    // (normally a closure is set up out of sight)
+    for (let i = this.vehicles.length - 1; i >= 0; i--) {
+      const v = this.vehicles[i];
+      const s = this.dir * v.u;
+      if ((v.lane === lane || v.targetLane === lane) && s > s0 - 250 && s < s1 + 5) {
+        this.vehicles.splice(i, 1);
+        this.onRemove(v);
+      }
+    }
+    return c;
+  }
+
+  removeClosure(c) {
+    const i = this.closures.indexOf(c);
+    if (i >= 0) this.closures.splice(i, 1);
+  }
+
+  /** Metres from s to the red cross over `lane` (0 once past it, inside the closure too), or Infinity. */
+  crossAhead(lane, s, within = 1500) {
+    let d = Infinity;
+    for (const c of this.closures) {
+      if (c.lane !== lane || c.s1 < s) continue;
+      const x = Math.max(0, c.sX - s);
+      if (x < within && x < d) d = x;
+    }
+    return d;
+  }
+
+  /** Metres from s to the start of a closure in `lane` (0 if inside), or Infinity. */
+  closedAhead(lane, s, within = 1500) {
+    let d = Infinity;
+    for (const c of this.closures) {
+      if (c.lane !== lane || c.s1 < s) continue;
+      const x = Math.max(0, c.s0 - s);
+      if (x < within && x < d) d = x;
+    }
+    return d;
   }
 
   get N() {
@@ -241,6 +313,9 @@ export class Traffic {
     veh.tPrep = type === 'truck' ? 0.8 + r() * 1.2 : 0.4 + r() * 1.0;
     // reaction time (s): how late this driver acts on what happens ahead
     veh.react = type === 'truck' ? 0.7 + r() * 0.5 : 0.5 + r() * 0.8;
+    // matrix signs: km/h over a displayed limit; lane closures: how early you merge out (0 = at the end)
+    veh.msiOver = type === 'truck' ? r() * 3 : 1 + r() * 8;
+    veh.mergeEarly = type === 'truck' ? 0.6 + r() * 0.4 : r();
     veh.passing = null; // the vehicle we pulled out to overtake (F-09)
     veh.returnT = 0;
     // Archetype: look and (usually) driving style. See archetypes.js.
@@ -302,6 +377,7 @@ export class Traffic {
       if (veh.state === 'move' && veh.targetLane !== veh.lane) this.lanes[veh.targetLane].push(veh);
     }
     if (player) for (const li of player.lanesOcc) if (li >= 0 && li < N) this.lanes[li].push(player);
+    for (const c of this.closures) if (c.lane < N) this.lanes[c.lane].push(c.obs);
     for (const l of this.lanes) l.sort((a, b) => a.u - b.u);
   }
 
@@ -334,7 +410,11 @@ export class Traffic {
 
   computeAcc(veh) {
     let a = this.laneAcc(veh, veh.lane);
-    if (veh.state === 'move' && veh.targetLane !== veh.lane) a = Math.min(a, this.laneAcc(veh, veh.targetLane));
+    if (veh.state === 'move' && veh.targetLane !== veh.lane) {
+      const aT = this.laneAcc(veh, veh.targetLane);
+      // most of the way out of a closing lane, the block ahead no longer concerns you
+      a = veh.zipping && veh.lcT > 0.6 ? aT : Math.min(a, aT);
+    }
     veh.accPure = a;
     a = this.anticipate(veh, a);
     // cooperation: ease off to let a signalling vehicle ahead in the next lane merge in front
@@ -453,6 +533,8 @@ export class Traffic {
       const g = gapBetween(ld, veh);
       const dv = veh.v - ld.v;
       if (g < 1.5 || (dv > 0 && g - 1 < (dv * dv) / (2 * 6) + dv * 0.3)) return Math.min(aNow, aOld);
+      // a car cutting in right in front of you has your full attention
+      if (ld.state === 'move' && g < 3 + veh.v) return Math.min(aNow, aOld);
       // Brake lights further up: seeing the cars ahead of your leader brake,
       // you lift off before your leader even reacts. This is what keeps real
       // queues from collapsing at every touch of the brakes.
@@ -470,17 +552,31 @@ export class Traffic {
 
   /** MOBIL evaluation of moving veh into lane t. */
   evaluate(veh, t) {
+    // never into a lane with a red cross coming up (or a closure in it)
+    if (this.closures.length && this.crossAhead(t, this.dir * veh.u, 700) < 700) return { safe: false, inc: -9, wants: false, margin: -9 };
     const L = this.lanes;
     const cur = L[veh.lane];
     const tgt = L[t];
     const nl = leaderIn(tgt, veh);
     const nf = followerIn(tgt, veh);
     let safe = true;
-    if (nl) {
+    // Zipper (ritsen): with your lane closing just ahead you take a tight gap,
+    // as long as the driver behind only has to brake moderately.
+    const zip = this.closures.length && t !== veh.lane && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 40 + veh.v * 2 && this.closedAhead(t, this.dir * veh.u, 700) >= 700;
+    if (zip) {
+      // room to finish the move before the block? otherwise slow down first
+      if (veh.v > 2 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 6 + veh.v * 2.4) safe = false;
+      if (nl && gapBetween(nl, veh) < 1.5 + veh.v * 0.2 + Math.max(0, veh.v - nl.v) * 0.8) safe = false;
+      if (nf) {
+        const g = gapBetween(veh, nf);
+        // the driver behind needs their reaction time too
+        if (g < 2 + nf.v * (0.45 + (nf.react ?? 0.8) * 0.6) || idm(nf, veh) < -(nf.isPlayer ? 1.8 : 2.2)) safe = false;
+      }
+    } else if (nl) {
       const g = gapBetween(nl, veh);
       if (g < 2 + veh.v * 0.3 + Math.max(0, veh.v - nl.v) * 1.2) safe = false;
     }
-    if (nf) {
+    if (nf && !zip) {
       const g = gapBetween(veh, nf);
       const ts = nf.isPlayer ? veh.tSafePlayer : veh.tSafe;
       if (g < 2 + nf.v * ts + Math.max(0, nf.v - veh.v) * 2.2) safe = false;
@@ -515,7 +611,22 @@ export class Traffic {
       }
     }
     const selfish = accTerm + kvTerm;
-    const inc = selfish + p * (dNf + dOf) + love;
+    // Lane closures: get out of a lane that closes ahead (some early, some at
+    // the very end, zipper style), and never into one.
+    let closure = 0;
+    if (this.closures.length) {
+      const s = this.dir * veh.u;
+      // most leave between the arrow and the red cross; patsers and the like
+      // ride on to the end of the lane (past the cross, which is a fine)
+      const dCur = this.crossAhead(veh.lane, s);
+      if (dCur < Infinity) {
+        const m = veh.mergeEarly ?? 0.5;
+        const start = m * 550;
+        const dEnd = this.closedAhead(veh.lane, s);
+        if (dCur < start || dCur === 0) closure += 0.5 + 2.5 * (dCur === 0 ? Math.max(0.4, 1 - dEnd / 600) : 1 - dCur / Math.max(1, start));
+      }
+    }
+    const inc = selfish + p * (dNf + dOf) + love + closure;
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
     // after an overtake, going back right is the plan (F-09)
@@ -533,7 +644,7 @@ export class Traffic {
     // Nobody moves LEFT just to be nice to the car behind: politeness may hold
     // back an overtake, but the driver must gain something themselves. (Flashed
     // drivers are the exception: they're pressed to move, handled by bias.)
-    const wants = inc > need && (!left || selfish > veh.thr * 0.5);
+    const wants = inc > need && (!left || selfish > veh.thr * 0.5 || closure > 0);
     return { safe, inc, wants, margin: inc - need };
   }
 
@@ -587,7 +698,9 @@ export class Traffic {
         veh.intent = best.t;
         veh.intentSince = this.time;
       }
-      if (this.time - veh.intentSince < (veh.tPrep ?? 0)) return; // checking the mirror
+      // at the end of a closed lane there's no time for a long look
+      const cornered = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
+      if (!cornered && this.time - veh.intentSince < (veh.tPrep ?? 0)) return; // checking the mirror
       const left = best.t > veh.lane;
       // Signal if safe, or signal and wait for a gap when we really want it:
       // going left to overtake, or going right (keep-right / back in after an
@@ -606,11 +719,13 @@ export class Traffic {
       veh.signalT += dt;
       veh.recheckT -= dt;
       const t = veh.targetLane;
-      if (veh.signalT >= veh.tSignal) {
+      const cornered = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
+      if (veh.signalT >= (cornered ? Math.min(veh.tSignal, 0.7) : veh.tSignal)) {
         const ev = this.evaluate(veh, t);
         if (ev.safe && ev.margin > -0.3) {
           veh.state = 'move';
           veh.lcT = 0;
+          veh.zipping = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
           // Occupy the target lane now, so a car merging into it from the
           // other side later in this same step sees us.
           const tl = this.lanes[t];
@@ -631,7 +746,8 @@ export class Traffic {
         }
       }
     } else if (veh.state === 'move') {
-      veh.lcT += dt / veh.lcDur;
+      // zipping in at the end of a closed lane: a short, decisive move
+      veh.lcT += dt / (veh.zipping ? Math.min(veh.lcDur, 2.2) : veh.lcDur);
       if (veh.lcT < 0.3) {
         // abort if it suddenly became dangerous: someone closing fast behind,
         // or a car merging into the same lane from the other side
@@ -785,6 +901,11 @@ export class Traffic {
     this.buildLanes(player);
     for (const veh of this.vehicles) {
       veh.v0 = veh.v0base * (1 + 0.012 * Math.sin(this.time * veh.jitterW + veh.jitterPh));
+      // matrix signs: the number over your lane, give or take your habits
+      if (this.msi) {
+        const lim = this.msi.limitAt(this.dir * veh.u, veh.lane);
+        if (lim != null) veh.v0 = Math.min(veh.v0, (lim + (veh.msiOver ?? 4)) * KMH);
+      }
       // Passing someone: put your foot down a little to get it done.
       if (veh.lane > 0 && veh.type !== 'truck' && veh.type !== 'caravan') {
         const rl = leaderIn(this.lanes[veh.lane - 1], veh);

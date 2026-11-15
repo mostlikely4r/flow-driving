@@ -317,6 +317,26 @@ export class Player {
 
   collide(traffic) {
     const hw = this.width / 2;
+    // lane closures: the arrow-board truck at the start is solid
+    for (const c of traffic.closures || []) {
+      const dlat = c.obs.latLocal - this.lat;
+      if (Math.abs(dlat) > c.obs.width / 2 + hw - 0.05) continue;
+      const front = this.s + this.len / 2;
+      if (front > c.s0 && this.s - this.len / 2 < c.s0 + 6.5) {
+        const p = this.road.sample(this.s);
+        const pen = front - c.s0;
+        this.x -= p.tx * pen;
+        this.z -= p.tz * pen;
+        this.s -= pen;
+        const hit = this.v;
+        this.v = 0;
+        const now = performance.now();
+        if (hit > 1 && now - this.lastHit > 900) {
+          this.lastHit = now;
+          this.emit('crash', { strength: Math.min(3, hit / 5) });
+        }
+      }
+    }
     for (const veh of traffic.vehicles) {
       const dl = veh.u - this.s;
       if (Math.abs(dl) > 25) continue;

@@ -142,6 +142,37 @@ export const SCENARIOS = {
     })(),
   },
 
+  closure: {
+    title: 'Red cross',
+    about:
+      'Three busy lanes, and the right lane is closed 1.4 km ahead. Watch the matrix signs: an arrow, ' +
+      'then red crosses with 70 over the open lanes. Most drivers move over between the arrow and the ' +
+      'cross, a few ride on and zip in at the end. A queue builds, and the signs behind it start ' +
+      'flashing 50 and 70. Lane map: U.',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 23,
+    density: 10,
+    closures: [{ lane: 0, ds: 1400, len: 900 }],
+    player: { lane: 1, kmh: 100, want: 104 },
+    vehicles: (() => {
+      const r = mulberry32(91);
+      const out = [];
+      for (const lane of [0, 1, 2]) {
+        for (let ds = -700; ds < 1250; ) {
+          const truck = lane === 0 && r() < 0.2;
+          ds += 60 + r() * 60 + (truck ? 20 : 0);
+          if (lane === 1 && Math.abs(ds) < 30) continue; // room for you
+          const kmh = [92, 100, 108][lane];
+          out.push(truck
+            ? { tag: '', type: 'truck', variant: 'truck', lane, ds, kmh: 84 }
+            : { tag: '', type: 'car', variant: ['hatch', 'sedan', 'estate', 'suv'][(r() * 4) | 0], lane, ds, kmh, want: kmh + 4 + r() * 8 });
+        }
+      }
+      return out;
+    })(),
+  },
+
   hogger: {
     title: 'Middle-lane hogger',
     about:
@@ -166,6 +197,8 @@ export function applyScenario(traffic, sc, sPlayer, { includeYou = false } = {})
   traffic.density = sc.density ?? 0;
   traffic.rng = mulberry32(sc.seed ?? 1); // same drivers every run
   traffic.time = 0;
+  traffic.closures.length = 0;
+  for (const c of sc.closures || []) traffic.addClosure(c.lane, sPlayer + c.ds, sPlayer + c.ds + c.len);
   const specs = [...sc.vehicles];
   if (includeYou) specs.push({ tag: 'you', type: 'car', variant: 'estate', lane: sc.player.lane, ds: 0, kmh: sc.player.kmh, want: sc.player.want });
   const placed = [];

@@ -25,6 +25,7 @@ export const DEFAULTS = {
   nightTraffic: 0.5, // traffic density at night, relative to the setting (dusk: 0.8)
   slowpokes: 0.06, // share of cars that want limit - 3..9
   middleLaneHoggers: 0.07, // share of drivers who ignore keep-right
+  closuresPer10km: 0.5, // random lane closures (red cross) in free play
   reactionTime: 1, // scales every driver's reaction delay (0 = instant; ~1.4 = stop-and-go from a tap of the brakes)
   brakeLightRead: 1, // how much drivers react early to brake lights ahead (stabilises queues)
   passBoostKmh: 5, // a little extra speed while passing someone

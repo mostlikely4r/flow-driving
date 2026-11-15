@@ -8,6 +8,7 @@
 import { CONFIG } from './config.js';
 import { KMH } from './util.js';
 import { laneLat as laneLatC } from './layout.js';
+import { gantryS, gantryIndexAt } from './msi.js';
 
 export const LANEMAP_SPANS = [120, 250, 500, 1000, 2000];
 const AHEAD = 0.62; // share of the view in front of you
@@ -140,6 +141,71 @@ export class LaneMap {
     }
     c.fillRect(pad, top, iw, 1.5);
     c.fillRect(pad, top + N * laneH - 1.5, iw, 1.5);
+
+    // lane closures: hatched block with the arrow-board truck at its start
+    for (const cl of traffic.closures || []) {
+      if (cl.lane >= N) continue;
+      const xa = Math.max(pad, X(cl.s0)), xb = Math.min(pad + iw, X(cl.s1));
+      if (xb <= pad || xa >= pad + iw) continue;
+      const y = laneY(cl.lane);
+      c.fillStyle = 'rgba(255, 120, 20, 0.28)';
+      c.fillRect(xa, y + 1, xb - xa, laneH - 2);
+      c.strokeStyle = 'rgba(255, 140, 40, 0.8)';
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let x = xa; x < xb; x += 8) {
+        c.moveTo(x, y + laneH - 1);
+        c.lineTo(Math.min(xb, x + 6), y + 1);
+      }
+      c.stroke();
+      c.fillStyle = '#f2c200';
+      c.fillRect(X(cl.s0), y + 4, Math.max(3, 6.2 * pxm), laneH - 8);
+    }
+    // matrix gantries: a line across the road with each lane's face
+    const msi = traffic.msi;
+    if (msi) {
+      const flashOn = performance.now() % 1000 < 500;
+      c.textAlign = 'center';
+      for (let gi = gantryIndexAt(s0) + 1; gantryS(gi) < s0 + this.span; gi++) {
+        const x = X(gantryS(gi));
+        c.fillStyle = 'rgba(200, 210, 220, 0.35)';
+        c.fillRect(x - 0.5, top, 1, N * laneH);
+        for (let l = 0; l < N; l++) {
+          const f = msi.face(gi, l);
+          if (!f || f.face === '') continue;
+          const y = laneY(l) + laneH / 2;
+          c.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          c.fillRect(x - 8, y - 7, 16, 14);
+          if (f.flash && flashOn) {
+            c.fillStyle = '#ffb020';
+            c.fillRect(x - 8, y - 7, 3, 3);
+            c.fillRect(x + 5, y - 7, 3, 3);
+          }
+          c.font = '700 10px system-ui, sans-serif';
+          if (typeof f.face === 'number') {
+            c.fillStyle = '#ff6a5a';
+            c.fillText(String(f.face), x, y + 1);
+          } else if (f.face === 'x') {
+            c.strokeStyle = '#ff2a1a';
+            c.lineWidth = 2.5;
+            c.beginPath();
+            c.moveTo(x - 5, y - 5);
+            c.lineTo(x + 5, y + 5);
+            c.moveTo(x + 5, y - 5);
+            c.lineTo(x - 5, y + 5);
+            c.stroke();
+          } else if (f.face === 'end') {
+            c.fillStyle = '#c8cdd2';
+            c.fillText('/', x, y + 1);
+          } else {
+            // move over: on the map, right (lower lane) is down
+            c.fillStyle = '#fff';
+            c.fillText(f.face === 'arrowR' ? '↘' : '↗', x, y + 1);
+          }
+        }
+      }
+      c.textAlign = 'left';
+    }
 
     // vehicles (lateral position is continuous, so drift and lane changes show)
     const yOfLat = (lat) => {

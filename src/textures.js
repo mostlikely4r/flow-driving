@@ -287,23 +287,36 @@ export function hectoTexture(text, letter = '') {
   return tex(c, { repeat: false, aniso: false });
 }
 
-/** Lane signal (matrix) sign. content: '' (dark), number, 'x', 'arrowL', 'arrowR', 'end' */
-export function matrixTexture(content) {
-  return cached(`matrix|${content}`, () => {
+/**
+ * Lane signal (matrix) sign. content: '' (dark), number (red ring = mandatory),
+ * 'x' (red cross: lane closed), 'arrowL' / 'arrowR' (move over), 'end'.
+ * flash: the amber lights in the corners (queue ahead), lit in this frame.
+ */
+export function matrixTexture(content, flash = false) {
+  return cached(`matrix|${content}|${flash ? 1 : 0}`, () => {
     const [c, g] = canvas(128, 128);
     g.fillStyle = '#0b0c0d';
     g.fillRect(0, 0, 128, 128);
     // dot grid (unlit LEDs)
     g.fillStyle = '#1b1d1f';
     for (let y = 6; y < 128; y += 6) for (let x = 6; x < 128; x += 6) g.fillRect(x, y, 2, 2);
+    // corner flashers
+    for (const [x, y] of [[11, 11], [117, 11], [11, 117], [117, 117]]) {
+      g.fillStyle = flash ? '#ffb020' : '#2a2216';
+      g.beginPath();
+      g.arc(x, y, 7, 0, Math.PI * 2);
+      g.fill();
+    }
     g.lineWidth = 7;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
     if (typeof content === 'number') {
       g.strokeStyle = '#ff2a1a';
       g.beginPath();
-      g.arc(64, 64, 52, 0, Math.PI * 2);
+      g.arc(64, 64, 46, 0, Math.PI * 2);
       g.stroke();
       g.fillStyle = '#ffffff';
-      g.font = 'bold 50px Arial';
+      g.font = 'bold 46px Arial';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText(String(content), 64, 67);
@@ -311,26 +324,46 @@ export function matrixTexture(content) {
       g.strokeStyle = '#ff2a1a';
       g.lineWidth = 12;
       g.beginPath();
-      g.moveTo(28, 28);
-      g.lineTo(100, 100);
-      g.moveTo(100, 28);
-      g.lineTo(28, 100);
+      g.moveTo(30, 30);
+      g.lineTo(98, 98);
+      g.moveTo(98, 30);
+      g.lineTo(30, 98);
       g.stroke();
-    } else if (content === 'end') {
+    } else if (content === 'arrowL' || content === 'arrowR') {
+      // diagonal arrow pointing down toward the lane to move into
+      const sx = content === 'arrowL' ? -1 : 1;
+      g.save();
+      g.translate(64, 64);
+      g.scale(sx, 1);
       g.strokeStyle = '#ffffff';
+      g.lineWidth = 10;
       g.beginPath();
-      g.arc(64, 64, 50, 0, Math.PI * 2);
+      g.moveTo(-26, -26);
+      g.lineTo(24, 24);
+      g.moveTo(24, -6);
+      g.lineTo(24, 24);
+      g.lineTo(-6, 24);
       g.stroke();
+      g.restore();
+    } else if (content === 'end') {
+      g.save();
+      g.beginPath();
+      g.arc(64, 64, 44, 0, Math.PI * 2);
+      g.strokeStyle = '#ffffff';
       g.lineWidth = 5;
+      g.stroke();
+      g.clip();
+      g.lineWidth = 5;
+      g.strokeStyle = '#c8cdd2';
       for (let k = -2; k <= 2; k++) {
         g.beginPath();
-        g.moveTo(30 + k * 12, 100 + k * 0);
-        g.lineTo(98 + k * 12 - 20, 30);
+        g.moveTo(20 + k * 14, 108);
+        g.lineTo(108 + k * 14, 20);
         g.stroke();
       }
+      g.restore();
     }
-    const t = tex(c, { repeat: false, aniso: false });
-    return t;
+    return tex(c, { repeat: false, aniso: false });
   });
 }
 

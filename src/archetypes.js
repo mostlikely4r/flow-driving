@@ -34,6 +34,8 @@ export const ARCHETYPES = {
       veh.press = lerp(r, 0.6, 0.9); // sits on the bumper of whatever is slow
       veh.tPrep = lerp(r, 0.3, 0.7);
       veh.react = lerp(r, 0.45, 0.7);
+      veh.msiOver = lerp(r, 6, 14);
+      veh.mergeEarly = lerp(r, 0, 0.3); // drives to the end and zips in
     },
   },
   patser: {
@@ -64,6 +66,8 @@ export const ARCHETYPES = {
       veh.press = lerp(r, 0.85, 1);
       veh.tPrep = lerp(r, 0, 0.15);
       veh.react = lerp(r, 0.35, 0.6); // quick, but sees nothing coming
+      veh.msiOver = lerp(r, 12, 25);
+      veh.mergeEarly = lerp(r, 0, 0.15);
     },
   },
   pensioner: {
@@ -93,6 +97,8 @@ export const ARCHETYPES = {
       veh.press = 0;
       veh.tPrep = lerp(r, 1.5, 2.5); // a good long look in the mirror first
       veh.react = lerp(r, 0.9, 1.4); // slow to react, but leaves room for it
+      veh.msiOver = lerp(r, -3, 0);
+      veh.mergeEarly = lerp(r, 0.8, 1);
     },
   },
   sok: {
@@ -125,6 +131,8 @@ export const ARCHETYPES = {
       veh.press = 0;
       veh.tPrep = lerp(r, 1.0, 1.8);
       veh.react = lerp(r, 0.6, 0.9);
+      veh.msiOver = lerp(r, -2, 1);
+      veh.mergeEarly = lerp(r, 0.6, 1);
     },
   },
   family: {
@@ -152,6 +160,8 @@ export const ARCHETYPES = {
       veh.press = lerp(r, 0, 0.15);
       veh.tPrep = lerp(r, 0.6, 1.2);
       veh.react = lerp(r, 0.7, 1.1); // the kids in the back
+      veh.msiOver = lerp(r, 1, 5);
+      veh.mergeEarly = lerp(r, 0.5, 0.9);
     },
   },
   whitevan: {
@@ -180,6 +190,8 @@ export const ARCHETYPES = {
       veh.press = lerp(r, 0.7, 1);
       veh.tPrep = lerp(r, 0.2, 0.5);
       veh.react = lerp(r, 0.6, 1.0); // on the phone
+      veh.msiOver = lerp(r, 5, 12);
+      veh.mergeEarly = lerp(r, 0, 0.4);
     },
   },
   ev: {
@@ -209,6 +221,8 @@ export const ARCHETYPES = {
       veh.press = lerp(r, 0, 0.1);
       veh.tPrep = lerp(r, 0.6, 1.0);
       veh.react = lerp(r, 0.3, 0.5); // the car's ACC does the reacting
+      veh.msiOver = lerp(r, 0, 2);
+      veh.mergeEarly = lerp(r, 0.4, 0.8);
     },
   },
 };
