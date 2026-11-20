@@ -71,7 +71,7 @@ prototype) before committing to them.
 | F-19 | **Dev overlay v2**: everything the expanded overlay shows now, plus predicted paths, target gaps and lane-change intent drawn in the world | Readable | 3 | M | Low | P2 | later; separate from the AR overlay |
 | F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | done: Y tunes off / my music / NPO Radio 1, 2, 3FM, Klassiek, 5. Folder picked in the menu each session (files stay local); streams can be turned off in the menu. Later: remember the folder, car-speaker EQ |
 | F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | done: Z / X tap = quick glance (~135° / 125°, head moves toward the window), hold = keep looking |
-| F-35 | **Persona viewer (the cast)**: a turntable rig with a road under the car — pick a persona, flip through the cars it inhabits, click the headway line to see the gap, click a behaviour line to watch it play on the rig | Readable | 4 | M | Low | P1 | done, 3 slices; see **Persona viewer (F-35)** at the end. Everything derived from `ARCHETYPES`, so a new persona appears by itself. Slice 3: 55 seeded demos, `npm run personas` checks every tell and expectation headless |
+| F-35 | **Persona viewer (the cast)**: a turntable rig with a road under the car — pick a persona, flip through the cars it inhabits, click the headway line to see the gap, click a behaviour line to watch it play on the rig | Readable | 4 | M | Low | P1 | done, 3 slices; see **Persona viewer (F-35)** at the end. Everything derived from `ARCHETYPES`, so a new persona appears by itself. Slice 3: 55 seeded demos, `npm run personas` checks every tell and expectation headless. Studio pass: world hidden, black background, road + cars only, rig sides mirrored to the game's `lat`, and a Back button on the sheet |
 
 ### M2: The road breathes
 
@@ -211,8 +211,10 @@ speed that persona actually drives.
 
 ### The rig
 
-- A platform with a one-lane road strip across it, asphalt + worn lane edges from `textures.js`,
-  scrolling at the persona's wanted speed.
+- A one-lane road strip on its own: asphalt + worn lane edges from `textures.js`, scrolling at
+  the persona's wanted speed. No platform, no verge, no kerb, no polder — while the viewer is open
+  the world is put away and the background is black, so the lane and the cars are all there is
+  (a studio, not a diorama).
 - **It is a treadmill**: the car holds position on the strip and the road moves under it, so speed
   reads from the surface, not from a number. No second physics loop.
 - **The wheels do not spin, and must not be promised.** `wheel()` bakes the tyre and rim into the
@@ -228,8 +230,16 @@ speed that persona actually drives.
   is how the tells glow before slice 3.
 - **Where it lives**: a `CastStage` group in the main scene, parked ~45 m off the carriageway edge
   at a fixed offset from the player and moved with them while open, `visible = false` otherwise.
-  It is lit by the same sun/hemi/fog/PMREM environment, so the car looks exactly in-engine rather
-  than in a product page. Nothing to add to the render loop but a camera and a texture offset.
+  `CastStage.hideWorld()` puts every other renderable in the scene away (sky, ground, scenery
+  chunks, traffic, glow, beams) and nulls the fog, then `showWorld()` puts back exactly what it
+  hid, so nothing else has to know the viewer exists. It keeps the scene's sun/hemi, so the car
+  still looks in-engine rather than in a product page. Nothing to add to the render loop but a
+  camera and a texture offset.
+- **Sides**: the rig's lane runs along +z like the game's road, so its +x is the LEFT of travel
+  (the game's `lat` is positive to the right, i.e. −x). Lane offsets and every camera yaw in
+  `castStage.js` are written in that rig frame, mirrored from `lat`: traffic reads as driving to
+  the right and an overtake happens on the car's left, the way it does in play. Do not flip one
+  without the other — that is exactly the "scenarios are mirrored" bug.
 - The car is a real `createVehicleVisual` instance wearing `lookFor()`, so it is the in-game car,
   not a copy that drifts.
 - Camera: a slow orbit, plus three fixed framings — **mirror** (what you'd see approaching it),
@@ -307,7 +317,8 @@ that is not optional: *looks the part, drives like it ~70% of the time* (`loyalt
   (`v.intent >= 0`, indicator on, `leader.type === 'truck'`, gap crossing a threshold) and they
   fire once, with a hold time. If the AI changes, the captions change with it.
 - Loop with a short freeze and fade. `Space` pause, `1`/`2` slow-mo (0.5×, 0.25×) — telegraphing
-  is invisible at 1× — `R` restart, `Esc` back to the sheet.
+  is invisible at 1× — `R` restart, `Esc` back to the sheet. The sheet's own **Back to the
+  turntable** button does the same, because a key nobody knows about is not a way out.
 - A live strip shows the star's numbers (`+21 km/h · 1.0 s · p 0.05`), so the text and the motion
   are obviously the same thing.
 - Done when: `node tools/personas.js` runs every demo headless, asserts an `expect` per demo plus
@@ -365,9 +376,10 @@ needs no change here — that is the whole point.
   one assumption here that turned out false.
 - The demo stage's `Traffic` carries its own `lanes`; do not set `CONFIG.lanes` for it or the world
   road is rebuilt around the rig.
-- Keep the demo camera on the road side of the plinth. The first attempt sat out in the fields and
-  the world motorway filled the background; the lateral offset must stay under the ~45 m the stage
-  sits off the pavement, so wide framings use a rear view rather than a longer side-on one.
+- Keep the demo camera on the road side of the lane. A wider side-on framing puts the camera out
+  past the ~45 m the stage sits off the pavement; wide framings use a rear view instead of a longer
+  side-on one. (The world is hidden now, so it can no longer fill the background, but the lane is
+  still only as long as the rig built it.)
 - Demos are staged at the 100 km/h day limit whatever the game's time of day. The persona look still
   changes with the scene's night lighting, but the behaviour does not: a sok at 130 overtakes the
   truck it drafts behind at 100, so a night demo would describe a different driver.

@@ -40,12 +40,14 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 | Lane-change duration / signalling time | `veh.lcDur`, `veh.tSignal` |
 | Accepted gap when changing lanes | `veh.tSafe`, `veh.tSafePlayer` |
 
-**Persona viewer** (`C` from the pause menu, or "Meet the cast" on the title card): a turntable rig in the
-fields with the real in-game cars. `L` swaps lamp signatures, `V` the camera, `G` the headway gap.
+**Persona viewer** (`C` from the pause menu, or "Meet the cast" on the title card): a turntable rig on a
+bare lane against black — only the road and the cars, the world is put away while it is open. `L` swaps
+lamp signatures, `V` the camera, `G` the headway gap.
 Every line on the spec sheet is clickable: the rig grows to the lanes a behaviour needs and plays a
 seeded demo staged from `scenarios.js` (`demo:<persona>:<trait>`), with captions detected from the star
-car's live state. `Space` pauses, `1`/`2` are 0.5×/0.25× slow motion, `3` normal, `R` restarts, `Esc`
-returns to the sheet. `?scenario=demo:sok:draft` runs one as an ordinary free scenario.
+car's live state. `Space` pauses, `1`/`2` are 0.5×/0.25× slow motion, `3` normal, `R` restarts, and the
+sheet's *Back to the turntable* button (or `Esc`) leaves a demo or the gap view.
+`?scenario=demo:sok:draft` runs one as an ordinary free scenario.
 `npm run personas` runs all of them headless and fails if a tell never fires, a demo collides or an
 expectation does not hold (`node tools/personas.js --verbose` prints the captions).
 

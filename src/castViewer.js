@@ -332,6 +332,17 @@ export class CastViewer {
     if (s.lcDur) tells.push(['Lane change takes', secs(s.lcDur), 'signal']);
 
     this.headEl.replaceChildren();
+    // One visible way out of every staged view, so Esc is never the only key to
+    // know: the sheet says where Back goes, and it goes there.
+    if (this.demo || this.gap) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'castback';
+      back.textContent = '\u2190 Back to the turntable';
+      back.title = 'Back to the turntable (Esc)';
+      back.onclick = () => (this.demo ? this.closeDemo() : this.closeGap());
+      this.headEl.appendChild(back);
+    }
     const title = document.createElement('div');
     title.className = 'casttitle';
     const tname = document.createElement('b');

@@ -2,11 +2,13 @@
 // the headway view that lengthens it into a following gap, and the behaviour
 // demos that grow it to the lanes a staged action needs.
 //
-// A plinth in the fields ~45 m off the carriageway edge, a single lane of
-// asphalt that scrolls under a car that holds position, and a camera that can
-// orbit or sit in one of three fixed framings. The car is a real pooled
+// A lone strip of asphalt on black, floating where the viewer finds it, a
+// single lane that scrolls under a car that holds position, and a camera that
+// can orbit or sit in one of three fixed framings. The car is a real pooled
 // TrafficView visual wearing lookFor(), so it is the in-game car and flipping
-// body styles costs nothing.
+// body styles costs nothing. The world (polder, motorway, other traffic) is put
+// away while the viewer is open, so the rig reads as a studio and not as a
+// diorama.
 //
 // Slice 2 lengthens the same lane threefold and puts a plain lead car on it,
 // the star closing to the headway its own T (or Tdraft) says it keeps. A
@@ -33,7 +35,7 @@ import {
 } from './personaSpec.js';
 
 const ROAD_LEN = 40; // m, the turntable's single lane
-const HEADWAY_ROAD_LEN = 200; // the gap view leans far enough forward to never show the plinth's end
+const HEADWAY_ROAD_LEN = 200; // the gap view leans far enough forward to never show the lane's end
 const HEADWAY_SHIFT = 40; // m of lane behind the star's bumper in the gap view
 const DEMO_ROAD_LEN = 560; // m, long enough for the widest staged frame (antic)
 const DEMO_SHIFT = 60; // m of road behind the star in a demo
@@ -42,18 +44,23 @@ const ROAD_PERIOD = 16; // m of texture per repeat (see rigRoadTexture)
 const DRL_SIGS = new Set(['bar', 'angel', 'ev']);
 const CLOSE_RATE = 2.6; // 1/s, how quickly the star closes to its headway
 
+// Sides: the rig's lane runs along +z, exactly like the game's road, so +x is
+// the LEFT of travel (the game measures `lat` positive to the right, which is
+// -x). Every lane offset and every camera yaw below is written in that rig
+// frame, mirrored from the world's `lat` axis: a viewer sees the traffic drive
+// to the right, and an overtake happens on the car's left, as it does in play.
 const FRAMINGS = [
   { name: 'Turntable', yaw: null, dist: 9.4, height: 2.15, fov: 56, look: 0.75 },
-  { name: 'Mirror', yaw: 0.1, dist: 7.2, height: 1.2, fov: 40, look: 0.68 }, // low, close, what you'd see approaching
-  { name: 'Pass-by', yaw: Math.PI / 2 + 0.04, dist: 9.6, height: 1.4, fov: 54, look: 0.7 },
-  { name: 'Rear quarter', yaw: Math.PI * 0.78, dist: 7.6, height: 1.75, fov: 50, look: 0.7 },
+  { name: 'Mirror', yaw: -0.1, dist: 7.2, height: 1.2, fov: 40, look: 0.68 }, // low, close, what you'd see approaching
+  { name: 'Pass-by', yaw: -(Math.PI / 2 + 0.04), dist: 9.6, height: 1.4, fov: 54, look: 0.7 },
+  { name: 'Rear quarter', yaw: -Math.PI * 0.78, dist: 7.6, height: 1.75, fov: 50, look: 0.7 },
 ];
 
 // The gap view: one fixed framing from the side and above, distance derived
 // from the gap so a 0.55 s patser and a 2.2 s pensioner both fit, and panned so
 // the pair sits in the strip the panels leave free instead of behind the sheet.
 const HEADWAY = {
-  yaw: Math.PI / 2 + 0.07,
+  yaw: -(Math.PI / 2 + 0.07),
   fov: 50,
   height: 4.2,
   rise: 0.55, // camera climbs with the zoom, so a long gap reads as a plan
@@ -126,21 +133,8 @@ export class CastStage {
     this.roadShift = shift;
     this.roadLanes = lanes;
     const roadW = ROAD_W * lanes;
-    // plinth: a slab from below the fields up to y=0
-    const plinthMat = new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.96, metalness: 0 });
-    this.own.push(plinthMat);
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(roadW + 2.6, 0.95, len + 3), plinthMat);
-    plinth.position.set(0, -0.475 - 0.01, shift);
-    plinth.receiveShadow = true;
-    plinth.castShadow = false;
-    this.own.push(plinth.geometry);
-    // a darker skirt inset, so the plinth does not look like a floating box
-    const skirtMat = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 1 });
-    this.own.push(skirtMat);
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(roadW + 1.9, 0.7, len - 1), skirtMat);
-    skirt.position.set(0, -0.86, shift);
-    this.own.push(skirt.geometry);
-    // treadmill surface
+    // Nothing but the asphalt: the viewer is a black studio, so there is no
+    // plinth, verge or kerb to make the lane look like a slice of the polder.
     this.roadTex = rigRoadTexture(lanes);
     this.roadTex.repeat.set(1, len / ROAD_PERIOD);
     const roadMat = new THREE.MeshStandardMaterial({ map: this.roadTex, roughness: 0.96, metalness: 0 });
@@ -148,31 +142,9 @@ export class CastStage {
     this.own.push(roadTexDisposable(this.roadTex), roadMat, roadGeo);
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0.002, shift);
+    road.position.set(0, 0, shift);
     road.receiveShadow = true;
-    // a narrow grass verge each side, so the platform reads as ground and not
-    // as a concrete slab under the road
-    const vergeMat = new THREE.MeshStandardMaterial({ color: 0x45532e, roughness: 1 });
-    const vergeGeo = new THREE.PlaneGeometry(1.3, len);
-    this.own.push(vergeMat, vergeGeo);
-    const verges = [-1, 1].map((sx) => {
-      const verge = new THREE.Mesh(vergeGeo, vergeMat);
-      verge.rotation.x = -Math.PI / 2;
-      verge.position.set(sx * (roadW / 2 + 0.65), 0.0015, shift);
-      verge.receiveShadow = true;
-      return verge;
-    });
-    // thin kerbs at the lane edges, worn the same way as the paint
-    const kerbMat = new THREE.MeshStandardMaterial({ color: 0x6e6f6a, roughness: 1 });
-    const kerbGeo = new THREE.BoxGeometry(0.12, 0.05, len);
-    this.own.push(kerbMat, kerbGeo);
-    const kerbs = [-1, 1].map((sx) => {
-      const kerb = new THREE.Mesh(kerbGeo, kerbMat);
-      kerb.position.set(sx * (roadW / 2 + 0.06), 0.025, shift);
-      kerb.receiveShadow = true;
-      return kerb;
-    });
-    this.rig = [plinth, skirt, road, ...verges, ...kerbs];
+    this.rig = [road];
     this.group.add(...this.rig);
   }
 
@@ -366,10 +338,42 @@ export class CastStage {
     b.tex.needsUpdate = true;
   }
 
+  // ---------------------------------------------------------------- studio
+  /**
+   * The rig lives in a black studio: no polder, no motorway, nothing but the
+   * lane and the cars on it. Everything the world put in the scene is put away
+   * for as long as the viewer is open and comes back exactly as it was.
+   */
+  hideWorld() {
+    if (this.worldHidden) return;
+    this.worldHidden = [];
+    this.worldBg = this.scene.background;
+    this.worldFog = this.scene.fog;
+    for (const o of this.scene.children) {
+      if (o === this.group || o.isLight || o.isCamera) continue;
+      // plain Object3Ds are light targets (and stand-ins); leave them alone
+      if (!o.isMesh && !o.isPoints && !o.isSprite && !o.isLine && !o.isGroup) continue;
+      if (!o.visible) continue;
+      o.visible = false;
+      this.worldHidden.push(o);
+    }
+    this.scene.background = new THREE.Color(0x000000);
+    this.scene.fog = null;
+  }
+
+  showWorld() {
+    if (!this.worldHidden) return;
+    for (const o of this.worldHidden) o.visible = true;
+    this.worldHidden = null;
+    this.scene.background = this.worldBg;
+    this.scene.fog = this.worldFog;
+  }
+
   // ---------------------------------------------------------------- open / close
   open() {
     this.build(...this.rigSpec());
     this.group.visible = true;
+    this.hideWorld();
     this.orbit = 0;
     this.framing = 0;
     this.place();
@@ -386,6 +390,7 @@ export class CastStage {
     this.clearCar();
     this.disposeRig();
     this.group.clear();
+    this.showWorld();
   }
 
   /** Advance the treadmill, drive the lamps, pose the camera. */
@@ -418,7 +423,7 @@ export class CastStage {
     }
     const f = FRAMINGS[this.framing];
     this.orbit += dt * 0.12;
-    const yaw = f.yaw == null ? this.orbit : f.yaw;
+    const yaw = f.yaw == null ? -this.orbit : f.yaw;
     const dir = new THREE.Vector3(Math.sin(yaw) * f.dist, 0, Math.cos(yaw) * f.dist).applyQuaternion(this.group.quaternion);
     const c = new THREE.Vector3(0, f.look, 0).applyMatrix4(this.group.matrixWorld);
     camera.position.set(c.x + dir.x, f.height, c.z + dir.z);
@@ -579,8 +584,9 @@ export class CastStage {
     for (const v of d.traffic.vehicles) {
       if (!v.vis) continue;
       const z = v.u - star.u;
-      const x = v.latLocal - d.centerLat;
-      const yaw = v.v > 2 ? Math.atan2(v.latRate || 0, v.v) : 0;
+      // the rig's +x is the left of travel, `lat` grows to the right
+      const x = d.centerLat - v.latLocal;
+      const yaw = v.v > 2 ? -Math.atan2(v.latRate || 0, v.v) : 0;
       TrafficView.pose(v.vis, x, z, yaw, clamp(-v.acc * 0.004, -0.012, 0.018));
       driveDemoLamps(v.vis, v, night, blink);
     }
@@ -625,13 +631,13 @@ export class CastStage {
     const tan = Math.tan((fov * Math.PI) / 360);
     const aspect = Math.max(0.6, camera.aspect || 1.6);
     const dist = clamp((span * W) / (usable * 2 * tan * aspect), 20, 130);
-    // Side-on three-quarter from the road side when the action is compact, so
-    // the background is the field and not the world motorway. A wide action
-    // gets a rear view down the rig's own strip, which keeps the camera on it.
+    // A three-quarter view from the shoulder side when the action is compact, so
+    // the lane reads across the frame. A wide action gets a rear view down the
+    // rig's own strip, which keeps the camera on it.
     let yaw;
-    if (span > 90) yaw = Math.PI * 0.92;
-    else if (this.demoLanes > 1) yaw = Math.PI * 0.78;
-    else yaw = Math.PI / 2 - 0.05;
+    if (span > 90) yaw = -Math.PI * 0.92;
+    else if (this.demoLanes > 1) yaw = -Math.PI * 0.78;
+    else yaw = -(Math.PI / 2 - 0.05);
     const dir = new THREE.Vector3(Math.sin(yaw) * dist, 0, Math.cos(yaw) * dist).applyQuaternion(this.group.quaternion);
     const c = new THREE.Vector3(0, 0.72, midZ).applyMatrix4(this.group.matrixWorld);
     camera.position.set(c.x + dir.x, 2.8 + span * 0.05, c.z + dir.z);
