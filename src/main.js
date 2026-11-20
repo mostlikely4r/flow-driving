@@ -26,6 +26,8 @@ import { Hud } from './hud.js';
 import { Stats } from './stats.js';
 import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
 import { SCENARIOS, applyScenario } from './scenarios.js';
+import { CastStage } from './castStage.js';
+import { CastViewer } from './castViewer.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -383,6 +385,16 @@ const hud = new Hud();
 const stats = new Stats();
 const overlay = new Overlay(document.getElementById('overlay'));
 const laneMap = new LaneMap();
+const castStage = new CastStage(scene, road, view, player);
+const castViewer = new CastViewer(castStage);
+castViewer.onOpen = () => {
+  hud.toggle(hud.menuEl, false);
+  renderer.shadowMap.needsUpdate = CONFIG.shadows;
+};
+castViewer.onClose = () => {
+  if (!started) document.getElementById('start').classList.remove('hidden');
+  else if (paused) hud.toggle(hud.menuEl, true);
+};
 laneMap.setMode(CONFIG.laneMap);
 overlay.setMode(OVERLAY_MODES.includes(CONFIG.overlay) ? CONFIG.overlay : 'off');
 const VIEWS = ['cockpit', 'bonnet', 'chase'];
@@ -448,7 +460,7 @@ function setPaused(p) {
     hornOn = false;
     audio.horn(false);
   }
-  document.getElementById('menu').classList.toggle('hidden', !p || !started);
+  document.getElementById('menu').classList.toggle('hidden', !p || !started || castViewer.isOpen);
 }
 startEl.addEventListener('click', () => {
   startEl.classList.add('hidden');
@@ -462,6 +474,12 @@ startEl.addEventListener('click', () => {
   } else if (SCENARIO_NAME) hud.toast(`Unknown scenario "${SCENARIO_NAME}"`, 'bad');
 });
 document.getElementById('btnresume').onclick = () => setPaused(false);
+document.getElementById('btncast').addEventListener('click', (e) => {
+  e.stopPropagation();
+  startEl.classList.add('hidden');
+  castViewer.show();
+});
+document.getElementById('btncastmenu').onclick = () => castViewer.show();
 window.addEventListener('blur', () => { if (hornOn) { hornOn = false; audio.horn(false); } });
 
 // ---------------------------------------------------------------- matrix signs and lane closures
@@ -520,9 +538,20 @@ function playerLimit() {
 
 // ---------------------------------------------------------------- input handling
 function handlePresses(pad) {
-  for (const p of input.takePresses()) {
+  const presses = input.takePresses();
+  if (castViewer.isOpen) {
+    castViewer.handlePresses(presses);
+    input.takeWheel();
+    return;
+  }
+  for (const p of presses) {
     if (!started) continue;
     const c = p.code;
+    // C is cruise while driving; from the pause menu it opens the viewer.
+    if (c === 'KeyC' && paused) {
+      castViewer.show();
+      continue;
+    }
     if (c === 'Escape' || c === 'KeyP') {
       setPaused(!paused);
       continue;
@@ -787,6 +816,15 @@ function frame(now) {
   const ctl = input.controls(dt);
   handlePresses(ctl.pad);
 
+  // The viewer freezes the sim and uses the main camera on the stage. Nothing
+  // below runs while it is open, so the rig cannot step traffic or touch play.
+  if (castViewer.isOpen) {
+    castViewer.update(dt, camera, mode !== 'day');
+    renderer.shadowMap.needsUpdate = CONFIG.shadows && mode !== 'night';
+    composer.render(dt);
+    return;
+  }
+
   if (!paused) {
     time += dt;
     // physics
@@ -985,6 +1023,7 @@ requestAnimationFrame(frame);
 window.__game = {
   radio,
   player, traffic, oncoming, road, scene, renderer, CONFIG, scenery,
+  cast: castViewer, castStage,
   /** Debug / look-dev: jump to distance s along the road with fresh traffic. */
   teleport(s) {
     for (const tr of [traffic, oncoming]) for (const v of tr.vehicles) view.remove(v);

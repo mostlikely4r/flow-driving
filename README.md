@@ -40,6 +40,15 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 | Lane-change duration / signalling time | `veh.lcDur`, `veh.tSignal` |
 | Accepted gap when changing lanes | `veh.tSafe`, `veh.tSafePlayer` |
 
+**Persona viewer** (`C` from the pause menu, or "Meet the cast" on the title card): a turntable rig in the
+fields with the real in-game cars. `L` swaps lamp signatures, `V` the camera, `G` the headway gap.
+Every line on the spec sheet is clickable: the rig grows to the lanes a behaviour needs and plays a
+seeded demo staged from `scenarios.js` (`demo:<persona>:<trait>`), with captions detected from the star
+car's live state. `Space` pauses, `1`/`2` are 0.5×/0.25× slow motion, `3` normal, `R` restarts, `Esc`
+returns to the sheet. `?scenario=demo:sok:draft` runs one as an ordinary free scenario.
+`npm run personas` runs all of them headless and fails if a tell never fires, a demo collides or an
+expectation does not hold (`node tools/personas.js --verbose` prints the captions).
+
 `npm run simtest` runs the traffic model headless and prints lane usage, speeds and collisions
 (options: `density=20 lanes=4 player=120 plane=2 limit=130 min=6`).
 `node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Edge (run `npm run build` first).

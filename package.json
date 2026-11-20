@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --open",
     "simtest": "node tools/simtest.js",
+    "headway": "node tools/headway.js",
+    "personas": "node tools/personas.js",
     "scenario": "node tools/scenario.js",
     "abtest": "node tools/abtest.js"
   },

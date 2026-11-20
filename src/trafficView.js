@@ -37,8 +37,8 @@ export class TrafficView {
     return look ? `${variant}:${look.low ? 'low' : ''}:${look.lights}` : variant;
   }
 
-  add(veh) {
-    const look = lookFor(veh);
+  add(veh, lookOverride = null) {
+    const look = lookOverride ?? lookFor(veh);
     const key = TrafficView.poolKey(veh.variant, look);
     const list = this.pool.get(key);
     const vis = list && list.length ? list.pop() : createVehicleVisual(veh.variant, this.rng, { low: look?.low, lights: look?.lights });

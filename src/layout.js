@@ -9,9 +9,11 @@ export const outerEdgeLine = () => innerEdge() + CONFIG.lanes * CONFIG.laneWidth
 export const pavementEdge = () => outerEdgeLine() + CONFIG.hardShoulder + 0.5; // end of asphalt
 export const guardrailLat = () => pavementEdge() + 0.7;
 
-/** Lateral position (from median, local to the direction of travel) of lane i's centre. */
-export function laneLat(i) {
-  return innerEdge() + CONFIG.laneWidth * (CONFIG.lanes - 1 - i + 0.5);
+/** Lateral position (from median, local to the direction of travel) of lane i's centre.
+ *  `lanes` defaults to the world road; the persona rig builds its own, smaller road. */
+export function laneLat(i, lanes = CONFIG.lanes) {
+  const n = Math.max(1, lanes | 0);
+  return innerEdge() + CONFIG.laneWidth * (n - 1 - i + 0.5);
 }
 
 /** Lane index (0 = rightmost) nearest to a lateral position, -1 = hard shoulder, N = beyond left. */

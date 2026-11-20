@@ -101,10 +101,12 @@ export class Traffic {
    * @param {number} o.density vehicles per km per lane
    * @param {number} o.ahead metres simulated ahead of the player (in s)
    * @param {number} o.behind metres simulated behind the player (in s)
+   * @param {number} [o.lanes] lanes for this traffic (default CONFIG.lanes); the persona rig is smaller than the world
    */
-  constructor({ dir, density, ahead, behind, seed, limitKmh, onAdd, onRemove, spawnBehind = true }) {
+  constructor({ dir, density, ahead, behind, seed, limitKmh, onAdd, onRemove, spawnBehind = true, lanes }) {
     this.dir = dir;
     this.spawnBehind = spawnBehind;
+    this.laneCount = Math.max(1, (lanes ?? CONFIG.lanes) | 0);
     this.density = density;
     this.ahead = ahead;
     this.behind = behind;
@@ -137,7 +139,7 @@ export class Traffic {
       u: this.dir * (s0 + s1) / 2,
       len: s1 - s0,
       width: 2.6,
-      latLocal: laneLat(lane),
+      latLocal: laneLat(lane, this.N),
       v: 0, v0: 0, acc: 0, a: 1, b: 2, T: 1, s0: 2,
       brake: true,
       signalLane: -1,
@@ -189,7 +191,7 @@ export class Traffic {
   }
 
   get N() {
-    return CONFIG.lanes;
+    return this.laneCount;
   }
 
   setLimit(kmh) {
@@ -665,7 +667,7 @@ export class Traffic {
         veh.cooldown = Math.min(veh.cooldown, 0.3);
         veh.decT = Math.min(veh.decT, 0.3);
         veh.returnT = 8;
-      } else if (veh.passingT > 45 || pv.lane >= veh.lane) veh.passing = null;
+      } else if (veh.passingT > 45 || (veh.state === 'none' && pv.lane >= veh.lane)) veh.passing = null;
     }
     if (veh.state === 'none') {
       veh.cooldown -= dt;
@@ -818,7 +820,7 @@ export class Traffic {
       }
     }
     veh.v = v;
-    veh.latLocal = laneLat(lane);
+    veh.latLocal = laneLat(lane, this.N);
     this.vehicles.push(veh);
     // keep lane list consistent for subsequent inserts this frame
     const idx = firstAbove(list, veh.u);
@@ -955,17 +957,17 @@ export class Traffic {
       if (veh.state === 'move') {
         // the drift built up before the move blends out as the car crosses
         const p = lcProfile(veh.lcT);
-        lat = laneLat(veh.lane) + (laneLat(veh.targetLane) - laneLat(veh.lane)) * p + (veh.drift || 0) * (1 - p);
+        lat = laneLat(veh.lane, this.N) + (laneLat(veh.targetLane, this.N) - laneLat(veh.lane, this.N)) * p + (veh.drift || 0) * (1 - p);
       } else {
         // Drift toward the lane we want: half way while just wanting it, fully
         // while signalling. Often the first thing you notice.
         const want = veh.state === 'signal' ? veh.targetLane : veh.intent;
         let target = 0;
         if (want >= 0 && want !== veh.lane) {
-          target = Math.sign(laneLat(want) - laneLat(veh.lane)) * (veh.driftMax || 0) * (veh.state === 'signal' ? 1 : 0.5);
+          target = Math.sign(laneLat(want, this.N) - laneLat(veh.lane, this.N)) * (veh.driftMax || 0) * (veh.state === 'signal' ? 1 : 0.5);
         }
         veh.drift = (veh.drift || 0) + clamp(target - (veh.drift || 0), -0.3 * dt, 0.3 * dt);
-        lat = laneLat(veh.lane) + veh.drift;
+        lat = laneLat(veh.lane, this.N) + veh.drift;
       }
       lat += veh.wanderA * Math.sin(this.time * veh.wanderW + veh.wanderPh);
       veh.latLocal = lat;

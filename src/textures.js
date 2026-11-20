@@ -424,3 +424,75 @@ export function plateTexture() {
     return tex(c, { repeat: false, aniso: false });
   });
 }
+
+/**
+ * Asphalt for the F-35 rig, seen from a low three-quarter angle: ZOAB grain,
+ * polished wheel tracks, and worn lane paint. `lanes` lets the rig grow from
+ * the turntable's single lane to the two or three a behaviour demo needs. v
+ * repeats every 16 m, so the mesh can scroll the surface instead of the car.
+ */
+export function rigRoadTexture(lanes = 1) {
+  const N = Math.max(1, lanes | 0);
+  const W = 128 * N, H = 512; // 128 px per 3.5 m lane, 32 px/m vertically
+  const [c, g] = canvas(W, H);
+  const rng = mulberry32(77);
+  g.fillStyle = '#3a3b3d';
+  g.fillRect(0, 0, W, H);
+  // grain
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = rng();
+    let v = 52 + (r - 0.5) * 32;
+    if (r > 0.985) v += 38;
+    if (r < 0.02) v -= 24;
+    d[i] = v;
+    d[i + 1] = v + 1;
+    d[i + 2] = v + 3;
+    d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  // wheel tracks: two polished bands per lane, darker than the rest
+  const laneW = W / N;
+  for (let k = 0; k < N; k++) {
+    for (const off of [laneW * 0.28, laneW * 0.72]) {
+      const x = k * laneW + off;
+      const grd = g.createLinearGradient(x - laneW * 0.13, 0, x + laneW * 0.13, 0);
+      grd.addColorStop(0, 'rgba(8,8,10,0)');
+      grd.addColorStop(0.5, 'rgba(8,8,10,0.4)');
+      grd.addColorStop(1, 'rgba(8,8,10,0)');
+      g.fillStyle = grd;
+      g.fillRect(x - laneW * 0.13, 0, laneW * 0.26, H);
+    }
+  }
+  // a couple of repair seams
+  g.globalAlpha = 0.16;
+  for (let k = 0; k < 3; k++) {
+    g.fillStyle = k === 1 ? '#55555a' : '#202022';
+    g.fillRect(rng() * W, rng() * H, 30 + rng() * 90, 3 + rng() * 16);
+  }
+  g.globalAlpha = 1;
+  // Lane paint: a dash every 8 m (256 px) at every boundary, 3 m long (96 px).
+  // The two outer edges are worn almost solid; the internal lines are normal
+  // dashed markings, so a car changing lane reads against them.
+  const paint = '#c9c9c2';
+  for (let k = 0; k <= N; k++) {
+    const x = Math.round(k === N ? W - 10 : k === 0 ? 6 : (W * k) / N);
+    const edge = k === 0 || k === N;
+    for (let y = 0; y < H; y += 256) {
+      const dash = edge ? 224 : 96;
+      for (let i = 0; i < dash; i++) {
+        const yy = y + i;
+        if (yy >= H) break;
+        if (rng() < (edge ? 0.07 : 0.1)) continue; // worn away
+        g.globalAlpha = 0.5 + rng() * 0.4;
+        g.fillStyle = paint;
+        g.fillRect(x, yy, 4, 1);
+      }
+    }
+  }
+  g.globalAlpha = 1;
+  const t = tex(c);
+  t.wrapS = THREE.ClampToEdgeWrapping;
+  return t;
+}
