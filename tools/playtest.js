@@ -16,12 +16,15 @@
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { execSync, spawn } from 'node:child_process';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { CONFIG } from '../src/config.js';
 import { mulberry32 } from '../src/util.js';
 import { pedalStep } from '../src/input.js';
 import { createSim, stepSim, applyDrivePress, holdFlash, drainEvents, playerLimit } from '../src/session.js';
+import { Perception } from '../src/perception.js';
+import { BotDriver, PROFILES } from '../src/botDriver.js';
 import { buildReport } from './report.js';
 
 const DT_DEFAULT = 1 / 60;
@@ -164,6 +167,9 @@ export function analyse(j, extra = {}) {
 
   return {
     nan: hasNaN(j),
+    limit: j.header?.limitKmh ?? null,
+    resume: ccEvents.filter((e) => e.resume).length,
+    ccEvents: ccEvents.length,
     minutes: (j.t[j.t.length - 1] || 0) / 60,
     contacts: count('crash'),
     scrapes: count('scrape'),
@@ -182,6 +188,37 @@ export function analyse(j, extra = {}) {
     p50: median(j.v),
     ...extra,
   };
+}
+
+// ---------------------------------------------------------------- pass/fail
+/** The phase's acceptance criteria, from the journal alone. */
+export function verdict(driver, c) {
+  const bad = [];
+  const need = (name, ok) => {
+    if (!ok) bad.push(name);
+  };
+  need('NaN', !c.nan);
+  need('contacts 0', c.contacts === 0);
+  need('scrapes 0', c.scrapes === 0);
+  if (driver === 'slak') {
+    const home = c.laneShare[1] ?? 0;
+    need('home lane ≥ 70%', home >= 0.7);
+    need('p50 = limit − 10 ± 2', c.p50 != null && Math.abs(c.p50 - (c.limit - 10)) <= 2);
+  } else {
+    need('ccSet = limit + 4', c.ccSetModal === c.limit + 4);
+    need('≥ 1 R after braking', c.resume >= 1);
+    need('cruise share ≥ 70%', c.ccShare >= 0.7);
+    need('cc events only toggle/resume/adjust', c.ccBad === 0);
+    need('overtakes ≥ 1 per 10 min', c.overtakes >= Math.floor(c.minutes / 10));
+    need('signal 2.5–4 s before every change', c.signalBad === 0);
+    need('no unsignalled change', c.unsignalled === 0);
+    need('right-lane share ≥ 50%', c.rightShare >= 0.5);
+    need('leftmost share ≤ 30%', c.leftShare <= 0.3);
+    need('p50 = limit + 4 ± 2', c.p50 != null && Math.abs(c.p50 - (c.limit + 4)) <= 2);
+    need('min gap > 0.5 m', !(c.minGap <= 0.5));
+    need('no red cross', c.redCross === 0);
+  }
+  return { ok: bad.length === 0, bad };
 }
 
 // ---------------------------------------------------------------- the null bot (P0 skeleton)
@@ -209,17 +246,19 @@ class NullBot {
   }
 }
 
-function makeBot(driver) {
+function makeBot(driver, seed, overrides) {
   if (!driver || driver === 'null') return new NullBot();
-  throw new Error(`unknown driver "${driver}"`);
+  if (!PROFILES[driver]) throw new Error(`unknown driver "${driver}" (have: ${Object.keys(PROFILES).join(', ')})`);
+  return new BotDriver(driver, { seed, overrides });
 }
 
 // ---------------------------------------------------------------- one seed
-function runSeed(o) {
+export function runSeed(o) {
   const { seed, driver, minutes, tod, scenario, dt } = o;
   for (const [k, v] of Object.entries(o.cfg || {})) CONFIG[k] = v;
   const sim = createSim({ seed, timeOfDay: tod, scenario: scenario || null, rng: mulberry32(seed + 3) });
-  const bot = makeBot(driver);
+  const bot = makeBot(driver, seed, (o.overrides || {})[driver] || {});
+  const perception = new Perception();
   const t0 = Date.now();
   sim.journal.start({
     kind: 'bot',
@@ -235,40 +274,16 @@ function runSeed(o) {
     commit: git('rev-parse --short HEAD'),
     commitDirty: git('status --porcelain') !== '',
     node: process.version,
-    bot: { params: o.profileParams || null },
+    bot: bot.profile ? { params: { ...bot.profile } } : null,
     runner: { dt, playerSub: 1 / 120, trafficSub: 1 / 30, minutes, until: o.until ?? null },
   });
 
-  // perception (P1) is absent for now: a minimal self-only view
-  const perceptual = (t) => ({
-    t,
-    self: {
-      s: sim.player.s,
-      lane: sim.player.lane,
-      lanesOcc: sim.player.lanesOcc.slice(),
-      lat: sim.player.lat,
-      off: 0,
-      kmh: sim.player.vAlong / (1 / 3.6),
-      v: sim.player.vAlong,
-      acc: sim.player.acc,
-      ind: sim.player.ind,
-      steer: sim.player.steerVis,
-      headingErr: sim.player.headingErr,
-      cc: { on: sim.player.cc.on, set: sim.player.cc.set, has: sim.player.cc.has },
-      limitKmh: playerLimit(sim),
-      lanes: CONFIG.lanes,
-    },
-    cars: [],
-    lanes: [],
-    obstacles: [],
-    signs: { limitKmh: playerLimit(sim), nextGantryM: Infinity, cur: null, next: null },
-  });
+  let percept = perception.update(0, sim.player, sim.traffic, sim.msi, playerLimit(sim));
+  let perceptT = 0;
 
   const maxT = (o.until != null ? o.until : minutes * 60);
   const pedal = { thr: 0, brk: 0, thrHeld: 0, brkHeld: 0 };
   let t = 0;
-  let percept = perceptual(0);
-  let perceptT = 0;
   let frames = 0;
   let minGap = Infinity;
   let minTtc = Infinity;
@@ -281,12 +296,13 @@ function runSeed(o) {
     drainEvents(sim);
     perceptT -= dt;
     if (perceptT <= 0) {
-      percept = perceptual(t);
+      percept = perception.update(t, sim.player, sim.traffic, sim.msi, playerLimit(sim));
       perceptT = 0.1;
     }
     // Diagnostics only (the runner may look; the bot may not).
     const p = sim.player;
     for (const v of sim.traffic.vehicles) {
+      if (Math.abs(v.latLocal - p.lat) > (v.width + p.width) / 2) continue; // another lane
       const dl = v.u - p.s;
       const gap = Math.abs(dl) - (v.len + p.len) / 2;
       if (gap < minGap) minGap = gap;
@@ -301,7 +317,7 @@ function runSeed(o) {
   const data = sim.journal.finish({ reason: o.until != null ? 'until' : 'end', contacts: crashes });
   const checks = analyse(data, { seed, minGap, minTtc, frames, secs });
   checks.hash = journalHash(data);
-  return { data, checks, bot, sim };
+  return { data, checks, bot, sim, percept };
 }
 
 // ---------------------------------------------------------------- child
@@ -328,7 +344,32 @@ function childMain(o) {
       ),
     );
   } else {
-    console.log('until state: ' + JSON.stringify({ t: res.data.end.t, s: res.sim.player.s, kmh: res.sim.player.vAlong / (1 / 3.6), lane: res.sim.player.lane, state: res.bot.state, checks: res.checks }, null, 1));
+    const p = res.percept || null;
+    const lanes = p
+      ? p.lanes.map((lv, i) => ({
+          lane: i,
+          ahead: lv.ahead ? { id: lv.ahead.id, type: lv.ahead.type, gap: Math.round(lv.ahead.gap), kmh: Math.round(lv.ahead.kmh) } : null,
+          behind: lv.behind ? { id: lv.behind.id, type: lv.behind.type, gap: Math.round(lv.behind.gap), kmh: Math.round(lv.behind.kmh) } : null,
+        }))
+      : null;
+    console.log(
+      'until state: ' +
+        JSON.stringify(
+          {
+            t: res.data.end.t,
+            s: res.sim.player.s,
+            kmh: res.sim.player.vAlong / (1 / 3.6),
+            lane: res.sim.player.lane,
+            state: res.bot.state,
+            lanes,
+            obstacles: p ? p.obstacles : null,
+            signs: p ? { limitKmh: p.signs.limitKmh, cur: p.signs.cur, next: p.signs.next } : null,
+            checks: res.checks,
+          },
+          null,
+          1,
+        ),
+    );
     console.log('trace tail:');
     for (const line of res.bot.trace.slice(-20)) console.log('  ' + JSON.stringify(line));
   }
@@ -394,7 +435,7 @@ async function parentMain(o) {
   const checks = results.filter((r) => r.checks).map((r) => r.checks);
 
   // ---- check table
-  const head = ['seed', 'min', 'contacts', 'scrapes', 'nan', 'minGap', 'minTtc', 'overtakes', 'right%', 'left%', 'cruise%', 'ccSet', 'p50', 'secs'];
+  const head = ['seed', 'min', 'contacts', 'scrapes', 'nan', 'minGap', 'minTtc', 'overtakes', 'right%', 'left%', 'cruise%', 'ccSet', 'p50', 'secs', 'pass'];
   const rows = checks.map((c) => [
     c.seed,
     c.minutes.toFixed(1),
@@ -410,6 +451,10 @@ async function parentMain(o) {
     c.ccSetModal ?? '–',
     c.p50 == null ? '–' : Math.round(c.p50),
     c.secs.toFixed(1),
+    (() => {
+      const v = verdict(driver, c);
+      return v.ok ? 'yes' : `NO (${v.bad.join(', ')})`;
+    })(),
   ]);
   const widths = head.map((h, i) => Math.max(String(h).length, ...rows.map((r) => String(r[i]).length)));
   const line = (r) => r.map((x, i) => String(x).padEnd(widths[i])).join('  ');
@@ -417,6 +462,7 @@ async function parentMain(o) {
   for (const r of rows) console.log(line(r));
 
   for (const f of failed) console.log(`seed ${f.seed} FAILED: ${f.failed}`);
+  const failures = checks.filter((c) => !verdict(driver, c).ok).length + failed.length;
 
   const drives = results
     .filter((r) => r.checks)
@@ -443,16 +489,16 @@ async function parentMain(o) {
     commitDirty: git('status --porcelain') !== '',
     node: process.version,
     totalSecs,
-    failed: failed.length,
-    checks,
+    failed: failures,
+    checks: checks.map((c) => ({ ...c, verdict: verdict(driver, c) })),
   };
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
   console.log(`run dir: ${dir}`);
-  if (failed.length) process.exit(1);
+  if (failures) process.exit(1);
 }
 
-const isChild = process.argv.includes('--child');
-if (isChild) {
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain && process.argv.includes('--child')) {
   const i = process.argv.indexOf('--child');
   let opts;
   try {
@@ -462,7 +508,7 @@ if (isChild) {
     process.exit(1);
   }
   childMain(opts);
-} else {
+} else if (isMain) {
   const o = parseArgs(process.argv.slice(2));
   parentMain(o).catch((e) => {
     console.error(e && e.stack ? e.stack : e);
