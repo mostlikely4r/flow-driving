@@ -6,6 +6,7 @@
 //
 // Usage: npm run moments
 import { detectMoments } from '../src/moments.js';
+import { checkCase, report } from './lib/momentcheck.js';
 
 const HZ = 2;
 const LANE_W = 3.5;
@@ -96,7 +97,10 @@ const cases = [
         player: () => ({ lane: 1, v: 100 }),
         vehicles: (t) => [{ id: 2, dl: 50, lane: 2, kmh: t < 4 ? 100 : Math.max(50, 100 - 2.5 * 3.6 * (t - 4)), brake: t > 4 }],
       }),
-    expect: ['phantom-brake'],
+    // The hand-built car keeps braking with nothing in front of it, so after the
+    // detector's 8 s cooldown the rule fires a second time (4.5 s and 13.0 s).
+    // Both are the rule doing its job; the count says so instead of hiding it.
+    expect: [{ kind: 'phantom-brake', count: 2 }],
   },
   {
     name: 'empty-signal (a car indicates for 10 s without moving)',
@@ -117,6 +121,21 @@ const cases = [
         vehicles: (t) => [{ id: 21, dl: 60, lane: t < 5 ? 1 : 2, kmh: 100 }],
       }),
     expect: ['pointless-lane'],
+  },
+  {
+    name: 'empty-signal (a car indicates for 10 s, then withdraws it without moving)',
+    // The "withdrew it without moving" wording is only reachable when the car was
+    // more than 80 m away at the 8 s mark (closer, the "has indicated" message
+    // fires first and blocks it). Real traffic cannot be placed that neatly, so
+    // the gap is 90 m while it signals and steps in to 70 m as the indicator
+    // goes off; that 20 m step is the one synthetic liberty in this case.
+    build: () =>
+      build({
+        sec: 16,
+        player: () => ({ lane: 1, v: 100 }),
+        vehicles: (t) => [{ id: 24, dl: t < 11 ? 90 : 70, lane: 2, kmh: 100, ind: t > 2 && t < 11 ? -1 : 0 }],
+      }),
+    expect: [{ kind: 'empty-signal', text: 'withdrew it without moving' }],
   },
   {
     name: 'a justified overtake is NOT pointless-lane',
@@ -259,23 +278,23 @@ const cases = [
   },
 ];
 
-let failed = 0;
+const results = [];
 for (const c of cases) {
+  const spec = {
+    expect: (c.expect || []).map((e) => (typeof e === 'string' ? { kind: e } : e)),
+    // `reject` used to be ignored by this runner; it is the negative half of a case.
+    forbid: (c.reject || []).map((k) => ({ kind: k, why: `the negative case must not fire ${k}` })),
+  };
   let got = [];
   try {
-    got = detectMoments(c.build()).map((m) => m.kind);
+    got = detectMoments(c.build());
   } catch (e) {
-    console.log(`FAIL  ${c.name}\n      threw: ${e && e.stack ? e.stack.split('\n')[0] : e}`);
-    failed++;
+    results.push({ title: c.name, ok: false, kind: 'DETECTOR', lines: [`threw: ${e && e.stack ? e.stack.split('\n')[0] : e}`] });
     continue;
   }
-  const missing = c.expect.filter((k) => !got.includes(k));
-  if (missing.length) {
-    failed++;
-    console.log(`FAIL  ${c.name}\n      expected ${c.expect.join(', ')}; got ${got.join(', ') || 'nothing'}`);
-  } else {
-    console.log(`ok    ${c.name}`);
-  }
+  const r = checkCase(got, spec);
+  results.push({ title: c.name, ok: r.ok, kind: r.kind, lines: r.lines });
 }
-console.log(failed ? `\n${failed} case(s) failed` : '\nall detector cases fired');
-process.exit(failed ? 1 : 0);
+const code = report(results);
+console.log(code ? `\n${results.filter((r) => !r.ok).length} case(s) failed` : '\nall detector cases fired');
+process.exit(code);

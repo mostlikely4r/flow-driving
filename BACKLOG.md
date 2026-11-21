@@ -68,7 +68,7 @@ prototype) before committing to them.
 | F-15 | Archetype visual tells within the box style: colour palette, stance, tinted windows, wheels, light signature (LED strip or yellow halogen), readable in the mirror and at night | Readable | 4 | M | Med | P1 | slice 1 done: palette, lowered + big rims, tint, and a lamp shape per archetype: leasebak LED strip + full-width rear bar, patser angel-eye rings + smoked tails, pensioner round warm lamps, grijze sok twin projectors + L-shaped tails, family tall upright tails, EV one thin light line front and back, white van roof rack + ladder + company stripe |
 | F-16 | Fix the side stripes that read as glitching wheels | Quality | 2 | S | Low | P1 | done: real wheel arches cut into the body |
 | F-28 | **Night mood**: dark sky, cars read as their lights, unlit motorway with occasional sodium-lit stretches whose light sweeps over the car lamp by lamp, white lines that light up in your own beam (retroreflective) | Authentic | 4 | S | Low | P1 | done, needs playtest |
-| F-37 | **Proefrit (playtest loop)**: one drive journal that records your drives and a bot's drives the same way, moment detectors that name what happened from the driver's seat, a bot that drives the real player car with only what a player can see, and a report Claude can read. Your marks calibrate the bot | Readable | 5 | L | Med | P0 | slice 1 done: journal (`journal.js`, 2 Hz columns), moment detectors from the seat (`moments.js`, thresholds in `CONFIG.moments`), F8 marks + notes + end-of-drive questions, `POST /__journal` to `playtests/human/`, `tools/report.js`, detector smoke test (`npm run moments`). Needs your 20-minute drive to calibrate. Slices 2–4 (bot, frames, compare/`jij`) next; see **Proefrit (F-37)** at the end |
+| F-37 | **Proefrit (playtest loop)**: one drive journal that records your drives and a bot's drives the same way, moment detectors that name what happened from the driver's seat, a bot that drives the real player car with only what a player can see, and a report Claude can read. Your marks calibrate the bot | Readable | 5 | L | Med | P0 | slice 1 done: journal (`journal.js`, 2 Hz columns), moment detectors from the seat (`moments.js`, thresholds in `CONFIG.moments`), F8 marks + notes + end-of-drive questions, `POST /__journal` to `playtests/human/`, `tools/report.js`, detector cases + real-sim stage test (`npm run moments`, `tools/momentstage.js`). Needs your 20-minute drive to calibrate. Slices 2–4 (bot, frames, compare/`jij`) next; see **Proefrit (F-37)** at the end |
 | F-19 | **Dev overlay v2**: everything the expanded overlay shows now, plus predicted paths, target gaps and lane-change intent drawn in the world | Readable | 3 | M | Low | P2 | later; separate from the AR overlay |
 | F-12 | Radio: a play-your-own-music folder, plus optional live Dutch radio streams | Authentic | 3 | S | Low | P1 | done: Y tunes off / my music / NPO Radio 1, 2, 3FM, Klassiek, 5. Folder picked in the menu each session (files stay local); streams can be turned off in the menu. Later: remember the folder, car-speaker EQ |
 | F-13 | Shoulder check / look-around: hold a key to glance over the shoulder at the blind spot | Authentic | 3 | S | Low | P1 | done: Z / X tap = quick glance (~135° / 125°, head moves toward the window), hold = keep looking |
@@ -533,7 +533,15 @@ is deterministic, `node tools/playtest.js seed=3 until=412 clip` reproduces it.
   journal into the same `report.md`. *Done when* a 20-minute drive of yours produces a report in
   which you recognise your own drive, and each of your marks has a timestamp and a frame-able
   `s`.
-  **Built:** all of the above, plus `npm run moments` (a deterministic smoke test per detector).
+  **Built:** all of the above, plus `npm run moments`: hand-built journals for one rule at a time
+  (`tools/momenttest.js`) and a real-sim stage test (`tools/momentstage.js`) that drives five staged
+  situations through `Road` -> `Player` -> `Traffic.step` -> `Journal` -> `detectMoments`, so a
+  detector is checked against what the sim actually recorded (`veh.brake`, `veh.indicator`,
+  `veh.lane`, `veh.latLocal`) and not only against synthetic rows. Both use one checker
+  (`tools/lib/momentcheck.js`), and every failure says whether the *situation* was missing
+  (FIXTURE) or the *rule* misjudged it (DETECTOR). `npm run moments:stage -- only=ES trace` prints
+  the journal rows the detector saw, `order=reverse` reruns in the other order, `dump=<dir>` writes
+  the journals for `npm run report`.
   Watch items from building it: `v` is km/h while `util.js` `KMH` is m/s per km/h, so m/s is
   `kmh * KMH` (a first draft used `/ KMH` and turned 0.4 m/s² into 5.6); the recorder keeps a
   wider window than `popInM` and never lets its nearest-N cap hide a car inside 150 m, or every
@@ -565,6 +573,25 @@ is deterministic, `node tools/playtest.js seed=3 until=412 clip` reproduces it.
   thresholds tuned. *Done when* at least 3 of your journals exist and ≥ 70% of your "felt wrong"
   marks have a detector firing within 5 s, while each detector fires at most twice per 10 minutes
   without a mark near it.
+
+### Open: what the stage test cannot see yet
+
+Found while building `tools/momentstage.js`. Each one is a probe there rather than a fixed
+fixture, so the number stays visible:
+
+- **Closure obstacles never reach the journal.** `addClosure` puts `c.obs` in the lane lists, not in
+  `traffic.vehicles`, and `Journal.sampleAt` reads only `traffic.vehicles`. A car leaving a closed
+  lane, or braking for the arrow board, is likely to be called pointless or a phantom brake.
+  `probe-closure` records it: the car is reported as braking with nothing visible ahead. Fix:
+  record closure obstacles as journal rows.
+- **`pointless-lane`'s leader window is a hard-coded 120 m** (`o.dl - v.dl > 120`), not
+  `cfg.pointlessM`. `probe-far` shows what it means: pulling out for a 70 km/h car 130 m ahead
+  counts as pointless. Fix: make it a CONFIG key with the same value, then calibrate.
+- **Decide whether pulling out for a slow car 130-200 m ahead counts as pointless from the seat.**
+  That is a calibration question, not a code one: your marks decide.
+- **Brake-light on/off events for nearby cars.** The journal samples at 2 Hz, so a tap shorter than
+  0.5 s can fall between samples and be invisible. Recording the on/off events (like the player's
+  own control changes) would make the brake column trustworthy.
 
 ### Truth rules
 

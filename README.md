@@ -69,7 +69,10 @@ an *End drive…* button asks three optional questions, then POSTs the journal t
 set). `npm run report -- playtests/human/2026-01-31-17-42-09.json` turns a journal into `report.md`:
 rates per 10 minutes for each moment kind, the M1 check, a from-the-seat timeline, your marks and
 their nearby detectors, and a health block. `src/moments.js` judges only what a driver in the car
-can see; thresholds live in `CONFIG.moments`. `npm run moments` runs the detector smoke test.
+can see; thresholds live in `CONFIG.moments`. `npm run moments` runs the detector cases (hand-built
+journals) and then the stage test (`tools/momentstage.js`), which drives five staged situations
+through the real sim and checks that the brake-light, indicator, empty-signal and pointless-lane
+detectors read what the sim actually recorded (`only=ID`, `trace`, `order=reverse`, `dump=<dir>`).
 **Playtest bot** (`src/perception.js`, `src/botDriver.js`, `tools/playtest.js`): a deterministic
 driver that has nothing but the keyboard. It sees only what a driver in the car can see (a
 whitelist of cues, no intent or hidden sim state), and its output is held keys plus key presses, so
