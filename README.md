@@ -65,8 +65,8 @@ expectation does not hold (`node tools/personas.js --verbose` prints the caption
 **Proefrit** (F-37, `src/journal.js`, `src/moments.js`): every drive is recorded to one JSON
 journal. `F8` drops a mark while you drive; the pause menu (Esc) takes a one-line note per mark and
 an *End drive…* button asks three optional questions, then POSTs the journal to the Vite dev server
-(`playtests/human/<date>-<time>.json` — commit these; they are design history and the calibration
-set). `npm run report -- playtests/human/2026-01-31-17-42-09.json` turns a journal into `report.md`:
+(`playtests/human/<date>-<time>.json` — git ignores these; they are design history and the
+calibration set). `npm run report -- playtests/human/2026-01-31-17-42-09.json` turns a journal into `report.md`:
 rates per 10 minutes for each moment kind, the M1 check, a from-the-seat timeline, your marks and
 their nearby detectors, and a health block. `src/moments.js` judges only what a driver in the car
 can see; thresholds live in `CONFIG.moments`. `npm run moments` runs the detector cases (hand-built

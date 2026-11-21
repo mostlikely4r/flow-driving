@@ -1,7 +1,8 @@
 // Vite config for Snelweg. Besides the normal dev server this adds the Proefrit
 // (F-37) journal sink: while playing in dev, ending a drive POSTs one JSON file
 // to /__journal, which lands in playtests/human/. Those files are design history
-// and the calibration set for the moment detectors, so they are committed.
+// and the calibration set for the moment detectors: they stay on the player's
+// disk, kept locally and ignored by git.
 //
 // The git commit is baked into the bundle as __GIT_COMMIT__: a journal without
 // its commit cannot be compared to anything.

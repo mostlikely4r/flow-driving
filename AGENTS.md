@@ -11,8 +11,8 @@ milestones and every feature by ID. Read the pillars before proposing anything.
 - No unit-test script. The checks are the headless tools in `tools/`, each an npm script:
   `simtest`, `personas`, `scenario <name>`, `moments`, `bottest`, `playtest`, and others listed
   in the README. `playtest` drives minutes of traffic per seed and is a long run.
-- Human drive journals in `playtests/human/` are design history and the calibration set: commit
-  them, never rewrite them.
+- Human drive journals in `playtests/human/` are local: they are the user's design history and
+  calibration set, git ignores them, never delete or rewrite them.
 
 ## Sessions
 

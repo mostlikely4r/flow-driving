@@ -5,8 +5,9 @@ One JSON file per drive: the journal of a real drive, recorded by the game.
 - Drive, then `F8` when something happens. The pause menu (Esc) gives each mark a one-line note.
 - *End drive…* in the pause menu asks three optional questions (calm 1–5, a car that felt wrong,
   best moment) and writes the file here. Closing the tab sends it too.
-- **Commit these.** They are design history, and the calibration set: a detector only counts once
-  it fires where you marked a moment. A detector that never agrees with you gets cut.
+- **These stay on your disk** (git ignores them). They are design history and the calibration
+  set: a detector only counts once it fires where you marked a moment. To share a drive, attach
+  the JSON to a GitHub issue. A detector that never agrees with you gets cut.
 
 Read one:
 

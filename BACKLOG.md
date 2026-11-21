@@ -463,8 +463,8 @@ menu, a mark can get a one-line note ("that van came out of nowhere"). When you 
 game asks three questions, all optional, and you can skip them with one key:
 *calm 1–5*, *a car that felt wrong?*, *best moment?*. No more questions than that, or you will
 stop answering. In dev mode the journal goes to a small Vite dev-server endpoint
-(`POST /__journal`), which writes `playtests/human/<date>-<time>.json`. Commit these: they are
-design history and the calibration set.
+(`POST /__journal`), which writes `playtests/human/<date>-<time>.json`. These stay on your disk:
+they are your design history and the calibration set, and git ignores them.
 
 **4. Perception (`src/perception.js`).** What a player in the car can know, and nothing more:
 - Forward about 250 m, mirrors about 120 m behind. The neighbouring lanes are visible; lanes

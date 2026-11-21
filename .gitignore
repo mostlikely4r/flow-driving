@@ -8,3 +8,5 @@ Thumbs.db
 shots/
 playtests/bot/
 playtests/stage/
+playtests/human/*
+!playtests/human/README.md
