@@ -650,6 +650,23 @@ export class Traffic {
     return { safe, inc, wants, margin: inc - need };
   }
 
+  /**
+   * Start signalling for lane `target` (the state change `laneLogic` makes
+   * when a driver commits to a lane change). Also called by the stage test
+   * (`tools/momentstage.js`), so holding, moving and cancelling stay the same
+   * code path as a real driver's.
+   */
+  beginSignal(veh, target) {
+    const left = target > veh.lane;
+    veh.state = 'signal';
+    veh.targetLane = target;
+    veh.signalLane = target;
+    veh.signalT = 0;
+    veh.recheckT = 1;
+    veh.indicator = left ? -1 : 1;
+    veh.indOffT = 0;
+  }
+
   laneLogic(veh, dt) {
     const N = this.N;
     veh.pressureT = Math.max(0, veh.pressureT - dt);
@@ -708,15 +725,7 @@ export class Traffic {
       // going left to overtake, or going right (keep-right / back in after an
       // overtake), where signalling lets cooperative drivers make room.
       const waitAndSignal = left ? best.ev.margin > 0.25 && this.rng() < 0.35 : best.ev.margin > 0.1 && this.rng() < 0.5;
-      if (best.ev.safe || waitAndSignal) {
-        veh.state = 'signal';
-        veh.targetLane = best.t;
-        veh.signalLane = best.t;
-        veh.signalT = 0;
-        veh.recheckT = 1;
-        veh.indicator = left ? -1 : 1;
-        veh.indOffT = 0;
-      }
+      if (best.ev.safe || waitAndSignal) this.beginSignal(veh, best.t);
     } else if (veh.state === 'signal') {
       veh.signalT += dt;
       veh.recheckT -= dt;

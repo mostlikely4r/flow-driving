@@ -76,6 +76,19 @@ export function readSamples(j) {
 const typeWord = (m) => (m.variant === m.type ? m.type : `${m.variant} ${m.type}`);
 
 /**
+ * The lane the body is actually in, halfway across counts as the new lane.
+ * Off is positive toward the right (outer) edge, and lane 0 is the rightmost,
+ * so a positive off means the body is over the line into lane - 1.
+ * Exported so the stage test can read the same lane the detectors read.
+ */
+export function effLane(v, laneW, nLanes) {
+  let l = v.lane;
+  if (v.off > laneW / 2) l--;
+  else if (v.off < -laneW / 2) l++;
+  return Math.max(0, Math.min(nLanes - 1, l));
+}
+
+/**
  * Detect moments in a journal. `thresholds` overrides the journal's recorded
  * CONFIG.moments (used by calibration and by tools/report.js).
  */
@@ -96,15 +109,8 @@ export function detectMoments(j, thresholds = null) {
     return m ? `the ${typeWord(m)}` : 'a car';
   };
   const half = (id) => ((meta[id] && meta[id].len) || 4.5) / 2;
-  /** The lane the body is actually in, halfway across counts as the new lane. */
-  // Off is positive toward the right (outer) edge, and lane 0 is the rightmost,
-  // so a positive off means the body is over the line into lane - 1.
-  const effLane = (v) => {
-    let l = v.lane;
-    if (v.off > laneW / 2) l--;
-    else if (v.off < -laneW / 2) l++;
-    return Math.max(0, Math.min(nLanes - 1, l));
-  };
+  /** The lane the body is actually in, at this journal's lane width. */
+  const effLaneAt = (v) => effLane(v, laneW, nLanes);
   const add = (kind, severity, s, vid, text) => {
     const k = MOMENT_KINDS[kind];
     moments.push({
@@ -127,7 +133,7 @@ export function detectMoments(j, thresholds = null) {
     if (!s) {
       s = {
         lane: v.lane,
-        eff: effLane(v),
+        eff: effLaneAt(v),
         ind: v.ind,
         indSince: v.ind ? t : null,
         latHist: [], // [{t, lat}] absolute lateral coordinate
@@ -176,7 +182,7 @@ export function detectMoments(j, thresholds = null) {
       const ahead = v.dl > 0;
       const gap = ahead ? v.dl - half(v.id) - plen / 2 : -v.dl - half(v.id) - plen / 2;
       const vm = v.kmh * KMH;
-      const eff = effLane(v);
+      const eff = effLaneAt(v);
       const wasEff = st.eff;
 
       // --- lane entry / lane change, judged as the body crosses the line
@@ -223,7 +229,7 @@ export function detectMoments(j, thresholds = null) {
           let ld = null;
           for (const o of P.veh.values()) {
             if (o.id === v.id || o.dl <= v.dl) continue;
-            if (effLane(o) !== wasEff) continue;
+            if (effLaneAt(o) !== wasEff) continue;
             if (o.dl - v.dl > 120) continue;
             if (!ld || o.dl < ld.dl) ld = o;
           }
@@ -315,7 +321,7 @@ export function detectMoments(j, thresholds = null) {
             for (const o of P.veh.values()) {
               if (o.id === v.id) continue;
               if (o.dl <= v.dl) continue;
-              const oe = effLane(o);
+              const oe = effLaneAt(o);
               if (oe !== v.lane && oe !== eff) continue;
               if (o.dl - v.dl - half(o.id) - half(v.id) < cfg.phantomLook) {
                 explained = true;
@@ -422,7 +428,7 @@ export function detectMoments(j, thresholds = null) {
         let gapA = Infinity;
         let gapB = Infinity;
         for (const v of P.veh.values()) {
-          if (effLane(v) !== l) continue;
+          if (effLaneAt(v) !== l) continue;
           const g = v.dl > 0 ? v.dl - half(v.id) - plen / 2 : -v.dl - half(v.id) - plen / 2;
           if (v.dl > 0) gapA = Math.min(gapA, g);
           else gapB = Math.min(gapB, g);
@@ -454,7 +460,7 @@ export function detectMoments(j, thresholds = null) {
         const target = pl + (P.ind < 0 ? 1 : -1);
         const behind = [];
         for (const v of P.veh.values()) {
-          if (effLane(v) !== target || v.dl > 0) continue;
+          if (effLaneAt(v) !== target || v.dl > 0) continue;
           const g = -v.dl - half(v.id) - plen / 2;
           if (g > 0 && g < 60) behind.push({ id: v.id, gap: g, kmh: v.kmh });
         }
@@ -514,7 +520,7 @@ export function detectMoments(j, thresholds = null) {
       if (P.ind < 0 && Q.ind >= 0) {
         let target = null;
         for (const v of P.veh.values()) {
-          if (v.dl > 0 && effLane(v) === pl && v.dl < 150) {
+          if (v.dl > 0 && effLaneAt(v) === pl && v.dl < 150) {
             if (!target || v.dl < target.dl) target = { id: v.id, dl: v.dl };
           }
         }
@@ -582,7 +588,7 @@ export function detectMoments(j, thresholds = null) {
         for (let b = a + 1; b < trucks.length; b++) {
           const A = trucks[a];
           const B = trucks[b];
-          if (Math.abs(effLane(A) - effLane(B)) !== 1) continue;
+          if (Math.abs(effLaneAt(A) - effLaneAt(B)) !== 1) continue;
           if (Math.abs(A.dl - B.dl) > 14) continue;
           const key = A.id < B.id ? `${A.id}:${B.id}` : `${B.id}:${A.id}`;
           const pair = pairState(truckPairs, key, P.t);
@@ -614,7 +620,7 @@ export function detectMoments(j, thresholds = null) {
   }
 
   // moved-over: read from the flash events, plus pressure without a flash
-  moments.push(...movedOver(j, S, cfg, label, plen, effLane, meta));
+  moments.push(...movedOver(j, S, cfg, label, plen, effLaneAt, meta));
 
   moments.sort((a, b) => a.t - b.t);
   return moments;
@@ -635,7 +641,7 @@ function pairState(pairs, key, t) {
 }
 
 /** A car ahead moves right after you flash (or after you close right up). */
-function movedOver(j, S, cfg, label, plen, effLane, meta) {
+function movedOver(j, S, cfg, label, plen, effLaneAt, meta) {
   const out = [];
   const half = (id) => ((meta[id] && meta[id].len) || 4.5) / 2;
   const flashes = (j.events || []).filter((e) => e.type === 'flash').map((e) => e.t);
@@ -645,13 +651,13 @@ function movedOver(j, S, cfg, label, plen, effLane, meta) {
     const P = S[i];
     const Q = S[i - 1];
     for (const v of P.veh.values()) {
-      const eff = effLane(v);
+      const eff = effLaneAt(v);
       const prev = Q.veh.get(v.id);
       if (!prev) {
         seen.set(v.id, { eff, t: P.t, gap: v.dl, lane: v.lane });
         continue;
       }
-      const prevEff = effLane(prev);
+      const prevEff = effLaneAt(prev);
       const gap = v.dl - half(v.id) - plen / 2;
       const st = seen.get(v.id) || { eff: prevEff, t: Q.t, gap: prev.dl, lane: prev.lane };
       if (eff < prevEff && st.eff >= prevEff && !fired.has(v.id)) {
