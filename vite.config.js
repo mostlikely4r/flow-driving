@@ -67,6 +67,9 @@ function journalSink() {
 }
 
 export default defineConfig({
+  // Relative asset paths: the same dist/ works under /flow-driving/ on GitHub
+  // Pages, on any other subpath, and opened from the local preview server.
+  base: './',
   plugins: [journalSink()],
   define: {
     __GIT_COMMIT__: JSON.stringify(gitCommit()),

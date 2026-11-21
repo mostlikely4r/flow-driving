@@ -1,0 +1,23 @@
+# The headless checks on every push and pull request. No browser tools here:
+# they need a GPU and a desktop.
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run simtest
+      - run: npm run personas
+      - run: npm run moments
+      - run: npm run bottest
