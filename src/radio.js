@@ -70,6 +70,7 @@ export class Radio {
     this.tune(s[(s.indexOf(this.source) + 1) % s.length]);
   }
 
+  /** Tune a source. Returns false when the source cannot play (bad URL). */
   tune(src) {
     if (src === 'off') {
       this.source = 'off';
@@ -77,12 +78,12 @@ export class Radio {
       this.el.removeAttribute('src');
       this.el.load();
       this.toast('Radio off');
-      return;
+      return true;
     }
     if (src === 'music') {
       this.source = 'music';
       this.nextTrack();
-      return;
+      return true;
     }
     const url = this.streamUrl();
     let parsed = null;
@@ -90,22 +91,23 @@ export class Radio {
       parsed = new URL(url);
     } catch {
       this.toast('Radio: that is not a stream URL', 'bad');
-      return;
+      return false;
     }
     if (!/^https?:$/.test(parsed.protocol)) {
       this.toast('Radio: that is not a stream URL', 'bad');
-      return;
+      return false;
     }
     // An http:// stream on the https:// hosted game is mixed content: the
     // browser blocks it silently, so say why nothing happens.
     if (typeof location !== 'undefined' && location.protocol === 'https:' && parsed.protocol === 'http:') {
       this.toast('Radio: this page needs an https:// stream', 'bad');
-      return;
+      return false;
     }
     this.source = 'url';
     this.el.src = parsed.href;
     this.play();
     this.toast(`📻 ${parsed.host}`);
+    return true;
   }
 
   nextTrack() {
