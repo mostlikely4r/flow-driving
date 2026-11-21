@@ -22,7 +22,7 @@ const webm = out.replace(/\.mp4$/, '') + '.webm';
 try {
   const page = await browser.newPage();
   await page.evaluateOnNewDocument((overlay) => localStorage.setItem('snelweg.settings.v1', JSON.stringify(overlay === 'map' ? { overlay: 'off', laneMap: 2, laneMapSpan: 1000, adaptiveCruise: true } : { overlay, adaptiveCruise: true })), overlay); // ACC, so your car follows instead of rear-ending
-  await page.goto(`http://localhost:4799/?scenario=${name}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto(`http://localhost:4799/?scenario=${name}&dev`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await sleep(2500);
   await page.mouse.click(640, 360); // start (restarts the scenario)
   await sleep(300);

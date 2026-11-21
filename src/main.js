@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { CONFIG, speedLimitKmh, saveSetting } from './config.js';
+import { DEV } from './dev.js';
 import { clamp, approach, mulberry32 } from './util.js';
 import { Road } from './road.js';
 import { Traffic } from './traffic.js';
@@ -49,8 +50,8 @@ const scene = new THREE.Scene();
 initVehicleMaterials();
 
 // ?scenario=<name> sets up a repeatable situation (see src/scenarios.js).
-// Overrides are not saved to your settings.
-const SCENARIO_NAME = new URLSearchParams(location.search).get('scenario');
+// Overrides are not saved to your settings. Dev only: the hosted build is the game.
+const SCENARIO_NAME = DEV ? new URLSearchParams(location.search).get('scenario') : null;
 const SCENARIO = SCENARIOS[SCENARIO_NAME] || null;
 if (SCENARIO) {
   CONFIG.lanes = SCENARIO.lanes;
@@ -407,7 +408,9 @@ castViewer.onClose = () => {
   else if (paused) hud.toggle(hud.menuEl, true);
 };
 laneMap.setMode(CONFIG.laneMap);
-overlay.setMode(OVERLAY_MODES.includes(CONFIG.overlay) ? CONFIG.overlay : 'off');
+// The dev overlay is a tuning view: only in dev mode, never on the hosted build.
+const overlayModes = DEV ? OVERLAY_MODES : OVERLAY_MODES.filter((m) => m !== 'dev');
+overlay.setMode(overlayModes.includes(CONFIG.overlay) ? CONFIG.overlay : 'off');
 const VIEWS = ['cockpit', 'bonnet', 'chase'];
 const VIEW_NAMES = { cockpit: 'Cockpit', bonnet: 'Bonnet', chase: 'Chase' };
 let viewIdx = 0;
@@ -461,6 +464,10 @@ hud.buildMenu((key, v) => {
 });
 
 // ---------------------------------------------------------------- start / pause
+// Dev-only UI ships hidden in index.html: `body.dev` (CSS .devonly) and removing
+// the `hidden` class here turn it on. See src/dev.js.
+document.body.classList.toggle('dev', DEV);
+if (DEV) for (const el of document.querySelectorAll('#menu h3.sub, #marks, #btnend')) el.classList.remove('hidden');
 const startEl = document.getElementById('start');
 function setPaused(p) {
   paused = p;
@@ -506,7 +513,7 @@ function startJournal() {
     playerLen: player.len,
     player,
   });
-  hud.toast('Drive journal recording · F8 marks a moment');
+  if (DEV) hud.toast('Drive journal recording · F8 marks a moment');
 }
 
 /** The pause menu lists your marks so each can get its one-line note. */
@@ -545,7 +552,7 @@ function pickCalm(n) {
 }
 
 function openDebrief() {
-  if (!started) return;
+  if (!started || !DEV) return;
   if (!journal.active) {
     hud.toast('No drive to save');
     return;
@@ -592,7 +599,7 @@ window.addEventListener('beforeunload', () => {
   if (!journal.active) return;
   const data = journal.finish({ answers: { skipped: true, unload: true }, reason: 'unload' });
   if (!data) return;
-  if (import.meta.env.DEV && navigator.sendBeacon) {
+  if (DEV && navigator.sendBeacon) {
     navigator.sendBeacon('/__journal', new Blob([JSON.stringify(data)], { type: 'application/json' }));
   }
 });
@@ -659,6 +666,7 @@ function handlePresses(pad) {
     if (applyDrivePress(sim, p)) continue;
     switch (c) {
       case 'F8': {
+        if (!DEV) break;
         const m = journal.mark();
         if (m) hud.toast(`Mark ${clockText(m.t)} · add a note from the pause menu`);
         else hud.toast('No journal recording', 'warn');
@@ -748,7 +756,7 @@ function handlePresses(pad) {
         }
         break;
       case 'KeyO': {
-        const next = OVERLAY_MODES[(OVERLAY_MODES.indexOf(overlay.mode) + 1) % OVERLAY_MODES.length];
+        const next = overlayModes[(overlayModes.indexOf(overlay.mode) + 1) % overlayModes.length];
         overlay.setMode(next);
         saveSetting('overlay', next);
         hud.toast(OVERLAY_NAMES[next]);

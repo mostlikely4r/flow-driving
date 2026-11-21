@@ -19,6 +19,8 @@
       #app { position: fixed; inset: 0; }
       canvas { display: block; }
       .hidden { display: none !important; }
+      /* dev-only key lines (see src/dev.js): the hosted game lists only what a player can use */
+      body:not(.dev) .devonly { display: none !important; }
 
       /* start screen */
       #start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 60%, rgba(8,12,18,.55), rgba(0,0,0,.85)); cursor: pointer; z-index: 20; }
@@ -184,10 +186,9 @@
           <kbd>V</kbd><span>camera: cockpit / bonnet / chase</span>
           <kbd>N</kbd><span>day / dusk / night</span>
           <kbd>T</kbd><span>traffic density</span>
-        <kbd>O</kbd><span>overlay: off / AR relative / AR absolute / dev</span>
-        <kbd>Backspace</kbd><span>restart scenario (?scenario=elephant)</span>
-          <kbd>O</kbd><span>speed overlay</span>
-          <kbd>F8</kbd><span>mark a moment (note it from the pause menu)</span>
+          <kbd>O</kbd><span>overlay: off / AR relative / AR absolute<span class="devonly"> / dev</span></span>
+          <kbd class="devonly">Backspace</kbd><span class="devonly">restart scenario (?scenario=elephant)</span>
+          <kbd class="devonly">F8</kbd><span class="devonly">mark a moment (note it from the pause menu)</span>
           <kbd>Tab</kbd><span>trip stats</span>
           <kbd>Esc</kbd><span>pause &amp; settings</span>
         </div>
@@ -261,7 +262,7 @@
         <kbd>N</kbd><span>time of day</span>
         <kbd>T</kbd><span>traffic density</span>
         <kbd>Tab</kbd><span>trip stats</span>
-        <kbd>F8</kbd><span>mark a moment for the drive journal</span>
+        <kbd>F8</kbd><span class="devonly">mark a moment for the drive journal</span>
         <kbd>M</kbd><span>mute</span>
       </div>
       <p class="note">Gamepad: left stick steer, RT/LT pedals, LB/RB indicators, A cruise, X resume, D-pad ±1, Y camera, B look back, right stick look.</p>
@@ -270,21 +271,20 @@
 
     <div id="menu" class="panel hidden">
       <h3>Paused · Settings</h3>
-      <h3 class="sub">This drive</h3>
-      <div id="marks"></div>
+      <h3 class="sub hidden">This drive</h3>
+      <div id="marks" class="hidden"></div>
       <div id="menuitems"></div>
       <p class="note">* takes effect after restart. Behaviour sliders affect newly spawned traffic.</p>
       <div class="btns">
         <button id="btnresume" class="primary">Resume (Esc)</button>
         <button id="btncastmenu">Meet the cast (C)</button>
-        <button id="btnend">End drive…</button>
+        <button id="btnend" class="hidden">End drive…</button>
         <button id="btnrestart">Restart</button>
         <button id="btnreset">Reset to defaults</button>
       </div>
     </div>
 
-    <div id="debrief" class="panel hidden">
-      <h3>End of drive</h3>
+    <div id="debrief" class="panel hidden">      <h3>End of drive</h3>
       <p class="note">All three are optional. Enter saves · Esc skips the questions.</p>
       <div class="q">
         <span>How calm was it? (1 = tense, 5 = calm)</span>
