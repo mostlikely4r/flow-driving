@@ -1,6 +1,6 @@
-# Snelweg
+# Flow Driving
 
-A Dutch motorway driving game about being part of traffic, not racing through it. JavaScript,
+A traffic driving game on Dutch roads about being part of traffic, not racing through it. JavaScript,
 Three.js, Vite. `README.md` explains what is simulated and how to run each tool; `BACKLOG.md`
 holds the vision, the pillars (Authentic, Readable traffic, Calm), how items are scored, the
 milestones and every feature by ID. Read the pillars before proposing anything.
