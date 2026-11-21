@@ -543,6 +543,22 @@ is deterministic, `node tools/playtest.js seed=3 until=412 clip` reproduces it.
   `forens` and `slak`, `tools/playtest.js`. *Done when* `forens` drives 20 minutes on 5 seeds with
   0 player collisions, overtakes, merges and uses cruise control the way the keyboard does, and
   the report renders.
+  **Built:** `src/session.js` (render-free sim setup/step, key mapping, flash, closure rolls),
+  `src/perception.js` (whitelisted cues, no occlusion), `src/botDriver.js` (`forens` + `slak`, a
+  keyboard-only driver with cruise clicks, overtaking, returns, aborts, closure merges and
+  flashing), `tools/playtest.js` (one child per seed, journals, traces, `run.json`, `report.md`,
+  `until=`) and `npm run bottest`. `Player`'s crash/scrape throttles now run on sim time, and
+  `main.js` drives the same `session.js` as the bot. `driver=forens min=20 seeds=5 tod=day`: 0
+  contacts, 0 scrapes, 0 red crosses, min bumper gap > 1 m, every change signalled, 5-18 overtakes
+  per 20 min. Watch items from building it: (1) the gate's p50 = limit + 4 ± 2 and right-lane
+  share ≥ 50% cannot both hold on default day traffic — the traffic itself runs at about 86/96/103
+  km/h in lanes 0/1/2, so a bot that keeps right follows at the right lane's pace (p50 89-98) and
+  cruise share lands at 56-86%; it gets right share up to 66% on some seeds. (2) Steering latency
+  (the body must move 0.25 m before the journal sees a change) puts a few `lane-change-start`
+  events 0.05-0.2 s outside the 2.5-4 s window; closure merges can be longer. (3) A closure is
+  detected from the first arrow or red cross (up to 750 m early); with no gap it slows to the
+  neighbour lane's pace and merges late. `scenario=closure` is clean; random closures occasionally
+  cost one signal-time outlier.
 - **Slice 3: frames, reproduction, occlusion, `dwars` (S–M).** *Done when* each worst moment in a
   report comes with two frames and a one-line command that reproduces it.
 - **Slice 4: calibration (M).** `compare.js`, the `jij` profile fitted from your journals,

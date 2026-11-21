@@ -70,6 +70,20 @@ set). `npm run report -- playtests/human/2026-01-31-17-42-09.json` turns a journ
 rates per 10 minutes for each moment kind, the M1 check, a from-the-seat timeline, your marks and
 their nearby detectors, and a health block. `src/moments.js` judges only what a driver in the car
 can see; thresholds live in `CONFIG.moments`. `npm run moments` runs the detector smoke test.
+**Playtest bot** (`src/perception.js`, `src/botDriver.js`, `tools/playtest.js`): a deterministic
+driver that has nothing but the keyboard. It sees only what a driver in the car can see (a
+whitelist of cues, no intent or hidden sim state), and its output is held keys plus key presses, so
+it goes through the same pedal ramp, cruise-control clicks and indicators as you.
+`npm run playtest -- driver=forens min=20 seeds=5 tod=day` runs one child process per seed (traffic
+ids are a module global) and writes `playtests/bot/<run>/` with a journal per seed, a bot trace
+(`seed-N.trace.json`), `run.json` (arguments, commit, timings, checks, pass/fail) and `report.md`
+from the same `buildReport()` a human drive uses. Options: `driver=slak` (the slowcoach),
+`scenario=closure`, `seed=N`, `until=T` (one seed; prints the player state, the nearest car per
+lane from the percept, the bot state and the last trace lines, no report), `jobs=N`, `dt=1/60`,
+`cfg.<key>=<value>` and `<profile>.<param>=<value>`. `npm run bottest` runs the headless tests:
+perception geometry and range cut-offs, a throwing proxy over every vehicle, the import/DOM
+whitelist, the drift cue, synthetic following/cut-in/indicator cases, and determinism.
+
 `node tools/glare.js <dir>` sets up a night scene with cars close behind and oncoming, for checking headlight glare.
 `node tools/speeds.js [dayDensity] [nightDensity]` reports wanted vs driven speeds per archetype and lane.
 
