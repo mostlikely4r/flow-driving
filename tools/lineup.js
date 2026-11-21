@@ -3,13 +3,14 @@
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { browserPath } from './lib/browser.js';
 const out = process.argv[2] || 'shots/lineup';
 mkdirSync(out, { recursive: true });
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', '4799', '--strictPort']);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 await sleep(2500);
 const browser = await puppeteer.launch({
-  executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  executablePath: browserPath(),
   headless: 'new',
   args: ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist', '--window-size=1280,720'],
   defaultViewport: { width: 1280, height: 720 },

@@ -6,6 +6,7 @@ import puppeteer from 'puppeteer-core';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { browserPath } from './lib/browser.js';
 
 const [name = 'elephant', secs = '25', view = 'chase', overlay = 'off', out = `shots/${name}.mp4`] = process.argv.slice(2);
 mkdirSync(dirname(out), { recursive: true });
@@ -13,7 +14,7 @@ const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'previe
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 await sleep(2500);
 const browser = await puppeteer.launch({
-  executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  executablePath: browserPath(),
   headless: 'new',
   args: ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist', '--window-size=1280,720'],
   defaultViewport: { width: 1280, height: 720 },

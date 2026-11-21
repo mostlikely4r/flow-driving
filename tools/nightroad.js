@@ -2,12 +2,13 @@
 // high beam, chase), then normal traffic. Usage: node tools/nightroad.js <dir>
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
+import { browserPath } from './lib/browser.js';
 const out = process.argv[2] || "shots/nightroad";
 import("node:fs").then((fs) => fs.mkdirSync(out, { recursive: true }));
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--port', '4799', '--strictPort']);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 await sleep(2500);
-const browser = await puppeteer.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: 'new', args: ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist'], defaultViewport: { width: 1280, height: 720 } });
+const browser = await puppeteer.launch({ executablePath: browserPath(), headless: 'new', args: ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist'], defaultViewport: { width: 1280, height: 720 } });
 try {
   // 1) empty unlit road, own lights only
   let page = await browser.newPage();

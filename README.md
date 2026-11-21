@@ -53,7 +53,9 @@ expectation does not hold (`node tools/personas.js --verbose` prints the caption
 
 `npm run simtest` runs the traffic model headless and prints lane usage, speeds and collisions
 (options: `density=20 lanes=4 player=120 plane=2 limit=130 min=6`).
-`node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Edge (run `npm run build` first).
+`node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Chrome or Edge (run `npm run build` first).
+The screenshot and clip tools find Chrome or Edge on their own; set `BROWSER_PATH` to the browser
+executable when it sits somewhere unusual.
 **Scenarios** (`src/scenarios.js`): repeatable situations for tuning the AI. Open
 `http://localhost:5173/?scenario=elephant` (Backspace restarts, O cycles to the dev overlay), or run
 `npm run scenario elephant` for a headless timeline of who signals, merges and brakes
