@@ -14,6 +14,7 @@
     "scenario": "node tools/scenario.js",
     "abtest": "node tools/abtest.js",
     "report": "node tools/report.js",
+    "signals": "node tools/signals.js",
     "moments": "node tools/momenttest.js && node tools/momentstage.js",
     "moments:stage": "node tools/momentstage.js",
     "playtest": "node tools/playtest.js",

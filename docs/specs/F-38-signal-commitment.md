@@ -342,3 +342,42 @@ All present at `1e93d31` (checked while writing this spec):
 
 (Filled in by the build: baseline outputs, check timings, step 2 numbers against the targets, the
 user's verdict, and whether step 3 ran.)
+
+### P1: `tools/signals.js` and the baseline
+
+Built at `ee0432f` (traffic behaviour unchanged since `1e93d31`). Run dirs:
+`playtests/bot/2026-11-21-12-39-46-forens-day/`, `playtests/bot/2026-11-21-12-40-17-forens-night/`.
+Each took about 20 s of wall time (5 seeds, 20 min, parallel).
+
+`npm run signals`, baseline (spec table in brackets):
+
+| | day, 100 min | night, 100 min | human, 148 min in brackets |
+|---|---|---|---|
+| signals / moved / withdrawn | 1968 / 1299 / 614 | 1355 / 1007 / 304 | 300 / 235 / 61 |
+| signal → move p50 / p90 | 3.6 / 5.2 s (3.6 / 5.2) | 4.0 / 5.2 s (4.0 / 5.2) | 3.1 / 5.1 s (3.1 / 5.1) |
+| withdrawn after ≥ 6 s, per 10 min | 13.3 (13.5) | 7.9 (8.5) | 10.8 (10.8) |
+| signals within 20 s of a withdrawal | 412 (413) | 210 (213) | 43 (43) |
+| … blocker behind in the target lane | 127 of 131 (124 of 135) | 73 of 76 (72 of 85) | 16 of 16 (16 of 16) |
+| … blocker within ±5 km/h | 99 (96) | 38 (37) | 15 (15) |
+| … blocker bumper gap p10/p50/p90, s | 0.0 / 0.5 / 0.9 (0.1/0.5/1.0) | -0.1 / 0.5 / 1.0 (0.1/0.5/1.0) | 0.2 / 0.5 / 0.9 (0.2/0.5/0.9) |
+| … blocker is the player | 20 (20) | 22 (22) | 1 (4) |
+| `empty-signal` per 10 min | 4.7 (4.7) | 3.4 (3.4) | 6.1 (6.1) |
+
+Where this differs from the table in **Why**, and why:
+- The ≥ 6 s counts differ by up to 6 in 100 min. The hold is measured between 2 Hz samples and a
+  few episodes sit right on 6 s; the one-off analysis that wrote the table evidently rounded those
+  the other way. Nothing in the rule differs.
+- "blocker is the player" reads 1 rather than 4 in the human drive. This tool counts the player
+  only when it is the *nearest* candidate in the target lane at the middle of the hold, which is
+  the written rule; in 3 of the 4 cases the player is 12–56 m behind the signaller in the
+  signaller's *own* lane, where it does not block the move. The bot numbers match (20 and 22).
+- Two conventions the tool had to pick, both matching the table: a car that enters the recording
+  already indicating starts an episode (its end is observable), and the quantiles are
+  nearest-rank, not interpolated.
+
+`npm run simtest` at baseline: lane changes/min left 41.0, right 42.0; lane shares 35.7 / 32.9 /
+31.4 %; trucks in lane 1 37.9 % of truck lane samples; 0 overlaps, 0 player hits, min acc −3.53.
+
+`report.md` rates per 10 min, day / night: `cut-off` 0.4 / 0.0, `near-miss` 0.5 / 0.1,
+`unannounced` 0.0 / 0.0, `phantom-brake` 16.0 / 10.6, `let-in (good)` 4.8 / 4.6. All agree with
+**Why**.
