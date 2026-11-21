@@ -218,9 +218,9 @@ function seenAhead({ id = 1, dl = 100, kmh = 90, lane = 0, len = 4.5, brake = fa
 }
 
 /** Build a Percept, filling the lane views a real Perception would produce. */
-function perceptAt({ t = 0, lane = 0, kmh = 100, cc = { on: true, set: 104, has: true }, cars = [], obstacles = [], limitKmh = 100 } = {}) {
+function perceptAt({ t = 0, lane = 0, lat = null, kmh = 100, cc = { on: true, set: 104, has: true }, cars = [], obstacles = [], signs = null, limitKmh = 100 } = {}) {
   const v = kmh * KMH;
-  const self = { s: 1000, lane, lanesOcc: [lane], lat: laneLat(lane), off: 0, kmh, v, acc: 0, ind: 0, steer: 0, headingErr: 0, cc: { ...cc }, limitKmh, lanes: CONFIG.lanes };
+  const self = { s: 1000, lane, lanesOcc: [lane], lat: lat ?? laneLat(lane), off: 0, kmh, v, acc: 0, ind: 0, steer: 0, headingErr: 0, cc: { ...cc }, limitKmh, lanes: CONFIG.lanes };
   const lanes = Array.from({ length: CONFIG.lanes }, (_, i) => {
     const inLane = cars.filter((c) => c.lanesOcc.includes(i));
     const ahead = inLane.filter((c) => c.dl >= 0).sort((a, b) => a.dl - b.dl)[0] || null;
@@ -230,13 +230,13 @@ function perceptAt({ t = 0, lane = 0, kmh = 100, cc = { on: true, set: 104, has:
     const visibleBehindM = adj ? CONFIG.perception.behindM : CONFIG.perception.farM;
     return { ahead, behind, freeAheadM: ahead ? ahead.gap : visibleAheadM, freeBehindM: behind ? behind.gap : visibleBehindM, visibleAheadM, visibleBehindM };
   });
-  return { t, self, cars, lanes, obstacles, signs: { limitKmh, nextGantryM: Infinity, cur: null, next: null } };
+  return { t, self, cars, lanes, obstacles, signs: signs || { limitKmh, nextGantryM: Infinity, cur: null, next: null } };
 }
 
 /** Run a bot against a percept function; mirror the press effects into the local cc. */
 function driveBot(bot, seconds, perceptFn, { dt = 1 / 60, kmh = 100 } = {}) {
   const cc = { on: true, set: 104, has: true };
-  const seen = { brake: false, throttle: false, set: null, states: new Set(), presses: [] };
+  const seen = { brake: false, throttle: false, flash: false, flashAt: null, set: null, states: new Set(), presses: [] };
   let p = perceptFn(0, cc, kmh);
   const n = Math.round(seconds / dt);
   for (let i = 0; i < n; i++) {
@@ -244,6 +244,10 @@ function driveBot(bot, seconds, perceptFn, { dt = 1 / 60, kmh = 100 } = {}) {
     seen.brake = seen.brake || out.keys.brake;
     seen.throttle = seen.throttle || out.keys.throttle;
     seen.states.add(bot.state);
+    if (out.keys.flash && !seen.flash) {
+      seen.flash = true;
+      seen.flashAt = i * dt;
+    }
     for (const pr of out.presses) {
       seen.presses.push(pr.code);
       if (pr.code === 'KeyC') {
@@ -305,6 +309,80 @@ function driveBot(bot, seconds, perceptFn, { dt = 1 / 60, kmh = 100 } = {}) {
   const seen = driveBot(bot, 6, (t, cc, kmh) => perceptAt({ t, kmh, cars: t < 3 ? [] : [cut], cc }));
   ok('bot: a cut-in triggers EMERGENCY', seen.states.has('EMERGENCY'), [...seen.states].join(','));
   ok('bot: a cut-in is braked, not accelerated', seen.brake);
+}
+
+{
+  // Flash: 20 s behind a left-lane dawdler, right lane free → hold F at 20 s.
+  const bot = new BotDriver('forens', { seed: 3, overrides: { overtakeKmh: 999, keepRight: false, homeLane: 1 } });
+  const dawdler = seenAhead({ id: 7, dl: 60, kmh: 94, lane: 1 });
+  const seen = driveBot(bot, 23, (t, cc, kmh) => perceptAt({ t, lane: 1, kmh, cars: [dawdler], cc }));
+  ok('bot: flashes after 20 s behind a left-lane dawdler', seen.flash && Math.abs(seen.flashAt - 20) <= 0.5, `flash at ${seen.flashAt}`);
+}
+
+{
+  // Red cross over our lane: get out, even without a generous gap.
+  const bot = new BotDriver('forens', { seed: 4 });
+  const p = perceptAt({ t: 0, lane: 0, obstacles: [{ lane: 0, dAhead: 200, len: 900 }], signs: { limitKmh: 70, nextGantryM: 250, cur: ['x', '', ''], next: null } });
+  let left = false;
+  const cc = { on: true, set: 104, has: true };
+  for (let i = 0; i < 60 * 4; i++) {
+    const out = bot.update(1 / 60, p);
+    for (const pr of out.presses) {
+      if (pr.code === 'KeyR') cc.on = true;
+      if (pr.code === 'KeyC') cc.on = !cc.on;
+    }
+    if (bot.laneTarget === 1 || bot.state === 'PREP' || bot.state === 'MOVE') left = true;
+  }
+  ok('bot: leaves a red-crossed lane', left, `${bot.state} target ${bot.laneTarget}`);
+}
+
+{
+  // Gap rejection: a fast car right behind in the target lane, so no pull-out.
+  const bot = new BotDriver('forens', { seed: 6 });
+  const own = seenAhead({ id: 8, dl: 110, kmh: 82 });
+  const lag = seenAhead({ id: 9, dl: -6, kmh: 108, lane: 1 });
+  lag.gap = 2;
+  lag.ttc = 0.4;
+  const seen = driveBot(bot, 5, (t, cc, kmh) => perceptAt({ t, lane: 0, kmh, cars: [own, lag], cc }));
+  ok('bot: rejects a gap with a car closing in the target lane', !seen.presses.includes('KeyQ'), seen.presses.join(','));
+}
+
+{
+  // ABORT: the lag car closes halfway through the move.
+  const bot = new BotDriver('forens', { seed: 8 });
+  const own = seenAhead({ id: 11, dl: 90, kmh: 88 });
+  const cc = { on: true, set: 104, has: true };
+  let lat = laneLat(0);
+  let lane = 0;
+  let kmh = 100;
+  let aborted = false;
+  for (let i = 0; i < 60 * 12; i++) {
+    const t = i / 60;
+    const inMove = bot.state === 'MOVE';
+    const mid = (laneLat(0) + laneLat(1)) / 2;
+    const cars = [own];
+    if (inMove && lat < mid) {
+      const lag = seenAhead({ id: 12, dl: -2, kmh: 112, lane: 1 });
+      lag.gap = 1;
+      lag.ttc = 0.3;
+      cars.push(lag);
+    }
+    const p = perceptAt({ t, lane, lat, kmh, cars, cc });
+    const out = bot.update(1 / 60, p);
+    for (const pr of out.presses) {
+      if (pr.code === 'KeyC') cc.on = !cc.on;
+      else if (pr.code === 'KeyR') cc.on = true;
+      else if (pr.code === 'Equal') cc.set += pr.shift ? 5 : 1;
+      else if (pr.code === 'Minus') cc.set -= pr.shift ? 5 : 1;
+    }
+    if (out.keys.brake) cc.on = false;
+    if (bot.state === 'MOVE') {
+      lat += Math.sign(laneLat(1) - lat) * 1.4 * (1 / 60);
+      if ((lat > mid && lane === 0) || (lat < mid && lane === 1)) lane = 1 - lane;
+    }
+    if (bot.state === 'ABORT') aborted = true;
+  }
+  ok('bot: aborts a lane change when the gap closes', aborted, `state ${bot.state}`);
 }
 
 {
