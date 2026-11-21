@@ -11,7 +11,9 @@
     "headway": "node tools/headway.js",
     "personas": "node tools/personas.js",
     "scenario": "node tools/scenario.js",
-    "abtest": "node tools/abtest.js"
+    "abtest": "node tools/abtest.js",
+    "report": "node tools/report.js",
+    "moments": "node tools/momenttest.js"
   },
   "dependencies": {
     "three": "^0.170.0",

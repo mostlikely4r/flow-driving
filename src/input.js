@@ -27,7 +27,7 @@ export class Input {
     this.padConnected = false;
     window.addEventListener('keydown', (e) => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      if (['Tab', 'Space', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(e.code)) e.preventDefault();
+      if (['Tab', 'Space', 'Backspace', 'F8', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(e.code)) e.preventDefault();
       if (!e.repeat) this.presses.push({ code: e.code, shift: e.shiftKey, key: e.key });
       this.down.add(e.code);
     });

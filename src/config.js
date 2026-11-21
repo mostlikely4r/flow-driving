@@ -67,6 +67,40 @@ export const DEFAULTS = {
   radioStreams: true, // live Dutch radio over the internet (Y to tune)
 
   seed: 20261112,
+
+  // --- Proefrit: moment detector thresholds (F-37) ---
+  // A detector only counts once it fires where you dropped a mark (F8), so
+  // these move to fit your journals. See src/moments.js and `npm run report`.
+  moments: {
+    cutOffTGap: 0.8, // a car merging in closer than this (time gap, s)
+    cutOffChaseM: 40, // ...while this close when it crosses the line
+    unannouncedM: 60, // a lane change this close with little warning
+    unannouncedSignal: 1, // s of visible signal that counts as announced
+    unannouncedDrift: 0.25, // m of visible drift toward the line that counts
+    phantomBrake: 2, // m/s² braking by the car ahead with nothing in front of it
+    phantomLook: 40, // m ahead of it that would explain the braking
+    popInM: 150, // appears/vanishes inside this distance
+    notLetInS: 8, // signalling this long without a gap opening
+    boxedInKmh: 15, // under your set speed ...
+    boxedInS: 60, // ...for this long, with no lane to escape to
+    escapeGapM: 25, // free gap in a neighbouring lane that counts as an escape
+    tailgateTGap: 0.6, // car behind closer than this (time gap, s)
+    tailgateS: 10, // ...for this long
+    dawdlerS: 30, // blocked by a slower car in a left lane this long
+    dawdlerKmh: 5, // how much slower it has to be
+    forcedBrake: 3, // your own braking, m/s²
+    nearMissTTC: 1.5, // time to collision, s
+    signalPatienceS: 8, // an indicator on this long without a move is a promise not kept
+    pointlessM: 120, // a left lane change this close with nothing slower to overtake
+    letInGainM: 8, // a car behind opening this much room counts as letting you in
+    movedOverS: 10, // a car ahead moving right within this long after your flash
+    movedOverM: 25, // or after you closed to this distance
+    cleanOvertakeNoBrake: 1, // no braking harder than this counts as clean, m/s²
+    elephantS: 20, // two trucks side by side ahead for this long
+    elephantM: 300, // ...within this distance of you
+    waveDropKmh: 30, // speed drop that counts as riding a wave
+    calmWindowS: 30, // calm share: no friction moment in this window
+  },
 };
 
 const KEY = 'snelweg.settings.v1';

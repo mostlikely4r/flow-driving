@@ -85,6 +85,18 @@
       #help { left: 16px; top: 40px; max-width: 560px; }
 
       #menu { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 94vw); max-height: 88vh; overflow: auto; z-index: 15; }
+      #menu h3.sub { margin-top: 16px; }
+      #marks { display: grid; gap: 6px; max-height: 190px; overflow: auto; }
+      .markrow { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; font-size: 13px; color: var(--dim); }
+      .markrow input, #debrief input[type=text] { background: #1c2228; color: #e8edf2; border: 1px solid #39424c; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+
+      /* Proefrit (F-37): end-of-drive questions */
+      #debrief { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, 94vw); z-index: 16; }
+      #debrief h3 { margin: 0 0 8px; font-size: 15px; letter-spacing: .5px; color: #b8c4cf; }
+      #debrief .q { display: grid; gap: 6px; margin: 14px 0; font-size: 14px; color: #c7d0d8; }
+      .calmbtns { display: flex; gap: 8px; }
+      .calmbtns button { width: 40px; }
+      .calmbtns button.on { background: #1f6a3a; border-color: #2c8a50; }
       .mrow { display: grid; grid-template-columns: 1fr 160px 44px; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; color: #c7d0d8; }
       .mrow select, .mrow input[type=checkbox] { grid-column: 2 / span 2; justify-self: start; }
       .mrow select { background: #1c2228; color: #e8edf2; border: 1px solid #39424c; border-radius: 6px; padding: 3px 6px; }
@@ -175,6 +187,7 @@
         <kbd>O</kbd><span>overlay: off / AR relative / AR absolute / dev</span>
         <kbd>Backspace</kbd><span>restart scenario (?scenario=elephant)</span>
           <kbd>O</kbd><span>speed overlay</span>
+          <kbd>F8</kbd><span>mark a moment (note it from the pause menu)</span>
           <kbd>Tab</kbd><span>trip stats</span>
           <kbd>Esc</kbd><span>pause &amp; settings</span>
         </div>
@@ -248,6 +261,7 @@
         <kbd>N</kbd><span>time of day</span>
         <kbd>T</kbd><span>traffic density</span>
         <kbd>Tab</kbd><span>trip stats</span>
+        <kbd>F8</kbd><span>mark a moment for the drive journal</span>
         <kbd>M</kbd><span>mute</span>
       </div>
       <p class="note">Gamepad: left stick steer, RT/LT pedals, LB/RB indicators, A cruise, X resume, D-pad ±1, Y camera, B look back, right stick look.</p>
@@ -256,13 +270,43 @@
 
     <div id="menu" class="panel hidden">
       <h3>Paused · Settings</h3>
+      <h3 class="sub">This drive</h3>
+      <div id="marks"></div>
       <div id="menuitems"></div>
       <p class="note">* takes effect after restart. Behaviour sliders affect newly spawned traffic.</p>
       <div class="btns">
         <button id="btnresume" class="primary">Resume (Esc)</button>
         <button id="btncastmenu">Meet the cast (C)</button>
+        <button id="btnend">End drive…</button>
         <button id="btnrestart">Restart</button>
         <button id="btnreset">Reset to defaults</button>
+      </div>
+    </div>
+
+    <div id="debrief" class="panel hidden">
+      <h3>End of drive</h3>
+      <p class="note">All three are optional. Enter saves · Esc skips the questions.</p>
+      <div class="q">
+        <span>How calm was it? (1 = tense, 5 = calm)</span>
+        <div id="calmbtns" class="calmbtns">
+          <button type="button" data-calm="1">1</button>
+          <button type="button" data-calm="2">2</button>
+          <button type="button" data-calm="3">3</button>
+          <button type="button" data-calm="4">4</button>
+          <button type="button" data-calm="5">5</button>
+        </div>
+      </div>
+      <label class="q">
+        <span>A car that felt wrong?</span>
+        <input id="qwrong" type="text" placeholder="e.g. a van that came out of nowhere" />
+      </label>
+      <label class="q">
+        <span>Best moment?</span>
+        <input id="qbest" type="text" placeholder="e.g. the wave near the closure" />
+      </label>
+      <div class="btns">
+        <button id="btnsavejournal" class="primary">Save journal</button>
+        <button id="btnskipjournal">Skip</button>
       </div>
     </div>
 

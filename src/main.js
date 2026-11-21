@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { CONFIG, speedLimitKmh, saveSetting } from './config.js';
-import { KMH, clamp, approach, mulberry32 } from './util.js';
+import { clamp, approach, mulberry32 } from './util.js';
 import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Player } from './player.js';
@@ -28,6 +28,7 @@ import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
 import { SCENARIOS, applyScenario } from './scenarios.js';
 import { CastStage } from './castStage.js';
 import { CastViewer } from './castViewer.js';
+import { Journal, clock as clockText, sendJournal } from './journal.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -383,6 +384,12 @@ const audio = new AudioEngine();
 const radio = new Radio((t, k) => hud.toast(t, k));
 const hud = new Hud();
 const stats = new Stats();
+// Proefrit (F-37): every drive is recorded; F8 drops a mark and the pause menu
+// takes the notes. Ending a drive asks three optional questions and POSTs the
+// journal to the dev server (playtests/human/).
+const journal = new Journal();
+let debriefOpen = false;
+let calmPick = 0;
 const overlay = new Overlay(document.getElementById('overlay'));
 const laneMap = new LaneMap();
 const castStage = new CastStage(scene, road, view, player);
@@ -460,7 +467,9 @@ function setPaused(p) {
     hornOn = false;
     audio.horn(false);
   }
-  document.getElementById('menu').classList.toggle('hidden', !p || !started || castViewer.isOpen);
+  document.getElementById('menu').classList.toggle('hidden', !p || !started || castViewer.isOpen || debriefOpen);
+  if (p) renderMarks();
+  if (!p && started && journal.done && !journal.active) startJournal();
 }
 startEl.addEventListener('click', () => {
   startEl.classList.add('hidden');
@@ -472,8 +481,120 @@ startEl.addEventListener('click', () => {
     startScenario();
     hud.toast(`Scenario: ${SCENARIO.title} · Backspace restarts`);
   } else if (SCENARIO_NAME) hud.toast(`Unknown scenario "${SCENARIO_NAME}"`, 'bad');
+  startJournal();
 });
 document.getElementById('btnresume').onclick = () => setPaused(false);
+document.getElementById('btnend').onclick = () => openDebrief();
+document.getElementById('btnsavejournal').onclick = () => saveDrive(false);
+document.getElementById('btnskipjournal').onclick = () => saveDrive(true);
+for (const b of document.querySelectorAll('#calmbtns button')) {
+  b.onclick = () => pickCalm(Number(b.dataset.calm));
+}
+
+// ---------------------------------------------------------------- Proefrit (F-37)
+function startJournal() {
+  if (!started || journal.active) return;
+  journal.start({
+    kind: 'human',
+    driver: 'human',
+    profile: null,
+    seed: CONFIG.seed,
+    scenario: SCENARIO_NAME || null,
+    timeOfDay: mode,
+    limitKmh: traffic.limitKmh,
+    playerLen: player.len,
+    player,
+  });
+  hud.toast('Drive journal recording · F8 marks a moment');
+}
+
+/** The pause menu lists your marks so each can get its one-line note. */
+function renderMarks() {
+  const box = document.getElementById('marks');
+  if (!box) return;
+  box.innerHTML = '';
+  const marks = journal.marks;
+  if (!marks.length) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = journal.active
+      ? 'No marks yet. F8 during a drive drops one.'
+      : 'Not recording a drive right now. F8 during a drive drops a mark.';
+    box.appendChild(p);
+    return;
+  }
+  marks.forEach((m, i) => {
+    const row = document.createElement('label');
+    row.className = 'markrow';
+    const at = document.createElement('span');
+    at.textContent = `${clockText(m.t)} · ${(m.s / 1000).toFixed(1)} km`;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'what happened?';
+    inp.value = m.note || '';
+    inp.onchange = () => journal.setMarkNote(i, inp.value);
+    row.append(at, inp);
+    box.appendChild(row);
+  });
+}
+
+function pickCalm(n) {
+  calmPick = n;
+  for (const b of document.querySelectorAll('#calmbtns button')) b.classList.toggle('on', Number(b.dataset.calm) === n);
+}
+
+function openDebrief() {
+  if (!started) return;
+  if (!journal.active) {
+    hud.toast('No drive to save');
+    return;
+  }
+  debriefOpen = true;
+  calmPick = 0;
+  document.getElementById('qwrong').value = '';
+  document.getElementById('qbest').value = '';
+  for (const b of document.querySelectorAll('#calmbtns button')) b.classList.remove('on');
+  document.getElementById('debrief').classList.remove('hidden');
+  setPaused(true);
+}
+
+function closeDebrief() {
+  debriefOpen = false;
+  document.getElementById('debrief').classList.add('hidden');
+}
+
+async function saveDrive(skip) {
+  if (!journal.active) {
+    closeDebrief();
+    setPaused(true);
+    return;
+  }
+  const answers = skip
+    ? { skipped: true }
+    : {
+        skipped: false,
+        calm: calmPick || null,
+        wrong: document.getElementById('qwrong').value.trim().slice(0, 400) || null,
+        best: document.getElementById('qbest').value.trim().slice(0, 400) || null,
+      };
+  const data = journal.finish({ answers, reason: skip ? 'skipped' : 'debrief' });
+  closeDebrief();
+  setPaused(true);
+  if (!data) return;
+  const path = await sendJournal(data);
+  hud.toast(path ? `Journal saved: ${path}` : 'Journal downloaded', path ? 'info' : 'warn', 4200);
+  if (path) console.log(`[proefrit] wrote ${path}`);
+}
+
+// A closed tab should not lose the drive: send it quietly to the dev endpoint.
+window.addEventListener('beforeunload', () => {
+  if (!journal.active) return;
+  const data = journal.finish({ answers: { skipped: true, unload: true }, reason: 'unload' });
+  if (!data) return;
+  if (import.meta.env.DEV && navigator.sendBeacon) {
+    navigator.sendBeacon('/__journal', new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  }
+});
 document.getElementById('btncast').addEventListener('click', (e) => {
   e.stopPropagation();
   startEl.classList.add('hidden');
@@ -508,6 +629,7 @@ function updateClosures(dt) {
     const f = msi.face(gi, player.lane);
     if (f && f.face === 'x') {
       stats.redCrosses++;
+      journal.event('red-cross', { lane: player.lane });
       hud.toast('Red cross: this lane is closed. In real life that is a hefty fine.', 'bad');
     }
   }
@@ -527,6 +649,9 @@ function updateMatrixSigns(time) {
       const t = matrixTexture(f ? f.face : '', !!(f && f.flash && flashOn));
       m.map = t;
       m.emissiveMap = t;
+      if (!paused && journal.active && Math.abs(gantryS(i) - player.s) < 400) {
+        journal.event('msi', { gantry: i, lane: l, face: f ? f.face : '' });
+      }
     }
   }
 }
@@ -544,6 +669,14 @@ function handlePresses(pad) {
     input.takeWheel();
     return;
   }
+  if (debriefOpen) {
+    for (const p of presses) {
+      if (p.code === 'Escape') saveDrive(true);
+      else if (p.code === 'Enter' || p.code === 'NumpadEnter') saveDrive(false);
+      else if (/^Digit[1-5]$/.test(p.code)) pickCalm(Number(p.code.slice(5)));
+    }
+    return;
+  }
   for (const p of presses) {
     if (!started) continue;
     const c = p.code;
@@ -559,6 +692,12 @@ function handlePresses(pad) {
     if (paused) continue;
     const big = p.shift ? CONFIG.ccStepBig : CONFIG.ccStepSmall;
     switch (c) {
+      case 'F8': {
+        const m = journal.mark();
+        if (m) hud.toast(`Mark ${clockText(m.t)} · add a note from the pause menu`);
+        else hud.toast('No journal recording', 'warn');
+        break;
+      }
       case 'KeyC':
         player.toggleCruise();
         break;
@@ -839,21 +978,25 @@ function frame(now) {
     stats.update(dt, player, traffic, (t, k) => hud.toast(t, k));
     msi.update(dt, player.s);
     updateClosures(dt);
+    journal.tick(dt, player, traffic, playerLimit());
     // horn (F-03): sound while held; drivers react once per press
     {
       const h = input.is('horn');
       if (h !== hornOn) {
         hornOn = h;
         audio.horn(h);
+        journal.event('horn', { on: h });
         if (h) traffic.honkFrom(player.proxy);
       }
     }
     if (player.flashT <= 0 && input.is('flash')) {
       player.flashT = 0.6;
+      journal.event('flash', {});
       const who = traffic.flashFrom(player.proxy);
       if (who) who.pressureT = Math.max(who.pressureT, 6);
     }
     // events from player
+    journal.playerEvents(player.events);
     for (const e of player.events) {
       if (e.type === 'cc') {
         if (e.on) audio.beep(e.adjust ? (e.adjust > 0 ? 1400 : 1100) : 1250, 0.06, 1);
