@@ -454,7 +454,10 @@ hud.buildMenu((key, v) => {
   else if (key === 'volume') audio.setVolume(v);
   else if (key === 'radioVolume') radio.setVolume(v);
   else if (key === 'radioFolder') radio.setFiles(v);
-  else if (key === 'radioStreams' && !v && typeof radio.source === 'number') radio.tune('off');
+  else if (key === 'radioUrl') {
+    // Typing a new URL while tuned re-tunes; clearing it turns the radio off.
+    if (radio.source === 'url') radio.tune(radio.streamUrl() ? 'url' : 'off');
+  }
   else if (key === 'fov') {
     camera.fov = v;
     camera.updateProjectionMatrix();

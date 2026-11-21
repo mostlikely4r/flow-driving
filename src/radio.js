@@ -1,17 +1,10 @@
-// Car radio (F-12): your own music folder, or live Dutch radio over the
-// internet. A plain <audio> element: live streams are cross-origin, and routing
-// them through Web Audio would play silence.
+// Car radio (F-12): your own music folder, or a stream URL of your own. A plain
+// <audio> element: live streams are cross-origin, and routing them through Web
+// Audio would play silence.
 //
-// Y tunes to the next source (off -> my music -> stations -> off).
+// Y tunes to the next source (off -> my music -> your stream -> off). No built-in
+// stations: a public game does not link a broadcaster's streams.
 import { CONFIG } from './config.js';
-
-export const STATIONS = [
-  { name: 'NPO Radio 1', url: 'https://icecast.omroep.nl/radio1-bb-mp3' },
-  { name: 'NPO Radio 2', url: 'https://icecast.omroep.nl/radio2-bb-mp3' },
-  { name: 'NPO 3FM', url: 'https://icecast.omroep.nl/3fm-bb-mp3' },
-  { name: 'NPO Klassiek', url: 'https://icecast.omroep.nl/radio4-bb-mp3' },
-  { name: 'NPO Radio 5', url: 'https://icecast.omroep.nl/radio5-bb-mp3' },
-];
 
 export class Radio {
   constructor(toast) {
@@ -22,19 +15,28 @@ export class Radio {
     this.el.addEventListener('error', () => {
       if (this.source === 'off') return;
       if (this.source === 'music') this.nextTrack();
-      else this.toast(`${this.label()}: no signal`, 'bad');
+      else this.toast('Radio: no signal', 'bad');
     });
     this.tracks = []; // {name, url}
     this.trackIdx = -1;
-    this.source = 'off'; // 'off' | 'music' | station index
+    this.source = 'off'; // 'off' | 'music' | 'url'
     this.muted = false;
     this.setVolume(CONFIG.radioVolume);
+  }
+
+  /** The stream URL as the player typed it, trimmed. */
+  streamUrl() {
+    return typeof CONFIG.radioUrl === 'string' ? CONFIG.radioUrl.trim() : '';
   }
 
   label() {
     if (this.source === 'off') return 'Radio off';
     if (this.source === 'music') return 'My music';
-    return STATIONS[this.source].name;
+    try {
+      return new URL(this.streamUrl()).host;
+    } catch {
+      return 'your stream';
+    }
   }
 
   /** Files from a folder picker: keep the audio, shuffle. */
@@ -55,22 +57,22 @@ export class Radio {
   sources() {
     const s = ['off'];
     if (this.tracks.length) s.push('music');
-    if (CONFIG.radioStreams) s.push(...STATIONS.map((_, i) => i));
+    if (this.streamUrl()) s.push('url');
     return s;
   }
 
   next() {
     const s = this.sources();
     if (s.length === 1) {
-      this.toast('Radio: pick a music folder in the menu (Esc), or turn on live stations', 'bad');
+      this.toast('Radio: set a stream URL or a music folder in the menu (Esc)', 'bad');
       return;
     }
     this.tune(s[(s.indexOf(this.source) + 1) % s.length]);
   }
 
   tune(src) {
-    this.source = src;
     if (src === 'off') {
+      this.source = 'off';
       this.el.pause();
       this.el.removeAttribute('src');
       this.el.load();
@@ -78,12 +80,32 @@ export class Radio {
       return;
     }
     if (src === 'music') {
+      this.source = 'music';
       this.nextTrack();
       return;
     }
-    this.el.src = STATIONS[src].url;
+    const url = this.streamUrl();
+    let parsed = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      this.toast('Radio: that is not a stream URL', 'bad');
+      return;
+    }
+    if (!/^https?:$/.test(parsed.protocol)) {
+      this.toast('Radio: that is not a stream URL', 'bad');
+      return;
+    }
+    // An http:// stream on the https:// hosted game is mixed content: the
+    // browser blocks it silently, so say why nothing happens.
+    if (typeof location !== 'undefined' && location.protocol === 'https:' && parsed.protocol === 'http:') {
+      this.toast('Radio: this page needs an https:// stream', 'bad');
+      return;
+    }
+    this.source = 'url';
+    this.el.src = parsed.href;
     this.play();
-    this.toast(`📻 ${STATIONS[src].name}`);
+    this.toast(`📻 ${parsed.host}`);
   }
 
   nextTrack() {

@@ -119,8 +119,7 @@ export class Hud {
       ['fov', 'Field of view', 'range', [45, 90, 1]],
       ['volume', 'Volume', 'range', [0, 1, 0.05]],
       ['radioVolume', 'Radio volume (Y = tune)', 'range', [0, 1, 0.05]],
-      ['radioStreams', 'Live radio stations (internet)', 'check'],
-      ['radioFolder', 'My music', 'folder', 'Choose music folder…'],
+      ['radioUrl', 'Radio stream URL', 'text', 'https://…'],      ['radioFolder', 'My music', 'folder', 'Choose music folder…'],
       ['shadows', 'Shadows *', 'check'],
       ['bloom', 'Bloom', 'check'],
       ['headlightGlare', 'Headlight glare', 'range', [0, 2, 0.1]],
@@ -167,6 +166,18 @@ export class Hud {
         row.appendChild(val);
         box.appendChild(row);
         continue;
+      } else if (type === 'text') {
+        // a bare URL: saved on change (blur or Enter), trimmed
+        input = document.createElement('input');
+        input.type = 'url';
+        input.placeholder = opt || '';
+        input.value = CONFIG[key] ?? '';
+        input.onchange = () => {
+          const v = input.value.trim();
+          input.value = v;
+          saveSetting(key, v);
+          onChange(key, v);
+        };
       } else if (type === 'folder') {
         // a folder of your own music; files stay on your computer
         const pick = document.createElement('input');
