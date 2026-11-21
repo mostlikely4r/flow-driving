@@ -16,7 +16,7 @@ import { GlowSystem, BeamSystem } from './fx.js';
 import { TrafficView } from './trafficView.js';
 import { createVehicleVisual, initVehicleMaterials, setVehicleNight, setLayerRecursive } from './vehicles.js';
 import { setMaxAnisotropy, matrixTexture } from './textures.js';
-import { MSI, gantryS, gantryIndexAt } from './msi.js';
+import { MSI, gantryS } from './msi.js';
 import { ClosureView } from './closureView.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
@@ -29,6 +29,7 @@ import { SCENARIOS, applyScenario } from './scenarios.js';
 import { CastStage } from './castStage.js';
 import { CastViewer } from './castViewer.js';
 import { Journal, clock as clockText, sendJournal } from './journal.js';
+import { bindSim, applyTimeSim, stepSim, applyDrivePress, holdFlash, drainEvents, playerLimit } from './session.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -341,6 +342,7 @@ onResize();
 const view = new TrafficView(scene, road, glow, beams);
 let traffic, oncoming;
 let msi = null; // matrix signs for our carriageway
+let sim = null; // the render-free bundle the browser and a bot run share
 const closureView = new ClosureView(scene, road);
 function makeTraffic() {
   const lim = speedLimitKmh();
@@ -388,6 +390,8 @@ const stats = new Stats();
 // takes the notes. Ending a drive asks three optional questions and POSTs the
 // journal to the dev server (playtests/human/).
 const journal = new Journal();
+// From here on the frame goes through session.js: the same sim the bot drives.
+sim = bindSim({ road, player, traffic, msi, rng: Math.random, journal, scenario: SCENARIO });
 let debriefOpen = false;
 let calmPick = 0;
 const overlay = new Overlay(document.getElementById('overlay'));
@@ -425,14 +429,11 @@ function applyTime(m) {
   env.setMode(m);
   scenery.setNight(m);
   setVehicleNight(m === 'night');
-  const lim = speedLimitKmh();
-  for (const t of [traffic, oncoming]) {
-    t.night = m === 'night';
-    t.densityScale = m === 'night' ? CONFIG.nightTraffic : m === 'dusk' ? 0.8 : 1;
-  }
-  traffic.setLimit(lim);
-  oncoming.setLimit(lim);
-  player.lightsOn = m !== 'day';
+  applyTimeSim(sim, m);
+  // the other carriageway: visuals only here, it never touches your lane
+  oncoming.night = m === 'night';
+  oncoming.densityScale = m === 'night' ? CONFIG.nightTraffic : m === 'dusk' ? 0.8 : 1;
+  oncoming.setLimit(speedLimitKmh());
   bloom.strength = CONFIG.bloom ? env.bloomStrength : 0;
   bloom.enabled = CONFIG.bloom;
   glow.mat.uniforms.uFade.value = m === 'night' ? 1 / 2600 : 1 / 900;
@@ -604,37 +605,6 @@ document.getElementById('btncastmenu').onclick = () => castViewer.show();
 window.addEventListener('blur', () => { if (hornOn) { hornOn = false; audio.horn(false); } });
 
 // ---------------------------------------------------------------- matrix signs and lane closures
-let closureDist = 0; // metres driven since the last roll for a random closure
-let lastGantry = null; // last gantry index you passed
-function updateClosures(dt) {
-  // random closures in free play: set up beyond the simulated traffic, taken
-  // down once well behind you
-  if (!SCENARIO && CONFIG.lanes >= 2) {
-    closureDist += player.v * dt;
-    if (closureDist > 1000) {
-      closureDist -= 1000;
-      const busy = traffic.closures.some((c) => c.s1 > player.s - 500);
-      if (!busy && Math.random() < CONFIG.closuresPer10km / 10) {
-        const lane = Math.random() < 0.55 ? 0 : Math.floor(Math.random() * CONFIG.lanes);
-        const s0 = player.s + CONFIG.rangeAhead + 1200 + Math.random() * 600;
-        traffic.addClosure(lane, s0, s0 + 500 + Math.random() * 1100);
-      }
-    }
-  }
-  for (const c of [...traffic.closures]) if (c.s1 < player.s - CONFIG.rangeBehind - 400) traffic.removeClosure(c);
-  closureView.sync(traffic.closures);
-  // driving under a red cross
-  const gi = gantryIndexAt(player.s);
-  if (lastGantry != null && gi === lastGantry + 1) {
-    const f = msi.face(gi, player.lane);
-    if (f && f.face === 'x') {
-      stats.redCrosses++;
-      journal.event('red-cross', { lane: player.lane });
-      hud.toast('Red cross: this lane is closed. In real life that is a hefty fine.', 'bad');
-    }
-  }
-  lastGantry = gi;
-}
 /** Put the current faces on the gantries that exist in the scenery. */
 function updateMatrixSigns(time) {
   const flashOn = time % 1 < 0.5;
@@ -655,11 +625,7 @@ function updateMatrixSigns(time) {
     }
   }
 }
-/** The limit that applies to you right now: the matrix sign over your lane, or the normal one. */
-function playerLimit() {
-  const lim = msi ? msi.limitAt(player.s, player.lane) : null;
-  return lim != null ? Math.min(lim, speedLimitKmh()) : speedLimitKmh();
-}
+/** The limit that applies to you right now: session.playerLimit, kept local for HUD use. */
 
 // ---------------------------------------------------------------- input handling
 function handlePresses(pad) {
@@ -690,7 +656,7 @@ function handlePresses(pad) {
       continue;
     }
     if (paused) continue;
-    const big = p.shift ? CONFIG.ccStepBig : CONFIG.ccStepSmall;
+    if (applyDrivePress(sim, p)) continue;
     switch (c) {
       case 'F8': {
         const m = journal.mark();
@@ -698,35 +664,11 @@ function handlePresses(pad) {
         else hud.toast('No journal recording', 'warn');
         break;
       }
-      case 'KeyC':
-        player.toggleCruise();
-        break;
-      case 'KeyR':
-        player.resumeCruise();
-        break;
-      case 'Equal':
-      case 'NumpadAdd':
-      case 'BracketRight':
-      case 'PageUp':
-        player.adjustCruise(c === 'PageUp' ? CONFIG.ccStepBig : big);
-        break;
-      case 'Minus':
-      case 'NumpadSubtract':
-      case 'BracketLeft':
-      case 'PageDown':
-        player.adjustCruise(-(c === 'PageDown' ? CONFIG.ccStepBig : big));
-        break;
-      case 'KeyQ':
-        player.indicator(-1);
-        break;
       case 'KeyZ':
         glance.left = 0.75;
         break;
       case 'KeyX':
         glance.right = 0.75;
-        break;
-      case 'KeyE':
-        player.indicator(1);
         break;
       case 'KeyV':
         viewIdx = (viewIdx + 1) % VIEWS.length;
@@ -966,19 +908,19 @@ function frame(now) {
 
   if (!paused) {
     time += dt;
-    // physics
-    const sub = Math.max(1, Math.ceil(dt / (1 / 120)));
-    const h = dt / sub;
-    for (let i = 0; i < sub; i++) player.update(h, ctl, traffic);
+    // physics, matrix signs, closures and the journal sample: shared with the bot
+    stepSim(sim, dt, ctl);
+    // the other carriageway, same substep count (it has no effect on your lane)
     const tsub = Math.max(1, Math.ceil(dt / (1 / 30)));
-    for (let i = 0; i < tsub; i++) {
-      traffic.step(dt / tsub, player.s, player.proxy);
-      oncoming.step(dt / tsub, player.s, null);
-    }
+    for (let i = 0; i < tsub; i++) oncoming.step(dt / tsub, player.s, null);
     stats.update(dt, player, traffic, (t, k) => hud.toast(t, k));
-    msi.update(dt, player.s);
-    updateClosures(dt);
-    journal.tick(dt, player, traffic, playerLimit());
+    for (const n of sim.notices.splice(0)) {
+      if (n.type === 'red-cross') {
+        stats.redCrosses++;
+        hud.toast('Red cross: this lane is closed. In real life that is a hefty fine.', 'bad');
+      }
+    }
+    closureView.sync(traffic.closures);
     // horn (F-03): sound while held; drivers react once per press
     {
       const h = input.is('horn');
@@ -989,15 +931,9 @@ function frame(now) {
         if (h) traffic.honkFrom(player.proxy);
       }
     }
-    if (player.flashT <= 0 && input.is('flash')) {
-      player.flashT = 0.6;
-      journal.event('flash', {});
-      const who = traffic.flashFrom(player.proxy);
-      if (who) who.pressureT = Math.max(who.pressureT, 6);
-    }
+    holdFlash(sim, input.is('flash'));
     // events from player
-    journal.playerEvents(player.events);
-    for (const e of player.events) {
+    for (const e of drainEvents(sim)) {
       if (e.type === 'cc') {
         if (e.on) audio.beep(e.adjust ? (e.adjust > 0 ? 1400 : 1100) : 1250, 0.06, 1);
         else audio.beep(800, 0.09, 2);
@@ -1009,7 +945,6 @@ function frame(now) {
         hud.toast('Collision!', 'bad');
       } else if (e.type === 'msg') hud.toast(e.text);
     }
-    player.events.length = 0;
     scenery.animate(dt);
   }
 
@@ -1112,7 +1047,7 @@ function frame(now) {
   }
 
   // HUD
-  hud.update(dt, player, playerLimit(), blink, { vehicles: traffic.vehicles.length + oncoming.vehicles.length });
+  hud.update(dt, player, playerLimit(sim), blink, { vehicles: traffic.vehicles.length + oncoming.vehicles.length });
   dashT -= dt;
   if (dashT <= 0) {
     dashT = 0.08;
@@ -1173,7 +1108,15 @@ window.__game = {
     player.s = s;
     player.placeInLane(player.lane, Math.max(60, player.v * 3.6));
     makeTraffic();
-    Object.assign(window.__game, { traffic, oncoming });
+    // the frame's sim points at the new traffic and signs; keep the closure clock
+    const prev = sim;
+    sim = bindSim({ road, player, traffic, msi, rng: Math.random, journal, scenario: SCENARIO });
+    if (prev) {
+      sim.time = prev.time;
+      sim.closureDist = prev.closureDist;
+      sim.lastGantry = prev.lastGantry;
+    }
+    Object.assign(window.__game, { traffic, oncoming, sim });
     scenery.update(player.s, 999);
   },
 };

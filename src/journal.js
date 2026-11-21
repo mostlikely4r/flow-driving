@@ -69,6 +69,10 @@ export class Journal {
       notes = null,
       recordFps = true,
       commit = COMMIT,
+      commitDirty = null,
+      node = null,
+      bot = null,
+      runner = null,
     } = opts;
     this.data = {
       version: JOURNAL_VERSION,
@@ -90,6 +94,10 @@ export class Journal {
         hasBrake: true, // vehicle rows carry the brake-light flag (v>1)
         notes,
         recordFps,
+        commitDirty,
+        node,
+        bot,
+        runner,
       },
       meta: {}, // id -> {type, variant, len, width}
       hz: JOURNAL_HZ,
@@ -250,7 +258,7 @@ export class Journal {
    * Close the drive and return the JSON object. Safe to call twice: the second
    * call returns null (e.g. beforeunload after you already ended the drive).
    */
-  finish({ answers = null, reason = 'end' } = {}) {
+  finish({ answers = null, reason = 'end', contacts = null } = {}) {
     if (!this.active || !this.data) return null;
     this.active = false;
     this.done = true;
@@ -260,6 +268,7 @@ export class Journal {
       t: r2(this.t),
       s: r1(this.lastS),
       reason,
+      contacts,
       endedAt: new Date().toISOString(),
     };
     d.header.duration = r2(this.t);

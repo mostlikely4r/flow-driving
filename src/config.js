@@ -68,6 +68,11 @@ export const DEFAULTS = {
 
   seed: 20261112,
 
+  // --- Proefrit (F-37): what a driver in the car can see ---
+  // The bot's view (src/perception.js). Forward well beyond a sane following
+  // distance, mirrors closer; lanes two away are only readable near you.
+  perception: { aheadM: 250, behindM: 120, farM: 80, histS: 1.5, driftEps: 0.12 },
+
   // --- Proefrit: moment detector thresholds (F-37) ---
   // A detector only counts once it fires where you dropped a mark (F8), so
   // these move to fit your journals. See src/moments.js and `npm run report`.

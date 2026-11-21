@@ -13,6 +13,25 @@ export const KEYS = {
   horn: ['Space'],
 };
 
+/**
+ * Keyboard pedal ramp, shared by the keyboard and the bot. `st` carries
+ * { thr, brk, thrHeld, brkHeld }; `keys` carries what is held down now.
+ * A tap is gentle, holding goes deeper. Behaviour-identical to the old
+ * inline keyboard branch.
+ */
+export function pedalStep(st, { throttle, brake, left, right }, dt) {
+  st.thrHeld = throttle ? st.thrHeld + dt : 0;
+  st.brkHeld = brake ? st.brkHeld + dt : 0;
+  const thrTarget = throttle ? clamp(0.35 + st.thrHeld * 0.8, 0, 1) : 0;
+  const brkTarget = brake ? clamp(0.12 + st.brkHeld * 0.45, 0, 1) : 0;
+  st.thr += clamp(thrTarget - st.thr, -3 * dt, 2.5 * dt);
+  st.brk += clamp(brkTarget - st.brk, -4 * dt, 3 * dt);
+  let steer = 0;
+  if (left) steer -= 1;
+  if (right) steer += 1;
+  return { steer, throttle: st.thr, brake: st.brk, analog: false };
+}
+
 export class Input {
   constructor(el) {
     this.down = new Set();
@@ -81,17 +100,8 @@ export class Input {
     if (pad && (Math.abs(pad.steer) > 0.06 || pad.throttle > 0.02 || pad.brake > 0.02)) {
       return { steer: Math.abs(pad.steer) > 0.06 ? pad.steer : 0, throttle: pad.throttle, brake: pad.brake, analog: true, pad };
     }
-    const t = this.is('throttle'), b = this.is('brake');
-    this.thrHeld = t ? this.thrHeld + dt : 0;
-    this.brkHeld = b ? this.brkHeld + dt : 0;
-    const thrTarget = t ? clamp(0.35 + this.thrHeld * 0.8, 0, 1) : 0;
-    const brkTarget = b ? clamp(0.12 + this.brkHeld * 0.45, 0, 1) : 0;
-    this.thr += clamp(thrTarget - this.thr, -3 * dt, 2.5 * dt);
-    this.brk += clamp(brkTarget - this.brk, -4 * dt, 3 * dt);
-    let steer = 0;
-    if (this.is('left')) steer -= 1;
-    if (this.is('right')) steer += 1;
-    return { steer, throttle: this.thr, brake: this.brk, analog: false, pad };
+    const ctl = pedalStep(this, { throttle: this.is('throttle'), brake: this.is('brake'), left: this.is('left'), right: this.is('right') }, dt);
+    return { ...ctl, pad };
   }
 
   pollPad() {

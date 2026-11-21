@@ -48,7 +48,10 @@ export class Player {
     this.lanesOcc = [this.lane];
     this.events = [];
     this.scrapeT = 0;
-    this.lastHit = 0;
+    // Sim clock (s), not wall time: a headless run is much faster than real
+    // time, so a wall-clock crash gate would swallow most contacts.
+    this.clock = 0;
+    this.lastHit = -Infinity;
     this.flashT = 0;
     this.highBeam = false;
     this.lightsOn = false;
@@ -138,6 +141,7 @@ export class Player {
 
   // ---------------- update ----------------
   update(dt, ctl, traffic) {
+    this.clock += dt;
     const road = this.road;
     // ---- steering
     let steer;
@@ -238,9 +242,9 @@ export class Player {
       this.yaw -= e2 * Math.min(1, 6 * dt);
       this.v *= 1 - 0.9 * dt;
       this.scrapeT = 0.15;
-      if (performance.now() - this.lastHit > 700) {
+      if (this.clock - this.lastHit > 0.7) {
         this.emit('scrape', {});
-        this.lastHit = performance.now();
+        this.lastHit = this.clock;
       }
     }
     this.scrapeT = Math.max(0, this.scrapeT - dt);
@@ -330,9 +334,8 @@ export class Player {
         this.s -= pen;
         const hit = this.v;
         this.v = 0;
-        const now = performance.now();
-        if (hit > 1 && now - this.lastHit > 900) {
-          this.lastHit = now;
+        if (hit > 1 && this.clock - this.lastHit > 0.9) {
+          this.lastHit = this.clock;
           this.emit('crash', { strength: Math.min(3, hit / 5) });
         }
       }
@@ -344,7 +347,6 @@ export class Player {
       const dlat = veh.latLocal - this.lat;
       const penW = (veh.width / 2 + hw) - Math.abs(dlat) - 0.05;
       if (penL <= 0 || penW <= 0) continue;
-      const now = performance.now();
       const p = this.road.sample(this.s);
       if (penW < penL && penW < 1.0) {
         // side swipe: push apart laterally
@@ -369,8 +371,8 @@ export class Player {
         veh.v = Math.max(0, this.v - 0.5);
         this.v += Math.max(0, vRel) * 0.3;
       }
-      if (now - this.lastHit > 900) {
-        this.lastHit = now;
+      if (this.clock - this.lastHit > 0.9) {
+        this.lastHit = this.clock;
         this.emit('crash', { strength: penL });
       }
     }

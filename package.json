@@ -13,7 +13,9 @@
     "scenario": "node tools/scenario.js",
     "abtest": "node tools/abtest.js",
     "report": "node tools/report.js",
-    "moments": "node tools/momenttest.js"
+    "moments": "node tools/momenttest.js",
+    "playtest": "node tools/playtest.js",
+    "bottest": "node tools/bottest.js"
   },
   "dependencies": {
     "three": "^0.170.0",
