@@ -1,17 +1,67 @@
 # Flow Driving
 
-A Dutch motorway driving game about *being part of traffic*, not racing through it.
+A calm traffic driving simulator set on Dutch roads: you're part of the flow, not racing through it.
 
-## Run
+![From the seat, dusk on the A12](docs/media/cockpit.png)
 
-Double-click `start.bat`, or:
+## Play in your browser
+
+<https://mostlikely4r.github.io/flow-driving/> — desktop Chrome, Edge or Firefox, with a keyboard.
+No install.
+
+## The vision
+
+**An authentic Dutch driving simulator where the game is being part of traffic.**
+
+Three pillars decide every argument, in this order ([BACKLOG.md](BACKLOG.md) has the vision, the
+milestones and every feature):
+
+1. **Authentic.** Dutch rules, roads, signs and driver habits. When in doubt, do what really
+   happens on the A12 at 17:30, not what is convenient or "gamey".
+2. **Readable traffic.** You can see situations build up and predict how they will play out.
+   Drivers show what they intend through their position, speed and signals, just as good real
+   drivers do.
+3. **Calm.** Nothing rewards speed, reflexes or risk. Pressure comes from the flow, never from a
+   timer or a score.
+
+Visual quality is a bar, not a pillar: it matters, but it never justifies a feature on its own.
+
+## Run it locally
 
 ```
 npm install
 npm run dev        # opens http://localhost:5173
 ```
 
-## What's simulated
+or double-click `start.bat` on Windows. `npm run build` writes the production build to `dist/`, and
+`npm run preview` serves it.
+
+`npm run dev` turns on the playtest tools: the drive journal (F8 marks, *End drive…*), the dev
+overlay and `?scenario=` URLs. Add `?dev` to the hosted URL for the same; without it the game is the
+plain player's game.
+
+## Built with AI
+
+The game is developed with Claude Code, in a plan → build → review loop: a spec per feature, a fresh
+session to build it, and a review against the plan and the pillars. Those rules live in
+[AGENTS.md](AGENTS.md) and the two commands in `.claude/commands/`; `CLAUDE.md`, `.pi/` and
+`docs/specs/` are part of that workflow, not of the game.
+
+## Contributing
+
+An open project under MIT: better versions and forks are welcome. A pull request is judged by the
+pillars above, in order, and by the headless checks. See [CONTRIBUTING.md](CONTRIBUTING.md) before
+you start.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
+
+## For developers
+
+Everything below is how the simulation works, what to tune, and the tools that check it.
+
+### What's simulated
 
 - **Traffic AI** (`src/traffic.js`): IDM car-following + MOBIL lane changes with Dutch rules:
   keep right, no overtaking on the right above ~55 km/h (some drivers break it when frustrated),
@@ -27,7 +77,28 @@ npm run dev        # opens http://localhost:5173
   viaducts, noise walls, lit stretches, farms, poplars and wind turbines.
 - Day (limit 100), dusk and night (limit 130). Live interior and side mirrors.
 
-## Tuning
+### Checks
+
+No unit tests: the checks are headless tools in `tools/`, each an npm script. The full check before
+a pull request:
+
+```
+npm run build
+npm run simtest
+npm run personas
+npm run moments
+npm run bottest
+```
+
+`npm run playtest` is the long one (minutes of traffic per seed, written to `playtests/bot/`).
+
+`npm run simtest` runs the traffic model headless and prints lane usage, speeds and collisions
+(options: `density=20 lanes=4 player=120 plane=2 limit=130 min=6`).
+`node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Chrome or Edge (run `npm run build` first).
+The screenshot and clip tools find Chrome or Edge on their own; set `BROWSER_PATH` to the browser
+executable when it sits somewhere unusual.
+
+### Tuning
 
 Most behaviour is in the in-game menu (Esc). Everything else is in `src/config.js`.
 Useful knobs in `src/traffic.js` → `makeVehicle()`:
@@ -40,23 +111,22 @@ Useful knobs in `src/traffic.js` → `makeVehicle()`:
 | Lane-change duration / signalling time | `veh.lcDur`, `veh.tSignal` |
 | Accepted gap when changing lanes | `veh.tSafe`, `veh.tSafePlayer` |
 
-**Persona viewer** (`C` from the pause menu, or "Meet the cast" on the title card): a turntable rig on a
+### Persona viewer
+
+`C` from the pause menu, or "Meet the cast" on the title card: a turntable rig on a
 bare lane against black — only the road and the cars, the world is put away while it is open. `L` swaps
 lamp signatures, `V` the camera, `G` the headway gap.
 Every line on the spec sheet is clickable: the rig grows to the lanes a behaviour needs and plays a
 seeded demo staged from `scenarios.js` (`demo:<persona>:<trait>`), with captions detected from the star
 car's live state. `Space` pauses, `1`/`2` are 0.5×/0.25× slow motion, `3` normal, `R` restarts, and the
 sheet's *Back to the turntable* button (or `Esc`) leaves a demo or the gap view.
-`?scenario=demo:sok:draft` runs one as an ordinary free scenario.
+`?scenario=demo:sok:draft` runs one as an ordinary free scenario (dev mode).
 `npm run personas` runs all of them headless and fails if a tell never fires, a demo collides or an
 expectation does not hold (`node tools/personas.js --verbose` prints the captions).
 
-`npm run simtest` runs the traffic model headless and prints lane usage, speeds and collisions
-(options: `density=20 lanes=4 player=120 plane=2 limit=130 min=6`).
-`node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Chrome or Edge (run `npm run build` first).
-The screenshot and clip tools find Chrome or Edge on their own; set `BROWSER_PATH` to the browser
-executable when it sits somewhere unusual.
-**Scenarios** (`src/scenarios.js`): repeatable situations for tuning the AI. Open
+### Scenarios
+
+`src/scenarios.js`: repeatable situations for tuning the AI, in dev mode only. Open
 `http://localhost:5173/?scenario=elephant` (Backspace restarts, O cycles to the dev overlay), or run
 `npm run scenario elephant` for a headless timeline of who signals, merges and brakes
 (`you=ai` lets an AI drive your car; run without a name to list scenarios).
@@ -64,21 +134,27 @@ executable when it sits somewhere unusual.
 `npm run abtest -- anticipation=0 anticipation=1` compares traffic settings over many seeds
 (hard braking, emergency stops, truck overtakes, lane changes, speed).
 
-**Proefrit** (F-37, `src/journal.js`, `src/moments.js`): every drive is recorded to one JSON
-journal. `F8` drops a mark while you drive; the pause menu (Esc) takes a one-line note per mark and
+### Proefrit (the drive journal)
+
+`src/journal.js`, `src/moments.js`, dev mode only. Every drive is recorded to one JSON journal.
+`F8` drops a mark while you drive; the pause menu (Esc) takes a one-line note per mark and
 an *End drive…* button asks three optional questions, then POSTs the journal to the Vite dev server
-(`playtests/human/<date>-<time>.json` — git ignores these; they are design history and the
-calibration set). `npm run report -- playtests/human/2026-01-31-17-42-09.json` turns a journal into `report.md`:
+(`playtests/human/<date>-<time>.json` — git ignores these; they are design history and the calibration
+set, and stay on your disk). Outside `npm run dev`, *End drive…* downloads the JSON instead.
+`npm run report -- playtests/human/2026-01-31-17-42-09.json` turns a journal into `report.md`:
 rates per 10 minutes for each moment kind, the M1 check, a from-the-seat timeline, your marks and
 their nearby detectors, and a health block. `src/moments.js` judges only what a driver in the car
 can see; thresholds live in `CONFIG.moments`. `npm run moments` runs the detector cases (hand-built
 journals) and then the stage test (`tools/momentstage.js`), which drives five staged situations
 through the real sim and checks that the brake-light, indicator, empty-signal and pointless-lane
 detectors read what the sim actually recorded (`only=ID`, `trace`, `order=reverse`, `dump=<dir>`).
-**Playtest bot** (`src/perception.js`, `src/botDriver.js`, `tools/playtest.js`): a deterministic
-driver that has nothing but the keyboard. It sees only what a driver in the car can see (a
-whitelist of cues, no intent or hidden sim state), and its output is held keys plus key presses, so
-it goes through the same pedal ramp, cruise-control clicks and indicators as you.
+
+### Playtest bot
+
+`src/perception.js`, `src/botDriver.js`, `tools/playtest.js`: a deterministic driver that has
+nothing but the keyboard. It sees only what a driver in the car can see (a whitelist of cues, no
+intent or hidden sim state), and its output is held keys plus key presses, so it goes through the
+same pedal ramp, cruise-control clicks and indicators as you.
 `npm run playtest -- driver=forens min=20 seeds=5 tod=day` runs one child process per seed (traffic
 ids are a module global) and writes `playtests/bot/<run>/` with a journal per seed, a bot trace
 (`seed-N.trace.json`), `run.json` (arguments, commit, timings, checks, pass/fail) and `report.md`
@@ -89,21 +165,35 @@ lane from the percept, the bot state and the last trace lines, no report), `jobs
 perception geometry and range cut-offs, a throwing proxy over every vehicle, the import/DOM
 whitelist, the drift cue, synthetic following/cut-in/indicator cases, and determinism.
 
+### Look-dev tools
+
 `node tools/glare.js <dir>` sets up a night scene with cars close behind and oncoming, for checking headlight glare.
 `node tools/speeds.js [dayDensity] [nightDensity]` reports wanted vs driven speeds per archetype and lane.
 
 `node tools/lineup.js <dir>` parks one car of each archetype next to you (sides, fronts, mirror; day and night) for look-dev.
-`node tools/clip.js <scenario> [seconds] [chase|bonnet|cockpit] [off|ar-rel|ar-abs|dev] [out.mp4]` records a video of a scenario (needs ffmpeg).
+`node tools/clip.js <scenario> [seconds] [chase|bonnet|cockpit] [off|ar-rel|ar-abs|dev] [out.mp4]` records a video of a scenario (needs ffmpeg). It loads the game with `?dev`.
 `node tools/nightroad.js <dir>` shows an empty unlit road lit only by your own lamps, then traffic.
 `node tools/night.js <dir>` shoots the night mood on an unlit stretch and inside a sodium-lit one
 (uses the `window.__game.teleport(s)` debug hook).
 
-**Matrix signs and lane closures** (`src/msi.js`, `src/closureView.js`): gantries every 500 m show a queue warning (flashing 50 / 70) behind slow traffic by themselves, and arrow / red cross / 70 around a lane closure. Closures appear at random in free play (`closuresPer10km`), or try `?scenario=closure`. `node tools/closure.js [lanes] [density] [closedLane] [minutes]` checks safety and throughput headless.
+### Matrix signs and lane closures
 
-**Lane map** (`src/lanemap.js`, U): overhead view of your carriageway, cars coloured by speed; press U again for a time-space diagram of your lane (waves show as bands creeping down). `,` `.` zoom. `?scenario=wave` provokes one; `node tools/wave.js` measures how it grows or damps.
+`src/msi.js`, `src/closureView.js`: gantries every 500 m show a queue warning (flashing 50 / 70) behind slow traffic by themselves, and arrow / red cross / 70 around a lane closure. Closures appear at random in free play (`closuresPer10km`), or try `?scenario=closure` in dev mode. `node tools/closure.js [lanes] [density] [closedLane] [minutes]` checks safety and throughput headless.
 
-**Radio** (`src/radio.js`, Y): your own music folder (menu, Esc) or live NPO stations. Streams use a plain `<audio>` element on purpose: routing cross-origin streams through Web Audio plays silence.
+### Lane map
 
-**Driver archetypes** (`src/archetypes.js`): a persona sets both a car's look (paint, stance, tint,
+`src/lanemap.js`, U: overhead view of your carriageway, cars coloured by speed; press U again for a time-space diagram of your lane (waves show as bands creeping down). `,` `.` zoom. `?scenario=wave` provokes one (dev mode); `node tools/wave.js` measures how it grows or damps.
+
+### Radio
+
+`src/radio.js`, Y: your own music folder (menu, Esc), or a stream URL of your own pasted into
+the menu. No built-in stations: a game on GitHub should not hard-link a broadcaster's streams.
+Streams use a plain `<audio>` element on purpose: routing cross-origin streams through Web Audio
+plays silence. On the hosted (https) build an `http://` stream is refused with a toast, because the
+browser would block it as mixed content.
+
+### Driver archetypes
+
+`src/archetypes.js`: a persona sets both a car's look (paint, stance, tint,
 light signature) and, about 70% of the time, its driving style. Leasebak, Patser, Pensioner,
-Grijze sok (slipstreams trucks, `?scenario=sok`), Family, White van and EV smoothie; `?scenario=cast` shows them all; `archetypes` in config.js scales how common they are. Try `?scenario=archetypes`.
+Grijze sok (slipstreams trucks, `?scenario=sok`), Family, White van and EV smoothie; `?scenario=cast` shows them all (dev mode); `archetypes` in config.js scales how common they are. Try `?scenario=archetypes`.
