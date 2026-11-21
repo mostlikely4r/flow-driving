@@ -9,7 +9,9 @@ import { CONFIG, DEFAULTS } from '../src/config.js';
 import { KMH } from '../src/util.js';
 import { laneLat } from '../src/layout.js';
 import { Perception, observe, ALLOWED } from '../src/perception.js';
-import { createSim, stepSim, playerLimit } from '../src/session.js';
+import { createSim, stepSim, playerLimit, applyDrivePress } from '../src/session.js';
+import { pedalStep } from '../src/input.js';
+import { BotDriver } from '../src/botDriver.js';
 
 let failed = 0;
 let passed = 0;
@@ -131,20 +133,29 @@ const fakeTraffic = (vehicles, closures = []) => ({ vehicles, closures });
   let threw = null;
   const dt = 1 / 60;
   let t = 0;
-  const ctl = { steer: 0, throttle: 0.2, brake: 0, analog: false };
+  let percept = null;
+  const bot = new BotDriver('forens', { seed: 7 });
+  const pedal = { thr: 0, brk: 0, thrHeld: 0, brkHeld: 0 };
   try {
     while (t < 60) {
-      stepSim(sim, dt, ctl);
+      if (percept) {
+        const out = bot.update(dt, percept);
+        for (const pr of out.presses) applyDrivePress(sim, pr);
+        const ctl = pedalStep(pedal, out.keys, dt);
+        stepSim(sim, dt, ctl);
+      } else {
+        stepSim(sim, dt, { steer: 0, throttle: 0.2, brake: 0, analog: false });
+      }
       t += dt;
       if (Math.abs(t % 0.1) < dt / 2) {
         const traffic = { vehicles: sim.traffic.vehicles.map(poison), closures: sim.traffic.closures };
-        perc.update(t, sim.player, traffic, sim.msi, playerLimit(sim));
+        percept = perc.update(t, sim.player, traffic, sim.msi, playerLimit(sim));
       }
     }
   } catch (e) {
     threw = e;
   }
-  ok('poison: 60 s of perception over a throwing proxy', !threw, threw ? threw.message : '');
+  ok('poison: 60 s of perception + bot over a throwing proxy', !threw, threw ? threw.message : '');
 }
 
 // ---------------------------------------------------------------- 3. imports
@@ -158,6 +169,7 @@ function checkModule(file, allowedImports, { banned = BANNED } = {}) {
   ok(`imports: ${file} touches no DOM or wall clock`, badToken.length === 0, badToken.join(', '));
 }
 checkModule('perception.js', ['./config.js', './util.js', './layout.js', './msi.js']);
+checkModule('botDriver.js', ['./config.js', './util.js', './layout.js', './msi.js', './perception.js']);
 
 // ---------------------------------------------------------------- 4. drift cue
 {
@@ -191,4 +203,132 @@ checkModule('perception.js', ['./config.js', './util.js', './layout.js', './msi.
 }
 
 console.log(failed ? `\n${failed} case(s) failed, ${passed} passed` : `\nall ${passed} bot/perception cases passed`);
+// ---------------------------------------------------------------- 5. bot on synthetic percepts
+/** A Seen as perception.js would hand it over (P2 fields; the rest filled for realism). */
+function seenAhead({ id = 1, dl = 100, kmh = 90, lane = 0, len = 4.5, brake = false, ind = 0, seenAge = 10, drift = 0, pKmh = 100 } = {}) {
+  const pv = pKmh * KMH;
+  const v = kmh * KMH;
+  const gap = dl - (len + 4.8) / 2;
+  return {
+    id, type: 'car', variant: 'sedan', len, width: 1.8, side: 'ahead', dl, gap,
+    tgap: gap / pv, relKmh: (v - pv) / KMH, closing: pv - v,
+    ttc: pv - v > 0.1 ? gap / (pv - v) : Infinity,
+    lane, lanesOcc: [lane], off: 0, latRate: 0, drift, kmh, ind, indAge: 10, brake, brakeAge: 10, seenAge,
+  };
+}
+
+/** Build a Percept, filling the lane views a real Perception would produce. */
+function perceptAt({ t = 0, lane = 0, kmh = 100, cc = { on: true, set: 104, has: true }, cars = [], obstacles = [], limitKmh = 100 } = {}) {
+  const v = kmh * KMH;
+  const self = { s: 1000, lane, lanesOcc: [lane], lat: laneLat(lane), off: 0, kmh, v, acc: 0, ind: 0, steer: 0, headingErr: 0, cc: { ...cc }, limitKmh, lanes: CONFIG.lanes };
+  const lanes = Array.from({ length: CONFIG.lanes }, (_, i) => {
+    const inLane = cars.filter((c) => c.lanesOcc.includes(i));
+    const ahead = inLane.filter((c) => c.dl >= 0).sort((a, b) => a.dl - b.dl)[0] || null;
+    const behind = inLane.filter((c) => c.dl < 0).sort((a, b) => b.dl - a.dl)[0] || null;
+    const adj = Math.abs(i - lane) <= 1;
+    const visibleAheadM = adj ? CONFIG.perception.aheadM : CONFIG.perception.farM;
+    const visibleBehindM = adj ? CONFIG.perception.behindM : CONFIG.perception.farM;
+    return { ahead, behind, freeAheadM: ahead ? ahead.gap : visibleAheadM, freeBehindM: behind ? behind.gap : visibleBehindM, visibleAheadM, visibleBehindM };
+  });
+  return { t, self, cars, lanes, obstacles, signs: { limitKmh, nextGantryM: Infinity, cur: null, next: null } };
+}
+
+/** Run a bot against a percept function; mirror the press effects into the local cc. */
+function driveBot(bot, seconds, perceptFn, { dt = 1 / 60, kmh = 100 } = {}) {
+  const cc = { on: true, set: 104, has: true };
+  const seen = { brake: false, throttle: false, set: null, states: new Set(), presses: [] };
+  let p = perceptFn(0, cc, kmh);
+  const n = Math.round(seconds / dt);
+  for (let i = 0; i < n; i++) {
+    const out = bot.update(dt, p);
+    seen.brake = seen.brake || out.keys.brake;
+    seen.throttle = seen.throttle || out.keys.throttle;
+    seen.states.add(bot.state);
+    for (const pr of out.presses) {
+      seen.presses.push(pr.code);
+      if (pr.code === 'KeyC') {
+        if (cc.on) cc.on = false;
+        else {
+          cc.set = Math.round(p.self.kmh);
+          cc.on = true;
+          cc.has = true;
+        }
+      } else if (pr.code === 'KeyR') {
+        if (cc.has) cc.on = true;
+      } else if (pr.code === 'Equal') {
+        if (!cc.on) {
+          cc.on = true;
+          if (cc.has) cc.set = Math.round(p.self.kmh);
+        }
+        cc.set += pr.shift ? 5 : 1;
+      } else if (pr.code === 'Minus') {
+        if (!cc.on) {
+          cc.on = true;
+          if (cc.has) cc.set = Math.round(p.self.kmh);
+        }
+        cc.set -= pr.shift ? 5 : 1;
+      }
+    }
+    // any brake pedal switches cruise off, as in Player.update
+    if (out.keys.brake) cc.on = false;
+    // a simple stand-in for the car's response, so the bot sees its own braking
+    kmh = Math.max(0, kmh + (out.keys.throttle ? 1.2 : out.keys.brake ? -3.5 : -0.05) * dt);
+    p = perceptFn((i + 1) * dt, cc, kmh);
+    seen.set = cc.set;
+  }
+  return seen;
+}
+
+{
+  // Following a slower leader: the bot slows down (or signals to pass) and never
+  // holds W and S at the same time.
+  const bot = new BotDriver('forens', { seed: 1 });
+  const lead = seenAhead({ dl: 80, kmh: 80 });
+  const seen = driveBot(bot, 20, (t, cc, kmh) => perceptAt({ t, kmh, cars: [lead], cc }));
+  ok('bot: reacts to a slower leader', seen.brake || seen.presses.includes('KeyQ'), JSON.stringify(seen.states));
+  ok('bot: FOLLOW is reported', seen.states.has('FOLLOW'), [...seen.states].join(','));
+  ok('bot: never holds W and S together', !(seen.throttle && seen.brake));
+}
+
+{
+  // A car only a little slower: click the set speed down toward it, cruise on.
+  const bot = new BotDriver('forens', { seed: 5 });
+  const lead = seenAhead({ dl: 160, kmh: 100 });
+  const seen = driveBot(bot, 6, (t, cc, kmh) => perceptAt({ t, kmh, cars: [lead], cc }));
+  ok('bot: set speed comes down toward a slightly slower leader', seen.set != null && seen.set <= 100, String(seen.set));
+}
+
+{
+  // A cut-in: a car appears close and slower. EMERGENCY must fire after ~0.15 s.
+  const bot = new BotDriver('forens', { seed: 2 });
+  const cut = seenAhead({ dl: 12, kmh: 92, seenAge: 0.2 });
+  const seen = driveBot(bot, 6, (t, cc, kmh) => perceptAt({ t, kmh, cars: t < 3 ? [] : [cut], cc }));
+  ok('bot: a cut-in triggers EMERGENCY', seen.states.has('EMERGENCY'), [...seen.states].join(','));
+  ok('bot: a cut-in is braked, not accelerated', seen.brake);
+}
+
+{
+  // Determinism: two fresh processes, one minute each, same hash.
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const { join } = await import('node:path');
+  const runner = fileURLToPath(new URL('./playtest.js', import.meta.url));
+  const run = (tag) => {
+    const dir = join('playtests', 'bot', `bottest-${tag}`);
+    const args = [runner, '--child', JSON.stringify({ seed: 1, driver: 'forens', minutes: 1, tod: 'day', dt: 1 / 60, cfg: {}, overrides: {}, dir, until: null, scenario: null })];
+    const r = spawnSync(process.execPath, args, { encoding: 'utf8' });
+    const line = (r.stdout || '').split('\n').find((l) => l.startsWith('CHECKS '));
+    if (!line) throw new Error(`child failed: ${r.stderr}`);
+    return JSON.parse(line.slice(7)).hash;
+  };
+  let a = null, b = null, err = null;
+  try {
+    a = run('a');
+    b = run('b');
+  } catch (e) {
+    err = e;
+  }
+  ok('determinism: a 60 s bot run twice hashes the same', !err && a === b, err ? err.message : `${a} vs ${b}`);
+}
+
 process.exit(failed ? 1 : 0);
