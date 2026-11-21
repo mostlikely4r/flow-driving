@@ -176,6 +176,26 @@ export const SCENARIOS = {
     })(),
   },
 
+  slot: {
+    title: 'Lining up for the slot',
+    about:
+      'The car ahead wants to move right, but a car is right behind it in the middle lane. ' +
+      'Watch it line up first, then signal and go.',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 31,
+    player: { lane: 2, kmh: 105, want: 105 },
+    vehicles: [
+      // Wants the middle lane (a keep-right wish, nothing to gain), but the car
+      // behind it there is half a second away: too tight. It should pull ahead
+      // first (lineUpKmh) and only then indicate.
+      { tag: 'slotter', type: 'car', variant: 'estate', lane: 2, ds: 40, kmh: 100, want: 100, params: { bias: 0.6, p: 0.1, tSafe: 0.7, bSafe: 2.5, tSignal: 2.5, tPrep: 0.4, decT: 0.2, cooldown: 0.3, coop: 0 } },
+      { tag: 'blocker', type: 'car', variant: 'hatch', lane: 1, ds: 22, kmh: 100, want: 100, params: { coop: 0, cooldown: 1e9, antic: 0 } },
+      // Something far ahead in the right lane, so the scene reads as a motorway.
+      { tag: 'truck', type: 'truck', variant: 'truck', lane: 0, ds: 900, kmh: 83 },
+    ],
+  },
+
   hogger: {
     title: 'Middle-lane hogger',
     about:

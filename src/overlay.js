@@ -200,6 +200,11 @@ export class Overlay {
     else if (veh.state === 'move') st = `moving ${dir(veh.targetLane)} ${Math.round(veh.lcT * 100)}%`;
     else if (veh.intent >= 0 && veh.intentSince != null) st = `wants ${dir(veh.intent)} ${(traffic.time - veh.intentSince).toFixed(1)}s · drift ${Math.abs(veh.drift).toFixed(2)}m`;
     else st = veh.cooldown > 0 ? `cooldown ${veh.cooldown.toFixed(1)}s` : 'cruising';
+    if (veh.lineUp) st += ` · lining up ${veh.lineUp.kind} ${(traffic.time - veh.lineUp.t0).toFixed(1)}s`;
+    if (veh.noSignalT && (veh.noSignalT.L > 0 || veh.noSignalT.R > 0)) {
+      const side = veh.noSignalT.L >= veh.noSignalT.R ? 'L' : 'R';
+      st += ` · no signal ${side} ${veh.noSignalT[side].toFixed(1)}s`;
+    }
     if (veh.passing) st += ' · passing';
     if (veh.returnT > 0) st += ' · going back right';
     if (veh.anticOn) st += ` · easing for ${veh.anticOn.isPlayer ? 'YOU' : veh.anticOn.tag || '#' + veh.anticOn.id}`;

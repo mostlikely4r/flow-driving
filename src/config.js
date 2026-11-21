@@ -38,6 +38,12 @@ export const DEFAULTS = {
   coolness: 0.99, // ACC model: 0 = plain IDM (brakes hard on any close cut-in), ~1 = calm drop-back
   anticipation: 1.0, // scales how early AI reads merges and plans overtakes (0 = purely reactive)
   telegraph: 1.0, // scales how much AI shows lane changes in advance (drift, closing up, mirror-check delay); 0 = off
+  signalHorizonS: 2, // a driver may signal if the move is safe now, or in this many seconds with the gaps projected at current speeds
+  signalHoldS: 3, // longest wait past tSignal before an indicator that leads nowhere is withdrawn
+  resignalS: 12, // after a withdrawal, no new signal toward that side for this long (lining up is still allowed)
+  lineUpS: 12, // longest time spent lining up before the wish is given up (the normal cooldown follows)
+  lineUpKmh: 6, // lining up ahead may go at most this far above the driver's own wanted speed
+  lineUpLift: -0.7, // deceleration cap (m/s²) when lining up behind: lifting off, never brake lights
   archetypes: 1.0, // share of cars with a recognisable driver archetype (0 = all ordinary)
   politeness: 1.0, // scales how much AI lets others in / moves right for faster cars
 

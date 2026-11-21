@@ -62,7 +62,7 @@ export function gapBetween(ahead, behind) {
  * the driver drop back gently. Real emergencies (a much slower car) still get
  * full braking. CONFIG.coolness = 0 gives plain IDM.
  */
-export function idm(me, lead, Tmul = 1) {
+export function idm(me, lead, Tmul = 1, gapOverride = null) {
   const v = me.v;
   const v0 = Math.max(me.v0, 1);
   const r = v / v0;
@@ -70,7 +70,9 @@ export function idm(me, lead, Tmul = 1) {
   if (r <= 1) free = me.a * (1 - r * r * r * r);
   else free = -Math.min(1.6, me.b * (r - 1) * 5); // above desired speed: ease off, no slamming
   if (!lead) return free;
-  const g = gapBetween(lead, me);
+  // gapOverride lets a caller ask the same question about a projected gap
+  // (F-38: "would this move be safe in two seconds at these speeds?")
+  const g = gapOverride != null ? gapOverride : gapBetween(lead, me);
   if (g > 500) return free;
   const dv = v - lead.v;
   const sStar = me.s0 + Math.max(0, v * me.T * Tmul + (v * dv) / (2 * Math.sqrt(me.a * me.b)));
@@ -226,6 +228,9 @@ export class Traffic {
       lcT: 0,
       signalT: 0,
       signalLane: -1,
+      lineUp: null, // { kind: 'ahead'|'behind', lane, side, t0 }: getting into position before signalling
+      noSignalT: { L: 0, R: 0 }, // re-signal pause per side (F-38)
+      closureSig: false, // this signal is a lane-closure move, so it may wait longer
       indicator: 0, // -1 left, +1 right
       indOffT: 0,
       cooldown: 2 + r() * 4,
@@ -411,7 +416,17 @@ export class Traffic {
   }
 
   computeAcc(veh) {
-    let a = this.laneAcc(veh, veh.lane);
+    // Lining up ahead (F-38): pull a little past the driver's own wanted speed,
+    // so the car behind in the target lane falls back and the gap opens.
+    let a;
+    if (veh.lineUp && veh.lineUp.kind === 'ahead') {
+      const v0 = veh.v0;
+      veh.v0 = v0 + CONFIG.lineUpKmh * KMH;
+      a = this.laneAcc(veh, veh.lane);
+      veh.v0 = v0;
+    } else {
+      a = this.laneAcc(veh, veh.lane);
+    }
     if (veh.state === 'move' && veh.targetLane !== veh.lane) {
       const aT = this.laneAcc(veh, veh.targetLane);
       // most of the way out of a closing lane, the block ahead no longer concerns you
@@ -441,8 +456,10 @@ export class Traffic {
     // Gap seeking: while signalling, line up with the gap instead of waiting
     // blindly. Drop in behind a car alongside or just ahead in the target lane,
     // and lift a little when a faster car is passing, so it clears sooner.
-    if (veh.state === 'signal') {
-      const tl = this.lanes[veh.targetLane];
+    // Lining up (F-38) uses the same seeking before the signal is on.
+    const seek = veh.state === 'signal' ? veh.targetLane : veh.lineUp ? veh.lineUp.lane : -1;
+    if (seek >= 0) {
+      const tl = this.lanes[seek];
       const nl = leaderIn(tl, veh);
       if (nl && !nl.isPlayer && nl.v < veh.v + 2) {
         const g = gapBetween(nl, veh);
@@ -453,6 +470,13 @@ export class Traffic {
         const g = gapBetween(veh, nf);
         if (g < 15) a = Math.min(a, -0.4);
       }
+    }
+    // Lining up behind the car that blocks the target lane: lift off until it
+    // is past (after that the leader branch above keeps the gap). Above the
+    // brake-light threshold, so it reads as easing off, not braking.
+    if (veh.lineUp && veh.lineUp.kind === 'behind') {
+      const nf = followerIn(this.lanes[veh.lineUp.lane], veh);
+      if (nf && nf !== veh && nf.u <= veh.u) a = Math.min(a, CONFIG.lineUpLift);
     }
     return a;
   }
@@ -552,6 +576,41 @@ export class Traffic {
     return aOld;
   }
 
+  /** The leader half of the lane-change gap test: is the car ahead in t far enough? */
+  leaderSafe(veh, nl, gNl) {
+    return gNl >= 2 + veh.v * 0.3 + Math.max(0, veh.v - nl.v) * 1.2;
+  }
+
+  /** The follower half: has the car behind in t left the room this driver wants? */
+  followerSafe(veh, nf, gNf) {
+    const ts = nf.isPlayer ? veh.tSafePlayer : veh.tSafe;
+    if (!(gNf >= 2 + nf.v * ts + Math.max(0, nf.v - veh.v) * 2.2)) return false;
+    return idm(nf, veh, 1, gNf) >= -(nf.isPlayer ? 1.0 : veh.bSafe);
+  }
+
+  /** Both gap tests for a normal (non-zipper) lane change. */
+  gapSafe(veh, nl, nf, gNl, gNf) {
+    if (nl && !this.leaderSafe(veh, nl, gNl)) return false;
+    if (nf && !this.followerSafe(veh, nf, gNf)) return false;
+    return true;
+  }
+
+  /**
+   * Would the move into lane t be safe `h` seconds from now, keeping both gaps
+   * as they are at current speeds? A gap that closes to nothing is not safe.
+   * (F-38: a driver may signal for a gap that is visibly opening.)
+   */
+  projectedSafe(veh, t, h) {
+    const tgt = this.lanes[t];
+    const nl = leaderIn(tgt, veh);
+    const nf = followerIn(tgt, veh);
+    const gNl = nl ? gapBetween(nl, veh) + (nl.v - veh.v) * h : 0;
+    const gNf = nf ? gapBetween(veh, nf) + (veh.v - nf.v) * h : 0;
+    if (nl && gNl <= 0) return false;
+    if (nf && gNf <= 0) return false;
+    return this.gapSafe(veh, nl, nf, gNl, gNf);
+  }
+
   /** MOBIL evaluation of moving veh into lane t. */
   evaluate(veh, t) {
     // never into a lane with a red cross coming up (or a closure in it)
@@ -575,15 +634,10 @@ export class Traffic {
         if (g < 2 + nf.v * (0.45 + (nf.react ?? 0.8) * 0.6) || idm(nf, veh) < -(nf.isPlayer ? 1.8 : 2.2)) safe = false;
       }
     } else if (nl) {
-      const g = gapBetween(nl, veh);
-      if (g < 2 + veh.v * 0.3 + Math.max(0, veh.v - nl.v) * 1.2) safe = false;
+      if (!this.leaderSafe(veh, nl, gapBetween(nl, veh))) safe = false;
     }
     if (nf && !zip) {
-      const g = gapBetween(veh, nf);
-      const ts = nf.isPlayer ? veh.tSafePlayer : veh.tSafe;
-      if (g < 2 + nf.v * ts + Math.max(0, nf.v - veh.v) * 2.2) safe = false;
-      const anf = idm(nf, veh);
-      if (anf < -(nf.isPlayer ? 1.0 : veh.bSafe)) safe = false;
+      if (!this.followerSafe(veh, nf, gapBetween(veh, nf))) safe = false;
     }
     const aOld = veh.accPure;
     const aNew = this.laneAcc(veh, t);
@@ -647,7 +701,9 @@ export class Traffic {
     // back an overtake, but the driver must gain something themselves. (Flashed
     // drivers are the exception: they're pressed to move, handled by bias.)
     const wants = inc > need && (!left || selfish > veh.thr * 0.5 || closure > 0);
-    return { safe, inc, wants, margin: inc - need };
+    // closure and zip are read by laneLogic (F-38): those moves keep the old
+    // signal-and-wait behaviour, the rest may only signal for a gap.
+    return { safe, inc, wants, margin: inc - need, closure, zip: !!zip };
   }
 
   /**
@@ -656,7 +712,7 @@ export class Traffic {
    * (`tools/momentstage.js`), so holding, moving and cancelling stay the same
    * code path as a real driver's.
    */
-  beginSignal(veh, target) {
+  beginSignal(veh, target, closure = false) {
     const left = target > veh.lane;
     veh.state = 'signal';
     veh.targetLane = target;
@@ -665,11 +721,57 @@ export class Traffic {
     veh.recheckT = 1;
     veh.indicator = left ? -1 : 1;
     veh.indOffT = 0;
+    veh.lineUp = null;
+    veh.closureSig = !!closure;
+  }
+
+  /**
+   * Get into position before signalling (F-38). A driver who wants the lane
+   * right but has a car alongside or just behind in it first lines up without
+   * indicating: pull a little ahead of that car (if there is room ahead), or
+   * lift off and drop in behind it. The intent drift keeps the wish visible.
+   * Called every decision tick while the gap is not there yet.
+   */
+  lineUpFor(veh, t) {
+    const tl = this.lanes[t];
+    const nl = leaderIn(tl, veh);
+    const nf = followerIn(tl, veh);
+    if (!nf || nf === veh) return;
+    const gNf = gapBetween(veh, nf);
+    if (this.followerSafe(veh, nf, gNf)) return; // it is not the blocker
+    if (nf.v > veh.v + 1) return; // faster: the gap opens by itself, so it may signal
+    const gNl = nl ? gapBetween(nl, veh) : 0;
+    // Can the leader in the target lane stay far enough ahead for the whole
+    // time we might spend lining up?
+    let nlOk = true;
+    if (nl) {
+      const g = gNl + (nl.v - veh.v) * CONFIG.lineUpS;
+      nlOk = g > 0 && this.leaderSafe(veh, nl, g);
+    }
+    let kind = null;
+    if (veh.type !== 'truck' && nlOk) {
+      // trucks have limiters, so they can never pull ahead of a car
+      const ol = leaderIn(this.lanes[veh.lane], veh);
+      const room = !ol || gapBetween(ol, veh) > 2 + veh.v * veh.T + 20;
+      if (room) kind = 'ahead';
+    }
+    if (!kind && Math.abs(nf.v - veh.v) <= 3 * KMH) kind = 'behind';
+    if (!kind) return;
+    if (!veh.lineUp || veh.lineUp.lane !== t) {
+      veh.lineUp = { kind, lane: t, side: t > veh.lane ? 'L' : 'R', t0: this.time };
+    } else {
+      veh.lineUp.kind = kind;
+    }
   }
 
   laneLogic(veh, dt) {
     const N = this.N;
     veh.pressureT = Math.max(0, veh.pressureT - dt);
+    // the re-signal pause counts down whatever the driver is doing
+    if (veh.noSignalT) {
+      if (veh.noSignalT.L > 0) veh.noSignalT.L = Math.max(0, veh.noSignalT.L - dt);
+      if (veh.noSignalT.R > 0) veh.noSignalT.R = Math.max(0, veh.noSignalT.R - dt);
+    }
     if (veh.indOffT > 0) {
       veh.indOffT -= dt;
       if (veh.indOffT <= 0) veh.indicator = 0;
@@ -692,6 +794,7 @@ export class Traffic {
       if (veh.cooldown > 0) {
         veh.intent = -1;
         veh.intentSince = null;
+        veh.lineUp = null;
       }
       if (veh.decT > 0 || veh.cooldown > 0) return;
       veh.decT = 0.5 + this.rng() * 0.7;
@@ -711,21 +814,49 @@ export class Traffic {
       if (!best) {
         veh.intent = -1;
         veh.intentSince = null;
+        veh.lineUp = null;
         return;
       }
       if (veh.intent !== best.t) {
         veh.intent = best.t;
         veh.intentSince = this.time;
+        veh.lineUp = null; // the wish changed: start lining up for the new lane
+      }
+      // Lining up for this lane for too long without a signal: give the wish up
+      // for a while rather than edge along in it forever.
+      if (veh.lineUp && this.time - veh.lineUp.t0 > CONFIG.lineUpS) {
+        veh.lineUp = null;
+        veh.intent = -1;
+        veh.intentSince = null;
+        veh.cooldown = 1.5 + this.rng() * 2;
+        return;
       }
       // at the end of a closed lane there's no time for a long look
       const cornered = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
       if (!cornered && this.time - veh.intentSince < (veh.tPrep ?? 0)) return; // checking the mirror
       const left = best.t > veh.lane;
-      // Signal if safe, or signal and wait for a gap when we really want it:
-      // going left to overtake, or going right (keep-right / back in after an
-      // overtake), where signalling lets cooperative drivers make room.
-      const waitAndSignal = left ? best.ev.margin > 0.25 && this.rng() < 0.35 : best.ev.margin > 0.1 && this.rng() < 0.5;
-      if (best.ev.safe || waitAndSignal) this.beginSignal(veh, best.t);
+      const side = left ? 'L' : 'R';
+      // A closure or a zipper merge keeps the old signal-and-wait: there,
+      // indicating and waiting really is what Dutch drivers do.
+      const forced = cornered || best.ev.closure > 0 || best.ev.zip;
+      // Signal if safe, or if the gap is visibly opening within the horizon.
+      // Otherwise line up first (right moves only; for the left the intent stays
+      // and the next decision looks again).
+      let go = best.ev.safe;
+      if (!go && forced) {
+        go = left ? best.ev.margin > 0.25 && this.rng() < 0.35 : best.ev.margin > 0.1 && this.rng() < 0.5;
+      } else if (!go) {
+        go = this.projectedSafe(veh, best.t, veh.tSignal + CONFIG.signalHorizonS);
+      }
+      // no signalling toward a side that just had its signal withdrawn
+      if (go && !forced && veh.noSignalT && veh.noSignalT[side] > 0) go = false;
+      if (go) {
+        this.beginSignal(veh, best.t, forced);
+      } else if (!left) {
+        this.lineUpFor(veh, best.t);
+      } else {
+        veh.lineUp = null;
+      }
     } else if (veh.state === 'signal') {
       veh.signalT += dt;
       veh.recheckT -= dt;
@@ -753,7 +884,10 @@ export class Traffic {
         }
         if (veh.recheckT <= 0) {
           veh.recheckT = 1;
-          if (ev.margin < -0.15 || veh.signalT > veh.tSignal + 8) this.cancelChange(veh);
+          // A closure signal may keep waiting (merging out of a closed lane is
+          // real behaviour); any other signal is withdrawn after a short hold.
+          const hold = veh.closureSig ? 8 : CONFIG.signalHoldS;
+          if (ev.margin < -0.15 || veh.signalT > veh.tSignal + hold) this.cancelChange(veh);
         }
       }
     } else if (veh.state === 'move') {
@@ -780,6 +914,8 @@ export class Traffic {
         veh.drift = 0;
         veh.intent = -1;
         veh.intentSince = null;
+        veh.lineUp = null;
+        veh.closureSig = false;
         veh.signalLane = -1;
         veh.indOffT = 0.3 + this.rng() * 0.8;
         veh.cooldown = 2.5 + this.rng() * 5;
@@ -788,9 +924,15 @@ export class Traffic {
   }
 
   cancelChange(veh) {
+    // A promise that was not kept: this side is not signalled again for a while
+    // (the normal cooldown still applies; lining up toward it is allowed).
+    const side = veh.indicator < 0 || (veh.indicator === 0 && veh.targetLane > veh.lane) ? 'L' : 'R';
+    if (!veh.closureSig && veh.noSignalT) veh.noSignalT[side] = CONFIG.resignalS;
     veh.state = 'none';
     veh.intent = -1;
     veh.intentSince = null;
+    veh.lineUp = null;
+    veh.closureSig = false;
     veh.signalLane = -1;
     veh.targetLane = veh.lane;
     veh.indOffT = 0.2;

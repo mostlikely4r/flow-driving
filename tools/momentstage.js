@@ -307,7 +307,11 @@ const FIXTURES = [
         car('L', { lane: 1, ds: 75, kmh: 80, want: 80, params: { cooldown: 1e9 } }),
         // S wants past L. B is right behind the space S wants, without
         // anticipation or cooperation, so the move never becomes safe.
-        car('S', { lane: 1, ds: 25, kmh: 80, want: 100, params: { p: 0, tSignal: 2, tSafe: 0.8, coop: 0, cooldown: 1e9 } }),
+        // tSignal 6, not 2: since F-38 a real driver withdraws a signal that
+        // leads nowhere after tSignal + signalHoldS (3 s), so a held-then-
+        // withdrawn signal has to ask for a longer wait to exist at all. With 6
+        // the real cancel fires at 9 s and the detector sees a 9 s hold.
+        car('S', { lane: 1, ds: 25, kmh: 80, want: 100, params: { p: 0, tSignal: 6, tSafe: 0.8, coop: 0, cooldown: 1e9 } }),
         car('B', { lane: 2, ds: 16, kmh: 80, want: 80, params: { cooldown: 1e9, coop: 0, antic: 0 } }),
       ],
     },

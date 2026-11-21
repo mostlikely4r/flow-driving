@@ -381,3 +381,60 @@ Where this differs from the table in **Why**, and why:
 `report.md` rates per 10 min, day / night: `cut-off` 0.4 / 0.0, `near-miss` 0.5 / 0.1,
 `unannounced` 0.0 / 0.0, `phantom-brake` 16.0 / 10.6, `let-in (good)` 4.8 / 4.6. All agree with
 **Why**.
+
+### P2: the signal rule, lining up, short hold and pause
+
+What changed in `src/traffic.js`: the gap test split into `leaderSafe`/`followerSafe`/`gapSafe`
+(`evaluate` behaves exactly as before) plus `projectedSafe`; `lineUpFor` and the line-up in
+`computeAcc`; `signalHoldS` instead of the fixed `+ 8`; the re-signal pause in `cancelChange`.
+`evaluate` now also returns `closure` and `zip`. The old `waitAndSignal` coin toss survives only
+for closure/zipper moves. `slot` scenario added; the ES stage fixture now asks for `tSignal: 6`
+(its 9 s hold is the real code's own cancel).
+
+Run dirs: `playtests/bot/2026-11-21-12-51-27-forens-day/`,
+`playtests/bot/2026-11-21-12-51-58-forens-night/`.
+
+Against the targets (day / night, per 10 min unless said otherwise):
+
+| Measure | before | after | target | |
+|---|---|---|---|---|
+| Withdrawn after ≥ 6 s | 13.3 / 7.9 | **1.3 / 1.6** | ≤ 3 | met |
+| Signals within 20 s of a withdrawal, per 100 min | 412 / 210 | **142 / 105** | ≤ 103 / ≤ 53 | not met (34% / 49%) |
+| … same, with random closures off | 270 / 240 | **48 / 54** | ≤ 25% of base | met (18% / 23%) |
+| `empty-signal` | 4.7 / 3.4 | **0.1 / 0.4** | ≤ 1.0 | met |
+| Signal → move p90 | 5.2 / 5.2 s | **4.7 / 5.2 s** | ≤ 5.5 s | met |
+| `unannounced` | 0.0 / 0.0 | **0.0 / 0.0** | 0.0 | met |
+| `cut-off`, `near-miss` | 0.4,0.5 / 0.0,0.1 | **0.3,0.3 / 0.1,0.0** | +0.3 | met |
+| `phantom-brake` | 16.0 / 10.6 | **10.5 / 12.1** | not higher | day met, night +1.5 |
+| … with random closures off | 15.6 / 10.9 | **8.9 / 6.1** | not higher | met, both down |
+
+simtest (6 min, seed 7): lane changes/min left 44.5 (was 41.0), right **43.8** (was 42.0) — right
+moves not down at all on this seed. Over five seeds (7, 11, 13, 17, 19) right moves fell from 44.6
+to 40.5 per min (−9.2%, inside −15%), left lane share rose from 31.4–32.4 % to 31.8–34.3 % (+1.5
+points at most, inside +3), and the truck share in lane 1 fell from 27.7% to 22.1% across seeds
+(−20%; −29% on seed 7 alone). That measure swings between 0 and 49% across seeds, so it is the
+multi-seed average that means anything. 0 overlaps, 0 player hits, min acc −3.20.
+
+Where a target was missed:
+- **Signals within 20 s of a withdrawal (with random closures on).** The closure path is kept
+  unchanged on purpose: a closure signal may wait out its 8 s `tMargin` cancel and re-signal at
+  once, because merging out of a closing lane really is signal-and-wait. Counting only the
+  behaviour this step changes (closures off) the loop is down to 18% / 23% of the baseline. With
+  closures on, 94 of the day's 142 re-signals come from cars that cancelled a closure signal.
+- **`phantom-brake` at night (12.1 vs 10.6).** Day fell by a third. With closures off, both fell
+  (day 8.9, night 6.1). The night count with closures moves by ±4 between seed sets, so this is
+  the closure path plus noise rather than the line-up: `lineUpLift` is −0.7 m/s², above the
+  −0.85 brake-light threshold, so lining up cannot light a brake light.
+
+No persona demo broke, and none needed restaging (55/55 clean). `npm run scenario slot`: the
+slotter wants the middle lane at 0.3 s, lines up ahead, signals at 2.7 s, is moving at 5.2 s and
+is in lane 1 at 10.4 s, with no withdrawal and no signal before the line-up.
+
+**Step 3 was skipped.** None of its triggers fired: right moves per minute are not down 10% (up
+on the simtest seed, −9% across seeds), the left-lane share rose 1.5 points, and the verdict on
+the user's drive is still open. Nothing in the numbers asks for cooperative drivers to open a
+larger gap.
+
+Check timings (first run): `npm run build` 3.0 s, `simtest` 7.5 s, `personas` 1.4 s, `moments`
+1.1 s, `bottest` 4.3 s. Each playtest run about 20 s (day) / 15 s (night), `npm run signals` about
+3 s per run dir.
