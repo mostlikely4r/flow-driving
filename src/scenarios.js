@@ -176,6 +176,65 @@ export const SCENARIOS = {
     })(),
   },
 
+  onramp: {
+    title: 'Merging from the on-ramp',
+    about:
+      'Three lanes. About 600 m ahead cars appear on the hard shoulder with their left indicator on, ' +
+      'speed up and slot into the right lane. Some lane-0 drivers ease off or move left to let them in. ' +
+      'Watch the lane map (U): the strip is a short band right of lane 0.',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 24,
+    density: 10,
+    ramps: [{ ds: 600 }],
+    player: { lane: 1, kmh: 100, want: 104 },
+    vehicles: (() => {
+      const r = mulberry32(93);
+      const out = [];
+      for (const lane of [0, 1, 2]) {
+        for (let ds = -700; ds < 1250; ) {
+          const truck = lane === 0 && r() < 0.2;
+          ds += 60 + r() * 60 + (truck ? 20 : 0);
+          if (lane === 1 && Math.abs(ds) < 30) continue; // room for you
+          const kmh = [92, 100, 108][lane];
+          out.push(truck
+            ? { tag: '', type: 'truck', variant: 'truck', lane, ds, kmh: 84 }
+            : { tag: '', type: 'car', variant: ['hatch', 'sedan', 'estate', 'suv'][(r() * 4) | 0], lane, ds, kmh, want: kmh + 4 + r() * 8 });
+        }
+      }
+      return out;
+    })(),
+  },
+
+  'onramp-busy': {
+    title: 'Busy on-ramp',
+    about:
+      'Three lanes, twice the traffic and twice the ramp flow. Some cars run to the end of the strip and ' +
+      'zip in there; the lane you are watching the ramp from gets busier too. Lane map: U.',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 25,
+    density: 16,
+    ramps: [{ ds: 600, perMin: 12 }],
+    player: { lane: 1, kmh: 100, want: 104 },
+    vehicles: (() => {
+      const r = mulberry32(94);
+      const out = [];
+      for (const lane of [0, 1, 2]) {
+        for (let ds = -700; ds < 1250; ) {
+          const truck = lane === 0 && r() < 0.2;
+          ds += 40 + r() * 45 + (truck ? 20 : 0);
+          if (lane === 1 && Math.abs(ds) < 30) continue; // room for you
+          const kmh = [88, 96, 104][lane];
+          out.push(truck
+            ? { tag: '', type: 'truck', variant: 'truck', lane, ds, kmh: 84 }
+            : { tag: '', type: 'car', variant: ['hatch', 'sedan', 'estate', 'suv'][(r() * 4) | 0], lane, ds, kmh, want: kmh + 4 + r() * 8 });
+        }
+      }
+      return out;
+    })(),
+  },
+
   slot: {
     title: 'Lining up for the slot',
     about:
@@ -889,6 +948,8 @@ export function applyScenario(traffic, sc, sPlayer, { includeYou = false } = {})
   traffic.time = 0;
   traffic.closures.length = 0;
   for (const c of sc.closures || []) traffic.addClosure(c.lane, sPlayer + c.ds, sPlayer + c.ds + c.len);
+  traffic.ramps.length = 0;
+  for (const r of sc.ramps || []) traffic.addRamp(sPlayer + r.ds, r.perMin != null ? { perMin: r.perMin } : {});
   const specs = [...sc.vehicles];
   if (includeYou) specs.push({ tag: 'you', type: 'car', variant: 'estate', lane: sc.player.lane, ds: 0, kmh: sc.player.kmh, want: sc.player.want });
   const placed = [];

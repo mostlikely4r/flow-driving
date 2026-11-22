@@ -6,6 +6,7 @@
 // Colour: warm = the gap to you is closing, cool = it is opening.
 import * as THREE from 'three';
 import { clamp } from './util.js';
+import { gapBetween, leaderIn } from './traffic.js';
 
 export const OVERLAY_MODES = ['off', 'ar-rel', 'ar-abs', 'dev'];
 export const OVERLAY_NAMES = {
@@ -60,7 +61,8 @@ export class Overlay {
     const out = [];
     const ahead = dev ? 6 : 3, behind = dev ? 4 : 2;
     const rangeA = dev ? 400 : 260, rangeB = dev ? 250 : 160;
-    for (const list of traffic.lanes) {
+    const lists = traffic.strip && traffic.strip.length ? [...traffic.lanes, traffic.strip] : traffic.lanes;
+    for (const list of lists) {
       let i = 0;
       while (i < list.length && traffic.dir * list[i].u < sPlayer) i++;
       for (let k = i, n = 0; k < list.length && n < ahead; k++) {
@@ -180,7 +182,23 @@ export class Overlay {
     el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
   }
 
+  /** Dev overlay for a merging car: "merging · 140 m left · −18 km/h". */
+  mergeText(veh, traffic, full) {
+    const s = traffic.dir * veh.u;
+    let dEnd = Infinity;
+    for (const r of traffic.ramps || []) if (r.s1 >= s) dEnd = Math.min(dEnd, r.s1 - s);
+    const nl = leaderIn(traffic.lanes[0], veh);
+    const dv = nl && gapBetween(nl, veh) < 150 ? Math.round((veh.v - nl.v) * KMH) : null;
+    const left = dEnd === Infinity ? 'on the strip' : `${Math.round(dEnd)} m left`;
+    const diff = dv == null ? 'no car ahead' : `${dv > 0 ? '+' : dv < 0 ? '−' : '±'}${Math.abs(dv)} km/h`;
+    if (!full) return `merge ${Math.round(veh.v * KMH)} ${dv == null ? '' : diff}`.trim();
+    const st = veh.state === 'move' ? `moving left ${Math.round(veh.lcT * 100)}%` : `signalling left ${veh.signalT.toFixed(1)}s`;
+    return `#${veh.id} ${veh.drives || veh.type} merging · ${left} · ${diff}\n${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s\n${st} · strip lane`;
+  }
+
   devText(veh, full, traffic) {
+    // a car on an acceleration strip: what it is doing, and how far it has left
+    if (veh.lane === -1) return this.mergeText(veh, traffic, full);
     const f = [];
     if (veh.limitOffset > 10) f.push('SPD');
     else if (veh.limitOffset < -3) f.push('SLOW');

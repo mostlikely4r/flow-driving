@@ -122,6 +122,8 @@ export class Traffic {
     this.onRemove = onRemove || (() => {});
     this.events = []; // lane change events etc. (for debugging/stats)
     this.closures = []; // lane closures: {lane, s0, s1, obs}
+    this.ramps = []; // on-ramps (F-20): {s0, s1, obs, perMin, spawnT, retryT}
+    this.strip = []; // the acceleration strip, lane -1 (F-20), rebuilt like `lanes`
     this.msi = null; // matrix signs (msi.js), if any
   }
 
@@ -170,6 +172,45 @@ export class Traffic {
     if (i >= 0) this.closures.splice(i, 1);
   }
 
+  /**
+   * Add an on-ramp (F-20). It is not a closure: no red cross, no matrix sign,
+   * no arrow-board truck. Cars appear at s0 on the hard shoulder (lane -1, the
+   * acceleration strip, "invoegstrook") and have to merge into lane 0 before
+   * s1. A stopped obstacle just past s1 makes a car with no gap stop there.
+   */
+  addRamp(s0, { perMin = CONFIG.rampPerMin, stripM = CONFIG.rampStripM } = {}) {
+    const s1 = s0 + stripM;
+    const obs = {
+      id: -2000 - this.ramps.length,
+      isObstacle: true,
+      type: 'obstacle',
+      lane: -1,
+      targetLane: -1,
+      state: 'none',
+      u: this.dir * (s1 + 10), // its nose sits at s1, the end of the strip
+      len: 20,
+      width: 2.4,
+      latLocal: laneLat(-1, this.N),
+      v: 0, v0: 0, acc: 0, a: 1, b: 2, T: 1, s0: 2,
+      brake: true,
+      signalLane: -1,
+      indicator: 0,
+    };
+    const r = { s0, s1, obs, perMin, spawnT: this.rampGap(perMin), retryT: 0 };
+    this.ramps.push(r);
+    return r;
+  }
+
+  removeRamp(r) {
+    const i = this.ramps.indexOf(r);
+    if (i >= 0) this.ramps.splice(i, 1);
+  }
+
+  /** Seconds until the next car on a ramp (Poisson, mean 60 / perMin). */
+  rampGap(perMin) {
+    return -Math.log(1 - this.rng()) * (60 / Math.max(0.01, perMin));
+  }
+
   /** Metres from s to the red cross over `lane` (0 once past it, inside the closure too), or Infinity. */
   crossAhead(lane, s, within = 1500) {
     let d = Infinity;
@@ -181,9 +222,21 @@ export class Traffic {
     return d;
   }
 
-  /** Metres from s to the start of a closure in `lane` (0 if inside), or Infinity. */
+  /**
+   * Metres from s to the start of a closure in `lane` (0 if inside), or Infinity.
+   * For lane -1 (F-20) it counts the end of the acceleration strip instead: a
+   * car out of strip is in the same hurry as a car at the end of a closed lane.
+   */
   closedAhead(lane, s, within = 1500) {
     let d = Infinity;
+    if (lane === -1) {
+      for (const r of this.ramps) {
+        if (r.s1 < s) continue;
+        const x = Math.max(0, r.s1 - s);
+        if (x < within && x < d) d = x;
+      }
+      return d;
+    }
     for (const c of this.closures) {
       if (c.lane !== lane || c.s1 < s) continue;
       const x = Math.max(0, c.s0 - s);
@@ -323,6 +376,8 @@ export class Traffic {
     // matrix signs: km/h over a displayed limit; lane closures: how early you merge out (0 = at the end)
     veh.msiOver = type === 'truck' ? r() * 3 : 1 + r() * 8;
     veh.mergeEarly = type === 'truck' ? 0.6 + r() * 0.4 : r();
+    // how far below the lane-0 traffic speed this driver will merge (F-20)
+    veh.mergeKmh = CONFIG.mergeKmhDefault;
     veh.passing = null; // the vehicle we pulled out to overtake (F-09)
     veh.returnT = 0;
     // Archetype: look and (usually) driving style. See archetypes.js.
@@ -375,17 +430,32 @@ export class Traffic {
   }
 
   // ---------------- lane lists ----------------
+  /** The lane list for index `i`: lane -1 is the acceleration strip (F-20). */
+  laneList(i) {
+    return i === -1 ? this.strip : this.lanes[i];
+  }
+
   buildLanes(player) {
     const N = this.N;
     if (this.lanes.length !== N) this.lanes = Array.from({ length: N }, () => []);
     for (const l of this.lanes) l.length = 0;
+    this.strip.length = 0;
     for (const veh of this.vehicles) {
-      this.lanes[veh.lane].push(veh);
-      if (veh.state === 'move' && veh.targetLane !== veh.lane) this.lanes[veh.targetLane].push(veh);
+      this.laneList(veh.lane).push(veh);
+      if (veh.state === 'move' && veh.targetLane !== veh.lane) this.laneList(veh.targetLane).push(veh);
     }
-    if (player) for (const li of player.lanesOcc) if (li >= 0 && li < N) this.lanes[li].push(player);
+    if (player) {
+      for (const li of player.lanesOcc) if (li >= 0 && li < N) this.lanes[li].push(player);
+      // On the hard shoulder inside a ramp's span: the strip cars must see you.
+      if (player.lane === -1) {
+        const s = this.dir * player.u;
+        if (this.ramps.some((r) => s >= r.s0 - 20 && s <= r.s1 + 20)) this.strip.push(player);
+      }
+    }
     for (const c of this.closures) if (c.lane < N) this.lanes[c.lane].push(c.obs);
+    for (const r of this.ramps) this.strip.push(r.obs);
     for (const l of this.lanes) l.sort((a, b) => a.u - b.u);
+    this.strip.sort((a, b) => a.u - b.u);
   }
 
   /** Expected cruising speed in a lane given its leader (anticipation term). */
@@ -402,11 +472,12 @@ export class Traffic {
 
   /** IDM plus the Dutch no-undertaking rule, for `veh` placed in lane `lane`. */
   laneAcc(veh, lane) {
-    const L = this.lanes;
-    const lead = leaderIn(L[lane], veh);
+    const lead = leaderIn(this.laneList(lane), veh);
     let a = idm(veh, lead);
-    if (veh.v > EURO_RULE_MIN_SPEED && lane + 1 < this.N) {
-      const ll = leaderIn(L[lane + 1], veh);
+    // no-undertaking is a rule for driving lanes, not for the acceleration
+    // strip: there you speed up to join, you don't hang back beside lane 0
+    if (lane >= 0 && veh.v > EURO_RULE_MIN_SPEED && lane + 1 < this.N) {
+      const ll = leaderIn(this.laneList(lane + 1), veh);
       if (ll && ll.v < veh.v && ll.v > 40 * KMH && (veh.strict || ll.v > veh.v0 - 9 * KMH)) {
         const g = gapBetween(ll, veh);
         if (g > 0 && g < 150) a = Math.min(a, Math.max(idm(veh, ll, 0.45), -1.8));
@@ -436,15 +507,15 @@ export class Traffic {
     a = this.anticipate(veh, a);
     // cooperation: ease off to let a signalling vehicle ahead in the next lane merge in front
     if (veh.coop) {
-      const L = this.lanes;
       for (const side of [-1, 1]) {
         const ln = veh.lane + side;
-        if (ln < 0 || ln >= this.N) continue;
-        const list = L[ln];
+        if (ln < 0 || ln >= this.N) continue; // (the strip is not a lane to ease into)
+        const list = this.lanes[ln];
         let i = firstAbove(list, veh.u - veh.len);
         for (let n = 0; n < 4 && i < list.length; n++, i++) {
           const e = list[i];
-          if (e === veh || e.signalLane !== veh.lane) continue;
+          // (signalLane -1 means "no signal", so a real one has to be >= 0)
+          if (e === veh || e.signalLane < 0 || e.signalLane !== veh.lane) continue;
           const g = gapBetween(e, veh);
           if (g < 1 || g > 55) continue;
           if (e.v < veh.v - 6) continue; // way slower: not a sensible merge
@@ -459,8 +530,8 @@ export class Traffic {
     // Lining up (F-38) uses the same seeking before the signal is on.
     const seek = veh.state === 'signal' ? veh.targetLane : veh.lineUp ? veh.lineUp.lane : -1;
     if (seek >= 0) {
-      const tl = this.lanes[seek];
-      const nl = leaderIn(tl, veh);
+      const tl = this.laneList(seek);
+      const nl = tl ? leaderIn(tl, veh) : null;
       if (nl && !nl.isPlayer && nl.v < veh.v + 2) {
         const g = gapBetween(nl, veh);
         if (g < 25) a = Math.min(a, Math.max(idm(veh, nl, 0.5), -1.2));
@@ -475,7 +546,7 @@ export class Traffic {
     // is past (after that the leader branch above keeps the gap). Above the
     // brake-light threshold, so it reads as easing off, not braking.
     if (veh.lineUp && veh.lineUp.kind === 'behind') {
-      const nf = followerIn(this.lanes[veh.lineUp.lane], veh);
+      const nf = followerIn(this.laneList(veh.lineUp.lane), veh);
       if (nf && nf !== veh && nf.u <= veh.u) a = Math.min(a, CONFIG.lineUpLift);
     }
     return a;
@@ -491,13 +562,12 @@ export class Traffic {
   anticipate(veh, a) {
     const an = veh.antic || 0;
     if (an <= 0.05) return a;
-    const L = this.lanes;
     const reach = 30 + veh.v * 5 * an; // how far ahead this driver reads, m
     veh.anticOn = null;
     for (const side of [-1, 1]) {
       const ln = veh.lane + side;
-      if (ln < 0 || ln >= this.N) continue;
-      const list = L[ln];
+      if (ln < 0 || ln >= this.N) continue; // (the strip is not a lane to ease into)
+      const list = this.lanes[ln];
       let i = firstAbove(list, veh.u);
       for (let n = 0; n < 3 && i < list.length; n++, i++) {
         const e = list[i];
@@ -506,7 +576,8 @@ export class Traffic {
         if (g > reach) break;
         if (g < 2 || e.v >= veh.v) continue; // alongside, or not slower: no conflict
         let likely = 0;
-        if (e.signalLane === veh.lane) likely = 1;
+        // (signalLane -1 means "no signal", so a real one has to be >= 0)
+        if (e.signalLane >= 0 && e.signalLane === veh.lane) likely = 1;
         else if (e.intent === veh.lane && an > 0.3) likely = 0.35 * an; // edging toward our lane
         else if (an > 0.5 && ln < veh.lane && !e.isPlayer) {
           // car to our right, stuck behind something slower, and it wants to go faster
@@ -553,7 +624,7 @@ export class Traffic {
       aOld = h.a[j];
       if (h.t[j] <= want) break;
     }
-    const ld = leaderIn(this.lanes[veh.lane], veh);
+    const ld = leaderIn(this.laneList(veh.lane), veh);
     if (ld) {
       // reflex: closing so fast that even 6 m/s² wouldn't be enough soon
       const g = gapBetween(ld, veh);
@@ -565,7 +636,7 @@ export class Traffic {
       // you lift off before your leader even reacts. This is what keeps real
       // queues from collapsing at every touch of the brakes.
       if (!ld.isPlayer && g < veh.v * 2.5) {
-        const l2 = leaderIn(this.lanes[veh.lane], ld);
+        const l2 = leaderIn(this.laneList(veh.lane), ld);
         const seen = (ld.brake ? 1 : 0) + (l2 && !l2.isPlayer && l2.brake && gapBetween(l2, ld) < ld.v * 2.5 ? 1 : 0);
         if (seen && aNow < aOld) {
           const k = (CONFIG.brakeLightRead ?? 0.5) * (0.5 + 0.5 * (veh.antic ?? 0.5)) * (seen === 2 ? 1 : 0.6);
@@ -601,7 +672,7 @@ export class Traffic {
    * (F-38: a driver may signal for a gap that is visibly opening.)
    */
   projectedSafe(veh, t, h) {
-    const tgt = this.lanes[t];
+    const tgt = this.laneList(t);
     const nl = leaderIn(tgt, veh);
     const nf = followerIn(tgt, veh);
     const gNl = nl ? gapBetween(nl, veh) + (nl.v - veh.v) * h : 0;
@@ -615,15 +686,15 @@ export class Traffic {
   evaluate(veh, t) {
     // never into a lane with a red cross coming up (or a closure in it)
     if (this.closures.length && this.crossAhead(t, this.dir * veh.u, 700) < 700) return { safe: false, inc: -9, wants: false, margin: -9 };
-    const L = this.lanes;
-    const cur = L[veh.lane];
-    const tgt = L[t];
+    const cur = this.laneList(veh.lane);
+    const tgt = this.laneList(t);
     const nl = leaderIn(tgt, veh);
     const nf = followerIn(tgt, veh);
     let safe = true;
     // Zipper (ritsen): with your lane closing just ahead you take a tight gap,
-    // as long as the driver behind only has to brake moderately.
-    const zip = this.closures.length && t !== veh.lane && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 40 + veh.v * 2 && this.closedAhead(t, this.dir * veh.u, 700) >= 700;
+    // as long as the driver behind only has to brake moderately. For a car on
+    // an acceleration strip (F-20) the end of the strip counts as that closure.
+    const zip = t !== veh.lane && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 40 + veh.v * 2 && this.closedAhead(t, this.dir * veh.u, 700) >= 700;
     if (zip) {
       // room to finish the move before the block? otherwise slow down first
       if (veh.v > 2 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 6 + veh.v * 2.4) safe = false;
@@ -670,6 +741,8 @@ export class Traffic {
     // Lane closures: get out of a lane that closes ahead (some early, some at
     // the very end, zipper style), and never into one.
     let closure = 0;
+    // a car on the acceleration strip always wants lane 0 (F-20)
+    if (veh.lane === -1) closure = 3;
     if (this.closures.length) {
       const s = this.dir * veh.u;
       // most leave between the arrow and the red cross; patsers and the like
@@ -733,7 +806,7 @@ export class Traffic {
    * Called every decision tick while the gap is not there yet.
    */
   lineUpFor(veh, t) {
-    const tl = this.lanes[t];
+    const tl = this.laneList(t);
     const nl = leaderIn(tl, veh);
     const nf = followerIn(tl, veh);
     if (!nf || nf === veh) return;
@@ -751,7 +824,7 @@ export class Traffic {
     let kind = null;
     if (veh.type !== 'truck' && nlOk) {
       // trucks have limiters, so they can never pull ahead of a car
-      const ol = leaderIn(this.lanes[veh.lane], veh);
+      const ol = leaderIn(this.laneList(veh.lane), veh);
       const room = !ol || gapBetween(ol, veh) > 2 + veh.v * veh.T + 20;
       if (room) kind = 'ahead';
     }
@@ -788,6 +861,9 @@ export class Traffic {
         veh.returnT = 8;
       } else if (veh.passingT > 45 || (veh.state === 'none' && pv.lane >= veh.lane)) veh.passing = null;
     }
+    // An acceleration strip (F-20) has its own rules: always lane 0, always
+    // indicating, merging when it is safe and fast enough.
+    if (veh.lane === -1) return this.stripLogic(veh, dt);
     if (veh.state === 'none') {
       veh.cooldown -= dt;
       veh.decT -= dt;
@@ -870,11 +946,11 @@ export class Traffic {
           veh.zipping = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
           // Occupy the target lane now, so a car merging into it from the
           // other side later in this same step sees us.
-          const tl = this.lanes[t];
+          const tl = this.laneList(t);
           if (!tl.includes(veh)) tl.splice(firstAbove(tl, veh.u), 0, veh);
           // remember who we're overtaking, to come back in after passing
           if (t > veh.lane) {
-            const ld = leaderIn(this.lanes[veh.lane], veh);
+            const ld = leaderIn(this.laneList(veh.lane), veh);
             if (ld && !ld.isPlayer && ld.v < veh.v0 - 3 * KMH && gapBetween(ld, veh) < 80) {
               veh.passing = ld;
               veh.passingT = 0;
@@ -891,36 +967,96 @@ export class Traffic {
         }
       }
     } else if (veh.state === 'move') {
-      // zipping in at the end of a closed lane: a short, decisive move
-      veh.lcT += dt / (veh.zipping ? Math.min(veh.lcDur, 2.2) : veh.lcDur);
-      if (veh.lcT < 0.3) {
-        // abort if it suddenly became dangerous: someone closing fast behind,
-        // or a car merging into the same lane from the other side
-        const nf = followerIn(this.lanes[veh.targetLane], veh);
-        const nl = leaderIn(this.lanes[veh.targetLane], veh);
-        if ((nf && nf !== veh && idm(nf, veh) < -5) || (nl && nl.state === 'move' && idm(veh, nl) < -4)) {
-          const from = veh.lane;
-          veh.lane = veh.targetLane;
-          veh.targetLane = from;
-          veh.lcT = 1 - veh.lcT;
-          veh.indicator = -veh.indicator;
-          veh.signalLane = -1;
+      this.advanceMove(veh, dt);
+    }
+  }
+
+  /** Progress a lane change that is already under way (also used on a ramp). */
+  advanceMove(veh, dt) {
+    // zipping in at the end of a closed lane: a short, decisive move
+    veh.lcT += dt / (veh.zipping ? Math.min(veh.lcDur, 2.2) : veh.lcDur);
+    if (veh.lcT < 0.3) {
+      // abort if it suddenly became dangerous: someone closing fast behind,
+      // or a car merging into the same lane from the other side
+      const nf = followerIn(this.laneList(veh.targetLane), veh);
+      const nl = leaderIn(this.laneList(veh.targetLane), veh);
+      if ((nf && nf !== veh && idm(nf, veh) < -5) || (nl && nl.state === 'move' && idm(veh, nl) < -4)) {
+        if (veh.lane === -1) {
+          // a merge off the strip that is called off: stay on the strip,
+          // signal still on, and try again from there
+          veh.state = 'signal';
+          veh.lcT = 0;
+          veh.targetLane = 0;
+          veh.signalLane = 0;
+          return;
         }
-      }
-      if (veh.lcT >= 1) {
+        const from = veh.lane;
         veh.lane = veh.targetLane;
-        veh.state = 'none';
-        veh.lcT = 0;
-        veh.drift = 0;
-        veh.intent = -1;
-        veh.intentSince = null;
-        veh.lineUp = null;
-        veh.closureSig = false;
+        veh.targetLane = from;
+        veh.lcT = 1 - veh.lcT;
+        veh.indicator = -veh.indicator;
         veh.signalLane = -1;
-        veh.indOffT = 0.3 + this.rng() * 0.8;
-        veh.cooldown = 2.5 + this.rng() * 5;
       }
     }
+    if (veh.lcT >= 1) {
+      veh.lane = veh.targetLane;
+      veh.state = 'none';
+      veh.lcT = 0;
+      veh.drift = 0;
+      veh.intent = -1;
+      veh.intentSince = null;
+      veh.lineUp = null;
+      veh.closureSig = false;
+      veh.signalLane = -1;
+      veh.indOffT = 0.3 + this.rng() * 0.8;
+      veh.cooldown = 2.5 + this.rng() * 5;
+    }
+  }
+
+  /**
+   * Invoegen (F-20): merging from an acceleration strip into lane 0. The car
+   * indicates left from the moment it appears and keeps the signal on (the
+   * F-38 closure-signal exception), merges once the gap is safe and it is
+   * within its own speed band of lane 0, and in the last metres takes any safe
+   * gap. With no gap it brakes for the end of the strip and stops there.
+   */
+  stripLogic(veh, dt) {
+    if (veh.state === 'move') return this.advanceMove(veh, dt);
+    const s = this.dir * veh.u;
+    const dEnd = this.closedAhead(-1, s); // metres to the end of the strip
+    if (veh.state === 'none') this.beginSignal(veh, 0, true);
+    veh.signalT += dt;
+    veh.closureSig = true; // a merge signal may wait, never withdrawn
+    if (!this.mergeReady(veh, dEnd)) return;
+    const ev = this.evaluate(veh, 0);
+    if (!ev.safe) return;
+    // Invoegen: give way. The gap also has to be one this car can hold behind
+    // the car it merges behind (a stop-and-go queue tempts a dive into 4 m).
+    const nl = leaderIn(this.lanes[0], veh);
+    if (nl && idm(veh, nl) < -2.2) return;
+    // A car joining well below the speed of the lane-0 car behind it cannot use
+    // the tight zipper gap: from (nearly) a standstill that gap closes too fast
+    // for the car behind, and the one behind that.
+    const nf = followerIn(this.lanes[0], veh);
+    if (nf && veh.v < nf.v - 3 && !this.followerSafe(veh, nf, gapBetween(veh, nf))) return;
+    veh.state = 'move';
+    veh.lcT = 0;
+    // near the end: the short, decisive zipper move, at any speed difference
+    veh.zipping = dEnd < 40 + veh.v * 2;
+    // Occupy lane 0 now, so a car merging from the other side sees us.
+    const tl0 = this.lanes[0];
+    if (!tl0.includes(veh)) tl0.splice(firstAbove(tl0, veh.u), 0, veh);
+  }
+
+  /** Close enough to lane-0 speed to merge, or out of strip? */
+  mergeReady(veh, dEnd) {
+    if (dEnd < CONFIG.mergeLastM) return true;
+    // the car it would follow is the next one genuinely ahead: a car alongside
+    // in lane 0 says nothing about the traffic this driver is joining
+    let nl = leaderIn(this.lanes[0], veh);
+    while (nl && gapBetween(nl, veh) <= 0) nl = leaderIn(this.lanes[0], nl);
+    const vs = nl && gapBetween(nl, veh) < 150 ? nl.v : veh.v0;
+    return Math.abs(vs - veh.v) <= (veh.mergeKmh ?? CONFIG.mergeKmhDefault) * KMH;
   }
 
   cancelChange(veh) {
@@ -947,7 +1083,7 @@ export class Traffic {
     if (lane > this.maxLaneFor(veh)) lane = 0;
     veh.lane = veh.targetLane = lane;
     veh.u = this.dir * s;
-    const list = this.lanes[lane];
+    const list = this.laneList(lane);
     const ld = leaderIn(list, veh);
     const fl = followerIn(list, veh);
     let v = veh.v0;
@@ -1046,6 +1182,37 @@ export class Traffic {
       const s = sMin + this.rng() * 150;
       this.insertAt(s, null, type, variant, { strictBehind: true });
     }
+    // on-ramps add their own cars, so the edges above spawn fewer (F-20)
+    this.updateRamps(sMin, sMax);
+  }
+
+  /**
+   * On-ramp arrivals (F-20): one Poisson timer per ramp, frozen while the ramp
+   * is outside the simulated range. A failed insertion (a car too close ahead
+   * on the strip) is retried a second later; nothing is queued. Called from
+   * maintain(), which runs every 0.2 s.
+   */
+  updateRamps(sMin, sMax) {
+    const dt = 0.2;
+    for (const r of this.ramps) {
+      if (r.s0 > sMax || r.s1 < sMin - 250) continue;
+      if (r.retryT > 0) {
+        r.retryT -= dt;
+        if (r.retryT > 0) continue;
+      } else {
+        r.spawnT -= dt;
+        if (r.spawnT > 0) continue;
+        r.spawnT = this.rampGap(r.perMin);
+      }
+      if (!this.spawnFromRamp(r)) r.retryT = 1;
+    }
+  }
+
+  /** One car appears at the start of a ramp's strip, at entry speed. */
+  spawnFromRamp(r) {
+    const [type, variant] = this.randomTypeVariant();
+    const kmh = Math.max(30, (type === 'truck' ? 60 : CONFIG.rampEntryKmh) + gauss(this.rng) * (type === 'truck' ? 5 : 6));
+    return this.insertAt(r.s0, -1, type, variant, { v: kmh * KMH });
   }
 
   // ---------------- main step ----------------
@@ -1071,7 +1238,7 @@ export class Traffic {
       // Slipstreaming: tuck in closer behind a truck (grijze sok)
       veh.drafting = false;
       if (veh.Tdraft && veh.state === 'none') {
-        const ld = leaderIn(this.lanes[veh.lane], veh);
+        const ld = leaderIn(this.laneList(veh.lane), veh);
         if (ld && ld.type === 'truck' && gapBetween(ld, veh) < 90) {
           tT = Math.min(tT, veh.Tdraft);
           veh.drafting = true;

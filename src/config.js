@@ -47,6 +47,13 @@ export const DEFAULTS = {
   archetypes: 1.0, // share of cars with a recognisable driver archetype (0 = all ordinary)
   politeness: 1.0, // scales how much AI lets others in / moves right for faster cars
 
+  // --- on-ramps (F-20) ---
+  rampStripM: 350, // length of the acceleration strip, from where cars appear to its end
+  rampPerMin: 6, // mean cars per minute entering from a ramp (Poisson)
+  rampEntryKmh: 80, // mean speed entering the strip for cars (sd 6); trucks 60 (sd 5)
+  mergeKmhDefault: 12, // merge once within this many km/h of lane-0 traffic, if the gap is safe
+  mergeLastM: 120, // in the last this many metres of the strip any safe gap will do
+
   // --- player car ---
   steeringAssist: 2, // 0: raw, 1: follows road curve, 2: also straightens after release
   keyboardSteerRate: 1.7, // how fast keyboard steering ramps in (1/s)

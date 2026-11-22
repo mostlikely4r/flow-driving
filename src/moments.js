@@ -82,6 +82,9 @@ const typeWord = (m) => (m.variant === m.type ? m.type : `${m.variant} ${m.type}
  * Exported so the stage test can read the same lane the detectors read.
  */
 export function effLane(v, laneW, nLanes) {
+  // lane -1 is the acceleration strip (F-20): not one of the lanes, so no
+  // detector treats a car there as being in yours until it actually merges
+  if (v.lane < 0) return -1;
   let l = v.lane;
   if (v.off > laneW / 2) l--;
   else if (v.off < -laneW / 2) l++;
@@ -225,7 +228,8 @@ export function detectMoments(j, thresholds = null) {
         }
 
         // pointless-lane: it moved left, but there is nothing slower to overtake
-        if (eff > wasEff && v.dl > 5 && v.dl < cfg.pointlessM && P.t - st.pointlessT > 30) {
+        // (a car merging in from an acceleration strip is not "moving left")
+        if (wasEff >= 0 && eff > wasEff && v.dl > 5 && v.dl < cfg.pointlessM && P.t - st.pointlessT > 30) {
           let ld = null;
           for (const o of P.veh.values()) {
             if (o.id === v.id || o.dl <= v.dl) continue;

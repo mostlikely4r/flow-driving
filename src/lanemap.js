@@ -94,7 +94,9 @@ export class LaneMap {
     const W = Math.max(200, window.innerWidth - 32);
     const laneH = 20;
     const top = 18; // ruler / title
-    const mapH = top + N * laneH + 6;
+    const ramps = traffic.ramps || [];
+    const stripH = ramps.length ? 14 : 0; // the acceleration strip, right of lane 0
+    const mapH = top + N * laneH + stripH + 6;
     const diagH = this.mode === 2 ? ROWS + 20 : 0;
     const H = mapH + diagH;
     if (this.canvas.width !== Math.round(W * dpr) || this.canvas.height !== Math.round(H * dpr)) {
@@ -207,11 +209,37 @@ export class LaneMap {
       c.textAlign = 'left';
     }
 
+    // on-ramps: a narrow band right of lane 0, from where cars appear to the
+    // end of the strip, with the hatched gore after it
+    for (const r of ramps) {
+      const xa = Math.max(pad, X(r.s0)), xb = Math.min(pad + iw, X(r.s1));
+      const y = top + N * laneH + 2;
+      if (xb > pad) {
+        c.fillStyle = 'rgba(70, 76, 84, 0.9)';
+        c.fillRect(xa, y, xb - xa, stripH - 4);
+        c.fillStyle = 'rgba(235, 240, 245, 0.45)';
+        c.fillRect(xa, y - 0.5, xb - xa, 1);
+      }
+      // the gore area (verdrijvingsvlak) at the end of the strip
+      const xe = Math.min(pad + iw, xb + Math.max(6, 25 * pxm));
+      c.strokeStyle = 'rgba(235, 240, 245, 0.5)';
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let x = xb; x < xe; x += 6) {
+        c.moveTo(x, y + stripH - 5);
+        c.lineTo(Math.min(xe, x + 4), y);
+      }
+      c.stroke();
+    }
+
     // vehicles (lateral position is continuous, so drift and lane changes show)
     const yOfLat = (lat) => {
       const l0 = laneY(N - 1) + laneH / 2; // centre of the leftmost lane
       const i0 = laneLatC(N - 1);
-      return l0 + ((lat - i0) / CONFIG.laneWidth) * laneH;
+      const y = l0 + ((lat - i0) / CONFIG.laneWidth) * laneH;
+      // out on the hard shoulder: draw it in the strip band
+      const stripY = top + N * laneH + stripH / 2 + 1;
+      return stripH ? Math.min(y, stripY) : y;
     };
     const blink = performance.now() % 720 < 380;
     const drawVeh = (s, lat, len, wid, v, brake, ind, isPlayer, tag) => {
