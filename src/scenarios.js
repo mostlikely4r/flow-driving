@@ -180,7 +180,8 @@ export const SCENARIOS = {
     title: 'Merging from the on-ramp',
     about:
       'Three lanes. About 600 m ahead cars appear on the hard shoulder with their left indicator on, ' +
-      'speed up and slot into the right lane. Some lane-0 drivers ease off or move left to let them in. ' +
+      'speed up to the speed of the right lane and slot in where there is a gap. Lane 0 does not make ' +
+      'room on purpose yet, so a merger can have to run to the end of the strip. ' +
       'Watch the lane map (U): the strip is a short band right of lane 0.',
     lanes: 3,
     timeOfDay: 'day',

@@ -1,6 +1,6 @@
 # F-20 slice 1: on-ramp spike, sim only (spec)
 
-Status: ready to build · Written 2026-11-22 · BACKLOG item **F-20** (M2: The road breathes) ·
+Status: built 2026-11-22, needs a look in the browser · Written 2026-11-22 · BACKLOG item **F-20** (M2: The road breathes) ·
 Baseline commit `2b7ff26`
 
 ## Why
@@ -284,4 +284,107 @@ zip in. Press O (dev overlay) and look at a strip car's `merging · … m left` 
 
 ## Results
 
-(Step 1 and 2 runs go here.)
+Built 2026-11-22, steps 1–3. What was built differs from the spec in two places, both found by
+the checks in this document (see finding 5): the strip is **not** in the neighbour lists that
+cooperation and anticipation read, and a merge also has to be one the merging car can hold.
+
+### The 12 runs
+
+`npm run onramp <lanes> <density> 6 10 <seed>`: one ramp at s = 700, strip 350 m, 6/min. All 12
+runs together took 103 s wall clock (5–40 s each); the full check (`build`, `simtest`, `personas`,
+`moments`, `bottest`) 19 s.
+
+| run | merges | pos p50 | km/h p50 | dv p50 | follower < −2 | stops | longest | lane 0 near / 1 km up | veh/min | collisions | em. stops |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2 lanes D8 S7 | 54 | 187 m | 65 | −9 | 17 (31%) | 16 | 109 s | 53 / 88 | 33 | 0 | 0 |
+| 2 lanes D8 S8 | 42 | 228 m | 67 | −7 | 8 (19%) | 8 | 112 s | 71 / 88 | 32 | 0 | 0 |
+| 2 lanes D12 S7 | 31 | 142 m | 67 | −5 | 7 (23%) | 37 | 158 s | 46 / 84 | 41 | 0 | 1 |
+| 2 lanes D12 S8 | 42 | 234 m | 45 | −9 | 7 (17%) | 16 | 145 s | 40 / 83 | 40 | 0 | 0 |
+| 2 lanes D16 S7 | 47 | 249 m | 24 | −10 | 9 (19%) | 50 | 224 s | 44 / 71 | 43 | 0 | 0 |
+| 2 lanes D16 S8 | 42 | 255 m | 40 | −6 | 5 (12%) | 22 | 260 s | 39 / 71 | 44 | 0 | 0 |
+| 3 lanes D8 S7 | 38 | 287 m | 41 | −14 | 10 (26%) | 12 | 98 s | 42 / 85 | 47 | 0 | 0 |
+| 3 lanes D8 S8 | 45 | 244 m | 47 | −10 | 12 (27%) | 18 | 138 s | 46 / 84 | 47 | 0 | 0 |
+| 3 lanes D12 S7 | 38 | 178 m | 68 | −6 | 6 (16%) | 38 | 170 s | 54 / 80 | 63 | 0 | 0 |
+| 3 lanes D12 S8 | 37 | 205 m | 60 | −13 | 9 (24%) | 9 | 248 s | 58 / 80 | 62 | 0 | 0 |
+| 3 lanes D16 S7 | 36 | 241 m | 23 | −8 | 2 (6%) | 85 | 110 s | 39 / 49 | 63 | 0 | 0 |
+| 3 lanes D16 S8 | 53 | 181 m | 46 | −7 | 11 (21%) | 38 | 118 s | 40 / 75 | 63 | 0 | 0 |
+
+`pos` is metres from the start of the strip (350 m), `dv` the median speed difference to lane 0
+there, `stops` are stop episodes of more than a second on the strip, `longest` the longest one,
+`veh/min` the throughput past s1 + 200 over all lanes.
+
+**Checks:** 0 collisions in all 12 runs, 0 cars in lane −1 outside a ramp's span, 0 cars moving
+into lane −1. 1 emergency stop in 12 runs (2-lane D12 S7: a lane-1 car changing into the queue in
+lane 0). `simtest` is byte-identical to `2b7ff26`; `personas`, `moments`, `bottest` pass. The
+scenarios run: in the first 2 minutes `?scenario=onramp` spawns 8 cars and merges 6, with lane 0 at
+92 km/h; `onramp-busy` 10 and 9 at 84 km/h.
+
+### What the spike found
+
+1. **The inherited merge code does not keep up with an ordinary ramp.** At 6/min it stalls cars at
+   the end of the strip in every run: 8–85 stop episodes per run (the target was under 1 in 20
+   merges; we see 1 in 3 to 1 in 1) and stalls of up to four minutes. This is the F-22 risk,
+   confirmed: the merge is the bottleneck, not the ramp geometry.
+2. **Why:** a car enters at 80 km/h and needs ~200 m at IDM acceleration to reach a 95–100 km/h
+   lane 0, leaving little of the 350 m strip to find a gap, and the last `mergeLastM` (120 m) is
+   only ~4 s. Once a car is down to walking pace, the zipper test asks the lane-0 follower to
+   brake no harder than −2.2 m/s², which at 90–100 km/h means a gap of 100–180 m: rare, so it
+   waits minutes, and the strip behind it fills up.
+3. **Lane 0 pays for it.** 200 m before the end of the strip, lane 0 runs 17–44 km/h below the
+   same lane a kilometre upstream (39–46 against 71–88) at every density; median position on the
+   strip is 142–287 m of 350. The new follower brakes harder than −2 m/s² in 6–31% of merges
+   (target: under 10%), but almost never harder than −4.
+4. **The merge-rate cost is visible but not a collapse:** throughput past the ramp stays 32–63
+   veh/min (32–44 on 2 lanes, 47–65 on 3) against ~50/2 lanes and ~75/3 lanes of plain road at the
+   same density. At density 16 on 2 lanes the road is being pushed past what it carries, and one
+   seed ends in a stop-and-go queue that also throws 2 emergency stops, far from the ramp.
+5. **Two deviations from the plan, both needed for the checks:**
+   - The strip is *not* reachable from the cooperative/anticipation loops (`ln < 0` still skips
+     it). With lane −1 included, cooperative lane-0 drivers brake at −1.6 m/s² for *any*
+     signalling car within 55 m ahead on the strip, for 350 m, and lane 0 deadlocks: measured
+     23 standing cars in lane 0 at the ramp, lane 0 at 7–13 km/h, 2 collisions in 12 runs and a
+     merge speed p50 of 10 km/h. Since a cooperation rule for ramps is explicitly slice 3, the
+     strip stays out of those lists here. Ramp signallers therefore do **not** slow lane 0; a
+     merger waits for a gap instead. (This also changes the scenario's "some lane-0 drivers ease
+     off or move left" line: they carry straight on.)
+   - A merge also requires the merger to *hold* the gap it takes: `idm(veh, leader) >= −2.2`, and
+     when joining well below the speed of the lane-0 car behind (`veh.v < nf.v − 3`) the normal
+     follower test instead of the tighter zipper one. Without that, two runs out of 12 had bumper
+     contact: a car at 0–8 km/h wedging into a 2–4 m gap in a moving queue. This is invoegen
+     (give way), not a new rule for lane-0 drivers.
+6. **The persona trait does not produce the expected order** (pooled over the 12 runs):
+
+   | who | merges | pos | speed | dv |
+   |---|---|---|---|---|
+   | ordinary car | 243 | 171 m | 63 km/h | −7 |
+   | truck | 74 | 307 m | 15 km/h | −20 |
+   | Leasebak (8) | 45 | 254 m | 61 km/h | −1 |
+   | van | 31 | 293 m | 37 km/h | −8 |
+   | Pensioner (28) | 23 | 308 m | 60 km/h | −7 |
+   | Grijze sok (22) | 20 | 225 m | 70 km/h | −1 |
+   | Family (16) | 19 | 141 m | 67 km/h | −3 |
+   | White van (12) | 14 | 251 m | 63 km/h | +1 |
+   | caravan | 13 | 243 m | 63 km/h | −3 |
+   | EV smoothie (10) | 12 | 171 m | 40 km/h | −12 |
+   | Patser (5) | 11 | 256 m | 62 km/h | −1 |
+
+   Pensioners merge **later** in the strip (308 m) than leasebaks (254 m), and at the same speed.
+   `mergeKmh` is wired and used, but what decides the moment is the persona's *gap* parameters:
+   pensioners are polite with `tSafe` 1.0–1.5 s and `bSafe` 1.2–1.8 m/s², so they refuse gaps that
+   a leasebak (0.4–0.6 s, 2.0–3.5 m/s²) takes at once. The trait can only show when the gaps are
+   not the binding constraint: with a quiet ramp (6/km, 2/min) most cars merge in the first 100 m
+   and trucks, which cannot reach lane-0 speed at all, are the ones that run to the end (307 m,
+   15 km/h).
+
+### What this means for slices 2 and 3
+
+- Slice 3 should start with making room (lane-0 drivers on purpose, not the blanket cooperation
+  above) and with a longer strip or a lower entry-speed gap, because those two move the stop rate
+  most. Measured on 2 lanes D8 S8 (baseline: 42 merges, 8 stops, merge speed p50 67 km/h, lane 0
+  near the ramp 71 against 88 upstream): `CFG_rampStripM=700` gives 1 stop, p50 83 km/h, 80 against
+  88; `CFG_mergeLastM=300` gives 7 stops, p50 74 km/h, 75 against 89 — both at the same
+  throughput (34 against 32 veh/min).
+- The merge-from-standstill cost from F-22 is visible here too (a stalled merger needs a 100–180 m
+  gap); fixing the straggler path would help on-ramps more than any ramp-specific rule.
+- The visible ramp (slice 2) is unchanged by all of this: cars appear on the hard shoulder today,
+  and the geometry only changes where they appear.

@@ -182,6 +182,20 @@ withdrawn after 6 s or more, re-signals within 20 s and who blocked them) for a 
 
 `src/msi.js`, `src/closureView.js`: gantries every 500 m show a queue warning (flashing 50 / 70) behind slow traffic by themselves, and arrow / red cross / 70 around a lane closure. Closures appear at random in free play (`closuresPer10km`), or try `?scenario=closure` in dev mode. `node tools/closure.js [lanes] [density] [closedLane] [minutes]` checks safety and throughput headless.
 
+### On-ramps (slice 1: sim only)
+
+`src/traffic.js` (`addRamp`, `stripLogic`, `mergeReady`): an acceleration strip
+(`invoegstrook`) is lane −1, on the hard shoulder, so nothing else in the model had to move.
+Cars appear at the start of the strip at ~80 km/h (trucks 60), indicate left from the moment they
+appear, speed up to lane-0 speed and merge into the first safe gap; near the end they take a tight
+zipper gap, and with no gap at all they stop at the end of the strip. A merger gives way: it waits
+for a gap it can hold, and lane 0 makes no room for it yet (that is slice 3). `?scenario=onramp`
+(3 lanes, quiet) and `?scenario=onramp-busy` (denser, twice the ramp flow) show it in dev mode;
+`npm run onramp [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7]` measures merges, gaps,
+stops at the end, follower braking, lane-0 speed near the ramp and throughput (`CFG_<key>=<value>`
+overrides, as in `closure.js`). Knobs: `rampStripM`, `rampPerMin`, `rampEntryKmh`,
+`mergeKmhDefault`, `mergeLastM` in `config.js`, plus `mergeKmh` per archetype.
+
 ### Lane map
 
 `src/lanemap.js`, U: overhead view of your carriageway, cars coloured by speed; press U again for a time-space diagram of your lane (waves show as bands creeping down). `,` `.` zoom. `?scenario=wave` provokes one (dev mode); `node tools/wave.js` measures how it grows or damps.
