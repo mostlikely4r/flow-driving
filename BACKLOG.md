@@ -88,6 +88,7 @@ prototype) before committing to them.
 | F-24 | Rain: wet road reflections, spray behind trucks, wipers, and AI that keeps bigger gaps | Authentic | 4 | L | Med | P2 | |
 | F-25 | Spitsstrook (rush-hour lane): a hard shoulder that opens at rush hour under the matrix signs | Authentic | 3 | M | Low | P2 | |
 | F-26 | Roadworks: yellow lines, narrowed lanes and a 90 km/h limit | Authentic | 3 | M | Low | P3 | |
+| F-40 | **Verdozing**: distribution centres along the motorway. Estates of 1–3 grey or blue boxes (150–350 m long, 12–15 m high, 80–250 m back) every 4–8 km, with dock doors, trailers waiting, a gatehouse, a car park, young trees by the ditch and a logo band with made-up names; docks, logo and office corner lit at night | Authentic | 3 | S–M | Low | P2 | open. Built in `scenery.js` like the turbines. In flat land they rise out of the haze 2–3 km ahead and take ~10 s to pass: a landmark (helps M3 orientation) and a reason for the trucks. Once F-20 places ramps, put the estates next to them so trucks merge in from a box you can see. Art attitude from the Das books (infrastructure drawn with care), not their content |
 
 ### M3: Going somewhere
 
@@ -185,6 +186,14 @@ prototype) before committing to them.
   flashing you when you block the left lane belongs here too.
 - Gentle "driving style" feedback through other drivers' reactions, such as being flashed at for
   hogging a lane, instead of a score.
+- **Toekomstflitsen: the promised now.** A separate mode on the same engine: the same A12 and the same
+  drivers, but the world and car shapes as people in 1990 imagined "now" would look, in the spirit of
+  Robbert and Rudolf Das (*Toekomstflitsen*, *Wegen naar de toekomst*): terraced glass buildings
+  instead of grey boxes, wedge-shaped guesses at today's cars. A switch between the now we got and
+  the now we were promised; the over-optimism is the charm. Inside this mode pillar 1 means true to
+  that vision, while the traffic stays real Dutch drivers. Possible because the sim is kept apart from
+  rendering and cars and scenery are procedural. Our own designs in that spirit, never copies of the
+  books' illustrations. Large (new car bodies and a scenery set); waits until the real world is done.
 
 ## Done
 
