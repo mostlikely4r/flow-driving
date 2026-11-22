@@ -164,6 +164,8 @@ lane from the percept, the bot state and the last trace lines, no report), `jobs
 `cfg.<key>=<value>` and `<profile>.<param>=<value>`. `npm run bottest` runs the headless tests:
 perception geometry and range cut-offs, a throwing proxy over every vehicle, the import/DOM
 whitelist, the drift cue, synthetic following/cut-in/indicator cases, and determinism.
+`npm run signals -- <journal.json | run dir> …` counts AI signal episodes (signal to move, signals
+withdrawn after 6 s or more, re-signals within 20 s and who blocked them) for a human drive or a bot run (F-38).
 
 ### Look-dev tools
 
