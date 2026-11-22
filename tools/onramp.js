@@ -30,7 +30,7 @@ const fmt = (x, d = 0) => (x == null ? '–' : x.toFixed(d));
 
 // ---- collected results
 const merges = []; // {pos, kmh, dv, frontS, backS, who}
-const byWho = new Map(); // label -> {n, pos: [], dv: []}
+const byWho = new Map(); // label -> {n, pos: [], dv: [], kmh: []}
 const stops = { n: 0, longest: 0 };
 const braking = []; // min acc of the new follower in the 5 s after a merge
 const watches = []; // {veh, until, min}
@@ -87,10 +87,11 @@ for (let i = 0; i < steps; i++) {
       const who = veh.drives ? ARCHETYPES[veh.drives].name : veh.type;
       const m = { pos: s - ramp.s0, kmh: veh.v / KMH, dv, frontS, backS, who };
       merges.push(m);
-      const w = byWho.get(who) || { n: 0, pos: [], dv: [] };
+      const w = byWho.get(who) || { n: 0, pos: [], dv: [], kmh: [] };
       w.n++;
       w.pos.push(m.pos);
       w.dv.push(dv);
+      w.kmh.push(m.kmh);
       byWho.set(who, w);
       if (nf && nf !== veh) watches.push({ veh: nf, until: tr.time + 5, min: 0 });
     }
@@ -170,7 +171,7 @@ console.log(`back gap accepted       p10 ${fmt(pct(back, 0.1), 1)} · p50 ${fmt(
 console.log('\nby persona');
 const rows = [...byWho.entries()].sort((a, b) => b[1].n - a[1].n);
 for (const [who, w] of rows) {
-  console.log(`  ${who.padEnd(14)} ${String(w.n).padStart(3)} merges · pos ${fmt(med(w.pos))} m · dv ${fmt(med(w.dv))} km/h`);
+  console.log(`  ${who.padEnd(14)} ${String(w.n).padStart(3)} merges · pos ${fmt(med(w.pos))} m · ${fmt(med(w.kmh))} km/h · dv ${fmt(med(w.dv))} km/h`);
 }
 if (!rows.length) console.log('  (no merges)');
 

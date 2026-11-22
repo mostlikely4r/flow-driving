@@ -376,8 +376,9 @@ export class Traffic {
     // matrix signs: km/h over a displayed limit; lane closures: how early you merge out (0 = at the end)
     veh.msiOver = type === 'truck' ? r() * 3 : 1 + r() * 8;
     veh.mergeEarly = type === 'truck' ? 0.6 + r() * 0.4 : r();
-    // how far below the lane-0 traffic speed this driver will merge (F-20)
-    veh.mergeKmh = CONFIG.mergeKmhDefault;
+    // how far below the lane-0 traffic speed this driver will merge (F-20);
+    // an archetype overrides it (archetypes.js)
+    veh.mergeKmh = type === 'truck' ? 15 : CONFIG.mergeKmhDefault;
     veh.passing = null; // the vehicle we pulled out to overtake (F-09)
     veh.returnT = 0;
     // Archetype: look and (usually) driving style. See archetypes.js.
