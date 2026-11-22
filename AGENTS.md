@@ -45,6 +45,9 @@ Read by `/spec` and `/build`.
       plan requirements and checks missing; skip style nits. Touched: <files>. Checks: <run>."
 
 - **Done also means:** the BACKLOG item's status says what was built, in its usual style.
+- **Human drives guide, they don't gate:** a plan may suggest a drive or scenario to try, but
+  never waits on one. The headless checks and a quick look at the scenario are enough to close an
+  item. When the user drives and brings a journal or report, that starts a new session.
 - **Commits:** the agent commits. Once a change is finished and the full check passes, commit it
   without asking, one commit per plan step or change, message as in the history
   ("Proefrit slice 2 P3: ... (F-37)"). Don't commit when checks fail, work is half done, or a
