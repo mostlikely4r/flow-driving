@@ -84,6 +84,30 @@ const DUTCH_PLACES = [
 ];
 const ROUTES = ['A1', 'A2', 'A12', 'A27', 'A28', 'A15', 'A4', 'A50', 'A16', 'A58'];
 
+// Distribution centres (F-40): made-up companies, and the usual sandwich-panel colours.
+const ESTATE_BLOCK = 5000;
+const ESTATE_SHARE = 0.8;
+const BRANDS = [
+  { name: 'POLDERHUB', color: '#1f4e9c', mark: 2 },
+  { name: 'Kruidhof Logistiek', color: '#0f7a4a', mark: 0 },
+  { name: 'LINDEWAARD', color: '#c8102e', mark: 1 },
+  { name: 'Veenlog', color: '#f39200', mark: 2 },
+  { name: 'Brinkveld Distributie', color: '#2a2a2a', mark: 1 },
+  { name: 'NOORDWAARTS', color: '#00838f', mark: 0 },
+  { name: 'Eemvaart Fulfilment', color: '#6a2c91', mark: 2 },
+  { name: 'Hollandse Kade', color: '#1f4e9c', mark: 1 },
+  { name: 'TULPA', color: '#d4145a', mark: 0 },
+  { name: 'De Wetering DC', color: '#0f7a4a', mark: 2 },
+];
+const CLADDING = [
+  [0.8, 0.81, 0.81], [0.8, 0.81, 0.81], [0.72, 0.74, 0.76], [0.86, 0.87, 0.86],
+  [0.45, 0.52, 0.6], [0.55, 0.6, 0.64], [0.3, 0.31, 0.33],
+];
+const hexRGB = (h) => [1, 3, 5].map((i) => {
+  const c = parseInt(h.slice(i, i + 2), 16) / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; // sRGB -> linear, like vertex colours expect
+});
+
 export class Scenery {
   constructor(scene, road, envMapGetter) {
     this.scene = scene;
@@ -176,6 +200,15 @@ export class Scenery {
     M.turbine = new THREE.MeshStandardMaterial({ color: 0xe9ecee, roughness: 0.6 });
     M.aviation = new THREE.MeshStandardMaterial({ color: 0x400000, emissive: 0xff1000, emissiveIntensity: 0 });
     M.signBack = new THREE.MeshStandardMaterial({ color: 0x8b9095, roughness: 0.6, metalness: 0.4 });
+    // distribution centres (F-40)
+    M.cladding = new THREE.MeshStandardMaterial({ map: TX.claddingTexture(), vertexColors: true, roughness: 0.7, metalness: 0.15 });
+    const paved = { roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 };
+    M.yard = new THREE.MeshStandardMaterial({ color: 0x77797a, ...paved });
+    M.lane = new THREE.MeshStandardMaterial({ color: 0x404345, ...paved });
+    M.glass = new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.12, metalness: 0.6 });
+    M.dockLamp = new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xeef4ff, emissiveIntensity: 0 });
+    M.poolWhite = M.pool.clone();
+    M.poolWhite.color.set(0xcfe0ff);
     this.M = M;
   }
 
@@ -195,6 +228,9 @@ export class Scenery {
     M.lampHead.emissiveIntensity = night ? 9 : dusk ? 4 : 0;
     M.pool.visible = night || dusk;
     M.pool.opacity = night ? 0.17 : 0.07;
+    M.dockLamp.emissiveIntensity = night ? 4 : dusk ? 2 : 0;
+    M.poolWhite.visible = night || dusk;
+    M.poolWhite.opacity = night ? 0.18 : 0.06;
     for (const ch of this.chunks.values()) for (const m of ch.signMats) m.emissiveIntensity = night ? m.userData.nightE : 0;
     this.signNightFactor = night;
   }
@@ -410,6 +446,7 @@ export class Scenery {
     // ---- trees, farms, turbines
     const trees = [];
     const addTree = (s, lat, kind, scale) => {
+      if (this.inEstate(s, lat)) return;
       const p = road.sample(s);
       trees.push({ x: p.x - ox + p.nx * lat, z: p.z - oz + p.nz * lat, kind, scale, rot: rng() * 6.28 });
     };
@@ -429,7 +466,20 @@ export class Scenery {
         const n = 3 + Math.floor(rng() * 8);
         for (let t = 0; t < n; t++) addTree(cs + (rng() - 0.5) * 30, cl + (rng() - 0.5) * 30, rng() < 0.3 ? 'poplar' : 'oak', 0.7 + rng() * 0.6);
       }
-      if (rng() < 0.22) this.farm(s0 + rng() * CHUNK, sg * (E + 70 + rng() * 160), rng, local, bucket, addTree, road, ox, oz);
+      if (rng() < 0.22) {
+        const fs = s0 + rng() * CHUNK, fl = sg * (E + 70 + rng() * 160);
+        if (!this.inEstate(fs, fl, 40)) this.farm(fs, fl, rng, local, bucket, addTree, road, ox, oz);
+      }
+    }
+    // distribution centres (F-40): each box is built whole by the chunk holding its centre;
+    // the young trees along the service road stream with the chunks
+    for (const est of this.estatesNear(s0, s1)) {
+      for (const box of est.boxes) if (box.sC >= s0 && box.sC < s1) this.distributionCentre(est, box, group, ch, bucket, ox, oz);
+      const lat = est.sg * (est.d0 - 51);
+      for (let s = Math.ceil(Math.max(s0, est.sA) / 9) * 9; s < Math.min(s1, est.sB); s += 9) {
+        const p = road.sample(s);
+        trees.push({ x: p.x - ox + p.nx * lat, z: p.z - oz + p.nz * lat, kind: 'oak', scale: 0.4 + rng() * 0.15, rot: rng() * 6.28 });
+      }
     }
     this.buildTrees(trees, group);
 
@@ -448,14 +498,215 @@ export class Scenery {
     for (const [name, b] of Object.entries(B)) {
       if (b.empty) continue;
       const mesh = new THREE.Mesh(b.build(), this.M[name]);
-      mesh.receiveShadow = ['asphalt', 'grass', 'concrete', 'fields', 'marking', 'wall', 'building'].includes(name);
-      mesh.castShadow = ['concrete', 'steel', 'post', 'building', 'gantry', 'wall', 'turbine'].includes(name);
-      if (name === 'pool') mesh.renderOrder = 4;
+      mesh.receiveShadow = ['asphalt', 'grass', 'concrete', 'fields', 'marking', 'wall', 'building', 'cladding', 'yard', 'lane'].includes(name);
+      mesh.castShadow = ['concrete', 'steel', 'post', 'building', 'gantry', 'wall', 'turbine', 'cladding'].includes(name);
+      if (name === 'pool' || name === 'poolWhite') mesh.renderOrder = 4;
       group.add(mesh);
     }
     for (const m of ch.signMats) m.emissiveIntensity = this.night ? m.userData.nightE : 0;
     this.scene.add(group);
     return ch;
+  }
+
+  // ------------------------------------------------------------------
+  // Distribution centres (F-40, "verdozing"). Every 5 km block may hold one estate of
+  // 1-3 boxes on one side of the road, all on one building line. Everything follows
+  // from the block number, so any chunk can ask where the estates are.
+  estate(b) {
+    this.estates ||= new Map();
+    if (this.estates.has(b)) return this.estates.get(b);
+    let est = null;
+    if (hash01(b, 41) < ESTATE_SHARE) {
+      const E = pavementEdge();
+      const sg = hash01(b, 42) < 0.65 ? 1 : -1; // mostly on your own side of the road
+      const d0 = E + 100 + hash01(b, 43) * 60; // near (dock) face; the service road stays clear of overpass embankments
+      const dRoom = Math.min(140, E + 275 - d0); // keep the box on the fields
+      const n = 1 + Math.floor(hash01(b, 44) * 3);
+      const boxes = [];
+      let s = b * ESTATE_BLOCK + 600 + hash01(b, 45) * 2600;
+      const sA = s - 55; // car park before the first box
+      for (let i = 0; i < n; i++) {
+        const L = 150 + hash01(b, 50 + i) * 200;
+        const D = Math.min(L, 70 + hash01(b, 60 + i) * (dRoom - 70));
+        const H = 12 + hash01(b, 70 + i) * 3;
+        const look = Math.floor(hash01(b, 80 + i) * 1e6);
+        boxes.push({ i, sC: s + L / 2, L, D, H, look });
+        s += L + 45;
+      }
+      est = { b, sg, d0, sA, sB: s - 45 + 15, dMax: d0 + Math.max(...boxes.map((x) => x.D)), boxes };
+    }
+    this.estates.set(b, est);
+    if (this.estates.size > 64) this.estates.delete(this.estates.keys().next().value);
+    return est;
+  }
+
+  estatesNear(sa, sb) {
+    const out = [];
+    for (let b = Math.floor(sa / ESTATE_BLOCK); b <= Math.floor(sb / ESTATE_BLOCK); b++) {
+      const e = this.estate(b);
+      if (e && e.sB > sa && e.sA < sb) out.push(e);
+    }
+    return out;
+  }
+
+  /** Is (s, lat) on an estate's grounds (yard, service road, boxes), widened by margin? */
+  inEstate(s, lat, margin = 0) {
+    for (const e of this.estatesNear(s - margin, s + margin)) {
+      if (Math.sign(lat) !== e.sg) continue;
+      const d = Math.abs(lat);
+      if (s > e.sA - margin && s < e.sB + margin && d > e.d0 - 47 - margin && d < e.dMax + 12 + margin) return true;
+    }
+    return false;
+  }
+
+  distributionCentre(est, box, group, ch, bucket, ox, oz) {
+    const rng = mulberry32(box.look);
+    const pick = (list) => list[Math.floor(rng() * list.length)];
+    const p = this.road.sample(box.sC, {});
+    const cx = p.x - ox, cz = p.z - oz;
+    const { sg, d0 } = est;
+    const { L, D, H } = box;
+    // estate frame: a along the road, d away from it (positive = further out)
+    const P = (a, d, y) => [cx + p.tx * a + p.nx * sg * d, y, cz + p.tz * a + p.nz * sg * d];
+    const out = [p.nx * sg, 0, p.nz * sg]; // away from the road
+    const toRoad = [-out[0], 0, -out[2]];
+    const fwd = [p.tx, 0, p.tz];
+    const back = [-p.tx, 0, -p.tz];
+    const yawFacing = (v) => Math.atan2(v[0], v[2]);
+    const boxAt = (b, w, h, len, a, d, y, col, yaw = p.h) => {
+      const [x, , z] = P(a, d, 0);
+      // BoxGeometry x = across the road frame, z = along it
+      b.addGeo(new THREE.BoxGeometry(w, h, len), mat(x, y, z, yaw), col);
+    };
+    // a quad with the winding chosen so its normal points along `want`
+    const face = (b, A, B2, C, D2, uv, want, col) => {
+      const ux = B2[0] - A[0], uy = B2[1] - A[1], uz = B2[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      if (nx * want[0] + ny * want[1] + nz * want[2] >= 0) b.quad(A, B2, C, D2, uv[0], uv[1], uv[2], uv[3], col);
+      else b.quad(A, D2, C, B2, uv[0], uv[3], uv[2], uv[1], col);
+    };
+    const T = 8; // cladding tile, metres
+    const wallA = (b, a0, a1, d, y0, y1, want, col) =>
+      face(b, P(a0, d, y0), P(a1, d, y0), P(a1, d, y1), P(a0, d, y1), [[a0 / T, y0 / T], [a1 / T, y0 / T], [a1 / T, y1 / T], [a0 / T, y1 / T]], want, col);
+    const wallD = (b, a, d0_, d1, y0, y1, want, col) =>
+      face(b, P(a, d0_, y0), P(a, d1, y0), P(a, d1, y1), P(a, d0_, y1), [[d0_ / T, y0 / T], [d1 / T, y0 / T], [d1 / T, y1 / T], [d0_ / T, y1 / T]], want, col);
+    const shell = (b, a0, a1, dn, df, y0, y1, col, roofCol) => {
+      wallA(b, a0, a1, dn, y0, y1, toRoad, col);
+      wallA(b, a0, a1, df, y0, y1, out, col);
+      wallD(b, a0, dn, df, y0, y1, back, col);
+      wallD(b, a1, dn, df, y0, y1, fwd, col);
+      const u = [0.5, 0.04]; // one plain texel: the roof has no panel lines
+      if (roofCol) face(b, P(a0, dn, y1), P(a1, dn, y1), P(a1, df, y1), P(a0, df, y1), [u, u, u, u], [0, 1, 0], roofCol);
+    };
+    const flat = (b, a0, a1, dn, df, y) => face(b, P(a0, dn, y), P(a1, dn, y), P(a1, df, y), P(a0, df, y), [[0, 0], [1, 0], [1, 1], [0, 1]], [0, 1, 0]);
+
+    const cl = bucket('cladding', true);
+    const bld = bucket('building', true);
+    const dark = bucket('dark');
+    const brand = pick(BRANDS);
+    const brandRGB = hexRGB(brand.color);
+    const wallCol = pick(CLADDING);
+    const a0 = -L / 2, a1 = L / 2;
+    const y0 = -0.3;
+
+    // ---- the box: plinth, cladding, coping band in the company colour
+    shell(cl, a0, a1, d0, d0 + D, y0, H, wallCol, [0.32, 0.33, 0.34]);
+    shell(cl, a0 - 0.08, a1 + 0.08, d0 - 0.08, d0 + D + 0.08, y0, 1.0, [0.6, 0.6, 0.58]);
+    shell(cl, a0 - 0.1, a1 + 0.1, d0 - 0.1, d0 + D + 0.1, H - 0.7, H + 0.15, wallCol[0] < 0.4 ? [0.75, 0.76, 0.77] : brandRGB);
+
+    // ---- grounds: yard in front of the docks, service road, gatehouse
+    const office = box.i === 0;
+    const aDock0 = office ? a0 + 31 : a0 + 6;
+    const yard = bucket('yard');
+    flat(yard, a0 - (office ? 6 : 22), a1 + 22, d0 - 36, d0, -0.24);
+    flat(bucket('lane'), a0 - (office ? 55 : 23), a1 + 23, d0 - 44, d0 - 37, -0.24);
+    if (box.i === est.boxes.length - 1) {
+      const ga = a1 + 12;
+      boxAt(bld, 3.2, 2.9, 4.2, ga, d0 - 33, y0 + 1.45, [0.86, 0.86, 0.84]);
+      boxAt(bucket('glass'), 3.3, 1.0, 4.3, ga, d0 - 33, y0 + 1.9, undefined);
+      boxAt(bld, 0.12, 0.12, 6, ga - 5, d0 - 38, 0.8, [0.8, 0.12, 0.1]); // barrier arm
+    }
+
+    // ---- dock doors with shelters, lamps and the trailers waiting at them
+    const lamps = bucket('dockLamp');
+    const pools = bucket('poolWhite');
+    const doorCol = pick([[0.55, 0.57, 0.6], [0.7, 0.71, 0.72], brandRGB]);
+    let k = 0;
+    for (let a = aDock0 + 2.1; a < a1 - 4; a += 4.2, k++) {
+      boxAt(dark, 0.45, 3.9, 3.6, a, d0 - 0.2, 0.75 + 1.95, undefined); // shelter
+      boxAt(cl, 0.1, 3.0, 2.9, a, d0 - 0.45, 1.1 + 1.5, doorCol); // sectional door
+      boxAt(dark, 1.2, 0.3, 2.6, a, d0 - 0.6, 0.95, undefined); // leveller
+      boxAt(lamps, 0.6, 0.12, 0.3, a, d0 - 0.4, 4.95, undefined);
+      if (k % 3 === 1) {
+        const q = 9;
+        face(pools, P(a - q, d0 - 0.5 - 2 * q, -0.2), P(a + q, d0 - 0.5 - 2 * q, -0.2), P(a + q, d0 - 0.5, -0.2), P(a - q, d0 - 0.5, -0.2), [[0, 0], [1, 0], [1, 1], [0, 1]], [0, 1, 0]);
+      }
+      if (rng() < 0.45) this.trailer(bld, dark, boxAt, a, d0 - 0.7, rng, brandRGB);
+    }
+    // a few trailers parked across the far end of the yard
+    for (let a = a1 + 4, n = Math.floor(rng() * 6); n > 0; a += 3.6, n--) this.trailer(bld, dark, boxAt, a, d0 - 2, rng, brandRGB);
+
+    // ---- logo band facing the road, and a smaller one on the gable end you approach
+    const logo = (tx, w, a, d, y, want) => {
+      const m = new THREE.MeshStandardMaterial({ map: tx, alphaTest: 0.5, roughness: 0.6, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0 });
+      m.userData.nightE = 1.6; // lit letters
+      ch.ownMats.push(m);
+      ch.signMats.push(m);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, w / tx.userData.aspect), m);
+      mesh.position.set(...P(a, d, y));
+      mesh.rotation.y = yawFacing(want);
+      group.add(mesh);
+    };
+    const onDark = wallCol[0] < 0.4;
+    const lt = TX.logoTexture(brand.name, onDark ? '#f2f2f2' : brand.color, brand.mark);
+    lt.tex.userData.aspect = lt.aspect;
+    lt.tex.userData.ownTex = true;
+    const lw = Math.min(L * 0.55, 6.5 * lt.aspect);
+    logo(lt.tex, lw, office ? a0 + 31 + lw / 2 + 8 : 0, d0 - 0.13, H - 1.1 - lw / lt.aspect / 2, toRoad);
+    const gw = Math.min(D * 0.75, 5 * lt.aspect);
+    const gt = lt.tex.clone();
+    gt.userData = { aspect: lt.aspect, ownTex: true };
+    gt.needsUpdate = true;
+    logo(gt, gw, a0 - 0.13, d0 + D / 2, H - 1.1 - gw / lt.aspect / 2, back); // the end you drive towards
+
+    // ---- office corner, car park
+    if (office) {
+      const oc = pick([[0.88, 0.88, 0.87], [0.26, 0.27, 0.29]]);
+      const oa0 = a0, oa1 = a0 + 26, on = d0 - 13;
+      shell(cl, oa0, oa1, on, d0 + 6, y0, 10.5, oc, [0.3, 0.3, 0.31]);
+      const glass = bucket('glass'), lit = bucket('windowLit');
+      for (let f = 0; f < 3; f++) {
+        const wy0 = 1.0 + f * 3.4, wy1 = wy0 + 1.8;
+        for (let a = oa0 + 1; a < oa1 - 1; a += 3) wallA(rng() < 0.45 ? lit : glass, a, a + 2.9, on - 0.15, wy0, wy1, toRoad);
+        for (let d = on + 1; d < d0 + 5; d += 3) wallD(rng() < 0.45 ? lit : glass, oa0 - 0.15, d, d + 2.9, wy0, wy1, back);
+      }
+      // car park before the office
+      flat(yard, a0 - 50, a0 - 6, d0 - 36, d0 + 22, -0.24);
+      const carCols = [[0.12, 0.12, 0.13], [0.55, 0.57, 0.6], [0.85, 0.85, 0.84], [0.2, 0.28, 0.45], [0.5, 0.1, 0.08], [0.32, 0.33, 0.35]];
+      for (const d of [d0 - 30, d0 - 17, d0 - 10, d0 + 3, d0 + 10]) {
+        for (let a = a0 - 47; a < a0 - 8; a += 2.7) {
+          if (rng() > 0.6) continue;
+          boxAt(bld, 4.4, 0.85, 1.8, a, d, y0 + 0.75, pick(carCols));
+          boxAt(bld, 2.4, 0.55, 1.6, a, d + 0.2, y0 + 1.45, [0.1, 0.11, 0.12]);
+        }
+      }
+    }
+  }
+
+  /** A semi-trailer backed up with its rear at `dRear`, pointing at the road; sometimes with its tractor. */
+  trailer(bld, dark, boxAt, a, dRear, rng, brandRGB) {
+    const r = rng();
+    const col = r < 0.55 ? [0.9, 0.9, 0.88] : r < 0.75 ? [0.7, 0.72, 0.73] : r < 0.9 ? brandRGB : [[0.2, 0.3, 0.55], [0.6, 0.12, 0.1], [0.15, 0.35, 0.2]][Math.floor(rng() * 3)];
+    boxAt(bld, 13.6, 2.75, 2.55, a, dRear - 6.8, 0.85 + 1.375, col);
+    boxAt(dark, 4.0, 1.0, 2.4, a, dRear - 3.0, 0.2, undefined); // axles
+    boxAt(dark, 0.3, 1.2, 2.2, a, dRear - 11.8, 0.3, undefined); // landing legs
+    if (rng() < 0.25) {
+      const cab = [[0.9, 0.9, 0.9], [0.15, 0.25, 0.5], [0.6, 0.1, 0.08], [0.85, 0.6, 0.1], [0.2, 0.2, 0.22]][Math.floor(rng() * 5)];
+      boxAt(dark, 5.5, 0.9, 2.3, a, dRear - 13.6, 0.4, undefined);
+      boxAt(bld, 2.3, 2.9, 2.5, a, dRear - 15.6, 0.6 + 1.45, cab);
+      boxAt(dark, 0.06, 1.1, 2.2, a, dRear - 16.78, 2.6, undefined); // windscreen
+    }
   }
 
   overpass(s, local, bucket, ox, oz, K) {

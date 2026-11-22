@@ -74,7 +74,8 @@ Everything below is how the simulation works, what to tune, and the tools that c
 - **Road** (`src/road.js`, `src/scenery.js`): endless procedural A-road with gentle clothoid curves,
   3 lanes plus a hard shoulder, concrete median barrier, guardrails, ditches, polder fields,
   hectometre posts, matrix-sign gantries, blue guide signs, 100 (6-19 h) / 130 (19-6 h) signs,
-  viaducts, noise walls, lit stretches, farms, poplars and wind turbines.
+  viaducts, noise walls, lit stretches, farms, poplars, wind turbines and distribution centres
+  (estates of 1-3 boxes with docks, trailers, an office and a lit logo).
 - Day (limit 100), dusk and night (limit 130). Live interior and side mirrors.
 
 ### Checks

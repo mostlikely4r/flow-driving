@@ -496,3 +496,64 @@ export function rigRoadTexture(lanes = 1) {
   t.wrapS = THREE.ClampToEdgeWrapping;
   return t;
 }
+
+/**
+ * Sandwich-panel cladding of a distribution centre: one tile is 8 x 8 m,
+ * horizontal panels 1 m high with a dark seam, faint vertical joints every 4 m.
+ * Near white so the vertex colour sets the panel colour.
+ */
+export function claddingTexture() {
+  const S = 256;
+  const [c, g] = canvas(S, S);
+  const rng = mulberry32(17);
+  g.fillStyle = '#f2f2f2';
+  g.fillRect(0, 0, S, S);
+  const px = S / 8; // pixels per metre
+  for (let k = 0; k < 8; k++) {
+    // a slight shade per panel so the wall is not a flat sheet
+    const v = 236 + Math.floor((rng() - 0.5) * 10);
+    g.fillStyle = `rgb(${v},${v},${v})`;
+    g.fillRect(0, k * px + 2, S, px - 2);
+    g.fillStyle = 'rgba(70,72,76,0.55)';
+    g.fillRect(0, k * px, S, 2);
+    g.fillStyle = 'rgba(255,255,255,0.6)';
+    g.fillRect(0, k * px + 2, S, 1);
+  }
+  g.fillStyle = 'rgba(80,82,86,0.25)';
+  for (let x = 0; x < S; x += px * 4) g.fillRect(x, 0, 2, S);
+  return tex(c);
+}
+
+/**
+ * A company name with a simple mark, for the logo band on a distribution centre.
+ * Transparent background (use alphaTest). Returns { tex, aspect } (width / height).
+ */
+export function logoTexture(name, color, mark = 0) {
+  const H = 160;
+  const font = 'bold 118px Arial, Helvetica, sans-serif';
+  const [m, mg] = canvas(8, 8);
+  mg.font = font;
+  const tw = Math.ceil(mg.measureText(name).width);
+  const W = Math.min(2048, tw + H + 40);
+  const [c, g] = canvas(W, H);
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = color;
+  const r = H * 0.36, cx = H * 0.5, cy = H * 0.5;
+  g.beginPath();
+  if (mark === 0) g.arc(cx, cy, r, 0, Math.PI * 2);
+  else if (mark === 1) g.rect(cx - r, cy - r, r * 2, r * 2);
+  else {
+    // chevron
+    g.moveTo(cx - r, cy - r);
+    g.lineTo(cx + r, cy);
+    g.lineTo(cx - r, cy + r);
+    g.lineTo(cx - r * 0.35, cy);
+  }
+  g.closePath();
+  g.fill();
+  g.font = font;
+  g.textBaseline = 'middle';
+  g.fillText(name, H + 10, H * 0.54, W - H - 20);
+  const t = tex(c, { repeat: false });
+  return { tex: t, aspect: W / H };
+}
