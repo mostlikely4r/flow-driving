@@ -20,14 +20,14 @@ and lane 0 makes no room yet.
 - backlog: F-20
 - added: 2026-11-23
 
-## Q-4 · Exits: cars move right early and leave · spec
-- state: queued
-- backlog: F-21
-- added: 2026-11-23
-
 ## Q-5 · Proefrit slice 3: frames and clips · spec
 - state: queued
 - backlog: F-37
+- added: 2026-11-23
+
+## Q-4 · Exits: cars move right early and leave · spec
+- state: queued
+- backlog: F-21
 - added: 2026-11-23
 
 ## Done
