@@ -10,6 +10,8 @@
 Start from the slice 2 finding: merges stall because the merge is a gap-acceptance problem (F-22),
 and lane 0 makes no room yet. Slice 2 ended at a median of 0.56 stops per merge against a target
 of 1 in 10 at density <= 12; a longer ramp road made it worse. Leave out `rampRoadM` tuning and exits.
+Inputs gathered 2026-11-23 (baseline, probes, tool traps, code paths, the one rejected approach):
+`docs/specs/F-20-slice-3-inputs.md`.
 
 ## Q-2 · On-ramps slice 3 · build
 - state: queued
