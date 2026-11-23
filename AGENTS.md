@@ -20,9 +20,12 @@ scored and the milestones; `BACKLOG.md` holds every feature by ID, in the vibevi
 - Talk and small changes (under about 3 turns to explain, 1–2 files): build in the same thread.
 - Longer design debates, or a mind changed mid-chat: `/spec` writes the plan, then `/build`
   it in a fresh thread, so rejected ideas don't leak into the code.
-- Both commands are Markdown in `.claude/commands/`; `.pi/settings.json` loads that directory, so
-  pi exposes them too. The same two files are used in the user's other projects; what differs per
-  project lives in the Workflow section below. Change them in all projects together.
+- `/next` takes the top task from `QUEUE.md` and runs the flow for its stage (spec, build,
+  test, other).
+- The commands are Markdown in `.claude/commands/`; `.pi/settings.json` loads that directory, so
+  pi exposes them too. The same files are used in the user's other projects; what differs per
+  project lives in the Workflow section below. Their source is `~/Desktop/vibeview/prompts/`:
+  change them there and run `node scripts/sync-prompts.ts` in vibeview; never edit a copy here.
 
 ## Workflow
 
