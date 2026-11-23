@@ -557,3 +557,126 @@ export function logoTexture(name, color, mark = 0) {
   const t = tex(c, { repeat: false });
   return { tex: t, aspect: W / H };
 }
+
+/**
+ * Blue exit direction sign (RVV K2 style): the exit number in a panel, the
+ * places you reach through the exit, a diagonal arrow, and the distance.
+ * Drawn at 3.6 x 1.8 m worth of pixels, so the lettering stays crisp up close.
+ */
+export function exitSignTexture(number, place, distText) {
+  return cached(`exit|${number}|${place.join('|')}|${distText}`, () => {
+    const W = 1024, H = 512;
+    const [c, g] = canvas(W, H);
+    g.fillStyle = '#0a3d8f';
+    g.fillRect(0, 0, W, H);
+    // white border, rounded like the real thing
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 14;
+    g.strokeRect(16, 16, W - 32, H - 32);
+    // diagonal arrow out to the right, above the distance box
+    g.save();
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 28;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(720, 320);
+    g.lineTo(850, 190);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(850, 190);
+    g.lineTo(790, 182);
+    g.moveTo(850, 190);
+    g.lineTo(842, 250);
+    g.stroke();
+    g.restore();
+    // exit number panel: white box, black number
+    g.fillStyle = '#ffffff';
+    g.fillRect(560, 46, 130, 100);
+    g.fillStyle = '#111';
+    g.font = 'bold 74px Arial, Helvetica, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(number), 625, 100);
+    // the places you reach via the exit
+    g.fillStyle = '#ffffff';
+    g.textAlign = 'left';
+    g.font = 'bold 78px Arial, Helvetica, sans-serif';
+    g.fillText(place[0], 60, 130);
+    g.font = 'bold 62px Arial, Helvetica, sans-serif';
+    if (place[1]) g.fillText(place[1], 60, 230);
+    // distance to the exit, bottom right, in its own box
+    if (distText) {
+      g.strokeStyle = '#ffffff';
+      g.lineWidth = 6;
+      g.strokeRect(640, 380, 300, 92);
+      g.fillStyle = '#ffffff';
+      g.textAlign = 'center';
+      g.font = 'bold 62px Arial, Helvetica, sans-serif';
+      g.fillText(distText, 790, 428);
+    }
+    return tex(c, { repeat: false });
+  });
+}
+
+/** Small blue sign at the gore: the exit number and a diagonal arrow. */
+export function exitGoreTexture(number) {
+  return cached(`exitgore|${number}`, () => {
+    const [c, g] = canvas(256, 256);
+    g.fillStyle = '#0a3d8f';
+    g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 12;
+    g.strokeRect(10, 10, 236, 236);
+    g.fillStyle = '#ffffff';
+    g.fillRect(150, 26, 82, 62);
+    g.fillStyle = '#111';
+    g.font = 'bold 46px Arial, Helvetica, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(number), 191, 59);
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 18;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(70, 210);
+    g.lineTo(150, 130);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(150, 130);
+    g.lineTo(92, 122);
+    g.moveTo(150, 130);
+    g.lineTo(142, 188);
+    g.stroke();
+    return tex(c, { repeat: false });
+  });
+}
+
+/**
+ * Afritbaken: a countdown marker at the exit lane, `n` red diagonal stripes on
+ * white (3 at 300 m, 2 at 200 m, 1 at 100 m).
+ */
+export function afritbakenTexture(n) {
+  return cached(`afritbaken|${n}`, () => {
+    const [c, g] = canvas(192, 256);
+    g.fillStyle = '#f4f4f0';
+    g.fillRect(0, 0, 192, 256);
+    g.strokeStyle = '#111';
+    g.lineWidth = 8;
+    g.strokeRect(4, 4, 184, 248);
+    g.save();
+    g.beginPath();
+    g.rect(8, 8, 176, 240);
+    g.clip();
+    g.strokeStyle = '#d61f26';
+    g.lineWidth = 26;
+    for (let k = 0; k < n; k++) {
+      const y = 256 - 44 - k * 62;
+      g.beginPath();
+      g.moveTo(-20, y - 70);
+      g.lineTo(212, y + 30);
+      g.stroke();
+    }
+    g.restore();
+    return tex(c, { repeat: false });
+  });
+}

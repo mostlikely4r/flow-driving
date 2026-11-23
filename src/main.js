@@ -375,6 +375,7 @@ function makeTraffic() {
   oncoming.initialFill(player.s, null);
 }
 function startScenario() {
+  if (SCENARIO.player.s != null) player.s = SCENARIO.player.s; // start at the junction's own place
   player.placeInLane(SCENARIO.player.lane, SCENARIO.player.kmh);
   applyScenario(traffic, SCENARIO, player.s);
   player.update(0.001, { steer: 0, throttle: 0, brake: 0, analog: false }, traffic);

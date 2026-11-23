@@ -209,11 +209,20 @@ export class LaneMap {
       c.textAlign = 'left';
     }
 
-    // on-ramps: a narrow band right of lane 0, from where cars appear to the
-    // end of the strip, with the hatched gore after it
+    // on-ramps: the ramp road (faint: the cars are not on the strip yet) and the
+    // strip beside lane 0, with the hatched gore after it
     for (const r of ramps) {
       const xa = Math.max(pad, X(r.s0)), xb = Math.min(pad + iw, X(r.s1));
       const y = top + N * laneH + 2;
+      if (r.sTop != null && r.sTop < r.s0) {
+        const xr = Math.max(pad, X(r.sTop));
+        if (xa > xr) {
+          c.fillStyle = 'rgba(70, 76, 84, 0.55)';
+          c.fillRect(xr, y + 3, xa - xr, stripH - 9);
+          c.fillStyle = 'rgba(235, 240, 245, 0.25)';
+          c.fillRect(xr, y + 2.5, xa - xr, 1);
+        }
+      }
       if (xb > pad) {
         c.fillStyle = 'rgba(70, 76, 84, 0.9)';
         c.fillRect(xa, y, xb - xa, stripH - 4);

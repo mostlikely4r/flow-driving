@@ -1,9 +1,21 @@
 // Streams the motorway world in 200 m chunks around the player.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
-import { hash01, mulberry32 } from './util.js';
+import { hash01, mulberry32, clamp } from './util.js';
 import { innerEdge, outerEdgeLine, pavementEdge, guardrailLat, laneLat } from './layout.js';
 import * as TX from './textures.js';
+import {
+  junctionsNear,
+  junctionAtEstateBlock,
+  junctionLitAt,
+  roadSegments,
+  inJunction,
+  mirrorS,
+  BRIDGE_PLATEAU_M,
+  DECK_Y,
+  DUTCH_PLACES as DUTCH_PLACES_J,
+  ROUTES as ROUTES_J,
+} from './junctions.js';
 
 export const CHUNK = 200;
 // Most Dutch motorways are unlit nowadays; lighting stays near junctions.
@@ -77,12 +89,16 @@ function mat(x, y, z, yaw, sx = 1, sy = 1, sz = 1) {
   return _m4.compose(_v.set(x, y, z), _q, _sc.set(sx, sy, sz)).clone();
 }
 
-const DUTCH_PLACES = [
-  ['Utrecht', 'Amersfoort'], ['Amsterdam', 'Schiphol'], ['Rotterdam', 'Gouda'], ['Den Haag', 'Leiden'], ['Arnhem', 'Ede'],
-  ['Zwolle', 'Deventer'], ['Eindhoven', 'Den Bosch'], ['Breda', 'Tilburg'], ['Nijmegen', 'Tiel'], ['Apeldoorn', 'Hoevelaken'],
-  ['Groningen', 'Assen'], ['Almere', 'Lelystad'], ['Hilversum', 'Bussum'], ['Gorinchem', 'Dordrecht'], ['Venlo', 'Roermond'],
-];
-const ROUTES = ['A1', 'A2', 'A12', 'A27', 'A28', 'A15', 'A4', 'A50', 'A16', 'A58'];
+/** A quad that always faces up, whichever way the caller happened to wind it. */
+function groundQuad(b, A, B, C, D, uv = [[0, 0], [0, 0], [0, 0], [0, 0]]) {
+  const ux = B[0] - A[0], uz = B[2] - A[2];
+  const vx = C[0] - A[0], vz = C[2] - A[2];
+  if (uz * vx - ux * vz >= 0) b.quad(A, B, C, D, uv[0], uv[1], uv[2], uv[3]);
+  else b.quad(A, D, C, B, uv[0], uv[3], uv[2], uv[1]);
+}
+
+const DUTCH_PLACES = DUTCH_PLACES_J;
+const ROUTES = ROUTES_J;
 
 // Distribution centres (F-40): made-up companies, and the usual sandwich-panel colours.
 const ESTATE_BLOCK = 5000;
@@ -214,7 +230,7 @@ export class Scenery {
 
   /** Is the motorway lit at s? Lit stretches are 1.6 km long, lamps every 50 m. */
   litAt(s) {
-    return hash01(Math.floor(s / 1600), 4) < LIT_SHARE;
+    return hash01(Math.floor(s / 1600), 4) < LIT_SHARE || junctionLitAt(s);
   }
 
   setNight(mode) {
@@ -335,10 +351,63 @@ export class Scenery {
         mk.quad(a, b2, cc, dd, [0, 0], [0, 0], [0, 0], [0, 0]);
       }
     };
+    // a solid line over part of the chunk only (junction markings cut the edge line)
+    const lineAt = (c, w, sa, sb, y = Y) => {
+      const a0 = Math.max(sa, s0), b0 = Math.min(sb, s1);
+      for (let s = a0; s < b0; s += 10) {
+        const e = Math.min(s + 10, b0);
+        const a = local(s, c - w / 2, y), b2 = local(s, c + w / 2, y);
+        const cc = local(e, c + w / 2, y), dd = local(e, c - w / 2, y);
+        mk.quad(a, b2, cc, dd, [0, 0], [0, 0], [0, 0], [0, 0]);
+      }
+    };
+    // block marking (short wide dashes) between lane 0 and the exit lane / strip
+    const blockAt = (c, w, sa, sb, y = Y) => {
+      const a0 = Math.max(sa, s0), b0 = Math.min(sb, s1);
+      for (let s = Math.ceil(a0 / 4) * 4; s < b0; s += 4) {
+        const e = Math.min(s + 1, b0);
+        const a = local(s, c - w / 2, y), b2 = local(s, c + w / 2, y);
+        const cc = local(e, c + w / 2, y), dd = local(e, c - w / 2, y);
+        mk.quad(a, b2, cc, dd, [0, 0], [0, 0], [0, 0], [0, 0]);
+      }
+    };
+    // the junctions whose pieces reach into this chunk
+    const junc = junctionsNear(s0, s1);
+    // where the right edge line gives way: the exit lane and the strip
+    const edgeCuts = (sg) => {
+      const out = [];
+      for (const j of junc) {
+        const m = (s) => (sg > 0 ? s : mirrorS(j, s));
+        for (const [a, b] of [[j.exitStart, j.exitGore], [j.s0 - 60, j.s1 + 80]]) {
+          const x = m(a), y2 = m(b);
+          out.push([Math.min(x, y2), Math.max(x, y2)]);
+        }
+      }
+      return out.sort((p, q) => p[0] - q[0]);
+    };
+    const withoutCuts = (a, b, cuts) => {
+      let segs = [[a, b]];
+      for (const [ca, cb] of cuts) {
+        const next = [];
+        for (const [x, y2] of segs) {
+          if (cb <= x || ca >= y2) {
+            next.push([x, y2]);
+            continue;
+          }
+          if (ca > x) next.push([x, ca]);
+          if (cb < y2) next.push([cb, y2]);
+        }
+        segs = next;
+      }
+      return segs;
+    };
     for (const sg of [1, -1]) {
       solid(sg * (ie + 0.08), 0.15);
-      solid(sg * (oe - 0.1), 0.2);
+      // the right edge line, except where a junction puts the block marking there
+      const cuts = edgeCuts(sg);
+      for (const [a, b] of withoutCuts(s0, s1, cuts)) if (b - a > 0.5) lineAt(sg * (oe - 0.1), 0.2, a, b);
       for (let k = 1; k < CONFIG.lanes; k++) dashed(sg * (ie + k * CONFIG.laneWidth), 0.15, 3, 12);
+      for (const [a, b] of cuts) blockAt(sg * (oe - 0.1), 0.4, a, b);
     }
 
     // ---- median barrier (concrete step barrier)
@@ -357,13 +426,38 @@ export class Scenery {
 
     const railR = [[0, 0.45], [-0.08, 0.51], [-0.03, 0.6], [-0.08, 0.69], [0, 0.76]].map(([l, y]) => [G + l, y]);
     const railL = railR.map(([l, y]) => [-l, y]).reverse();
-    sweep(bucket('steel'), railR, (R, l, y) => [R.s / 4, y]);
-    sweep(bucket('steel'), railL, (R, l, y) => [R.s / 4, y]);
+    // the right-hand guardrail stops where a ramp road leaves or joins the
+    // motorway: the junction road's own rail takes over there
+    const railGap = (sg) => {
+      const out = [];
+      for (const j of junc) {
+        const m = (s) => (sg > 0 ? s : mirrorS(j, s));
+        for (const [a, b] of [[j.exitGore - 20, j.exitTop], [j.rampTop, j.s0]]) {
+          const x = m(a), y2 = m(b);
+          out.push([Math.min(x, y2), Math.max(x, y2)]);
+        }
+      }
+      return out;
+    };
+    const inGap = (s, gaps) => gaps.some(([a, b]) => s >= a && s <= b);
+    const railGapsR = railGap(1), railGapsL = railGap(-1);
+    // both right-hand rails (yours at +G, the other carriageway's at -G) stop where
+    // their own ramp or exit road leaves the motorway
+    for (const [a, b] of withoutCuts(s0, s1, railGapsR)) {
+      const rr = rows.filter((r) => r.s >= a && r.s <= b);
+      if (rr.length > 1) sweep(bucket('steel'), railR, (R, l, y) => [R.s / 4, y], rr);
+    }
+    for (const [a, b] of withoutCuts(s0, s1, railGapsL)) {
+      const rr = rows.filter((r) => r.s >= a && r.s <= b);
+      if (rr.length > 1) sweep(bucket('steel'), railL, (R, l, y) => [R.s / 4, y], rr);
+    }
     const posts = bucket('post');
     const refl = bucket('reflector');
     for (let s = Math.ceil(s0 / 4) * 4; s < s1; s += 4) {
       const p = road.sample(s);
       for (const sg of [1, -1]) {
+        if (sg > 0 && inGap(s, railGapsR)) continue;
+        if (sg < 0 && inGap(s, railGapsL)) continue;
         const lat = sg * (G + 0.08);
         posts.addGeo(new THREE.BoxGeometry(0.1, 0.8, 0.12), mat(p.x - ox + p.nx * lat, 0.38, p.z - oz + p.nz * lat, p.h));
       }
@@ -398,11 +492,13 @@ export class Scenery {
 
     // ---- features scheduled per km
     const kmA = Math.floor(s0 / 1000), kmB = Math.floor((s1 - 1) / 1000);
+    const nearBridge = (s) => junctionsNear(s - 1000, s + 1000).some((j) => Math.abs(j.sBridge - s) < 1000);
     for (let K = kmA; K <= kmB; K++) {
       const inChunk = (s) => s >= s0 && s < s1;
       const hasOverpass = hash01(K, 1) < 0.24;
       const sOver = K * 1000 + 520;
-      if (hasOverpass && inChunk(sOver)) this.overpass(sOver, local, bucket, ox, oz, K);
+      // a junction brings its own bridge; no random viaduct on top of it
+      if (hasOverpass && inChunk(sOver) && !nearBridge(sOver)) this.overpass(sOver, local, bucket, ox, oz, K);
       // matrix signs every 500 m (see msi.js for what they show)
       for (const sMatrix of [K * 1000 + 160, K * 1000 + 660]) if (inChunk(sMatrix)) this.matrixGantry(sMatrix, group, ch, ox, oz, bucket, K);
       const sAnwb = K * 1000 + 860;
@@ -410,6 +506,10 @@ export class Scenery {
       const sSpeed = K * 1000 + 330;
       if (K % 3 === 0 && inChunk(sSpeed)) this.speedSigns(sSpeed, group, ch, ox, oz, bucket);
     }
+
+    // ---- junctions (F-20 slice 2): bridge, crossing road, ramp and exit roads,
+    // markings and signs. Each piece is built in the chunk that holds its s.
+    for (const j of junc) this.junctionPieces(j, s0, s1, { local, bucket, group, ch, ox, oz, road, rows, sweep });
 
     // ---- lighting (lit stretches)
     if (this.litAt(s0)) {
@@ -446,7 +546,7 @@ export class Scenery {
     // ---- trees, farms, turbines
     const trees = [];
     const addTree = (s, lat, kind, scale) => {
-      if (this.inEstate(s, lat)) return;
+      if (this.inEstate(s, lat) || inJunction(s, lat, 25)) return;
       const p = road.sample(s);
       trees.push({ x: p.x - ox + p.nx * lat, z: p.z - oz + p.nz * lat, kind, scale, rot: rng() * 6.28 });
     };
@@ -468,13 +568,24 @@ export class Scenery {
       }
       if (rng() < 0.22) {
         const fs = s0 + rng() * CHUNK, fl = sg * (E + 70 + rng() * 160);
-        if (!this.inEstate(fs, fl, 40)) this.farm(fs, fl, rng, local, bucket, addTree, road, ox, oz);
+        if (!this.inEstate(fs, fl, 40) && !inJunction(fs, fl, 40)) this.farm(fs, fl, rng, local, bucket, addTree, road, ox, oz);
       }
     }
     // distribution centres (F-40): each box is built whole by the chunk holding its centre;
     // the young trees along the service road stream with the chunks
     for (const est of this.estatesNear(s0, s1)) {
       for (const box of est.boxes) if (box.sC >= s0 && box.sC < s1) this.distributionCentre(est, box, group, ch, bucket, ox, oz);
+      // a junction estate gets a straight service road from the crossing road to its car park
+      if (est.j) {
+        const lat = est.sg * (est.d0 - 40);
+        const a = Math.max(s0, est.j.sBridge + 10), b = Math.min(s1, est.sA);
+        if (b - a > 1) {
+          const P = (p, l, y) => [p.x - ox + p.nx * l, y, p.z - oz + p.nz * l];
+          const p1 = road.sample(a, {}), p2 = road.sample(b, {});
+          const z0 = [[0, 0], [0, 0], [0, 0], [0, 0]];
+          groundQuad(bucket('lane'), P(p1, lat - 3, -0.24), P(p1, lat + 3, -0.24), P(p2, lat + 3, -0.24), P(p2, lat - 3, -0.24), z0);
+        }
+      }
       const lat = est.sg * (est.d0 - 51);
       for (let s = Math.ceil(Math.max(s0, est.sA) / 9) * 9; s < Math.min(s1, est.sB); s += 9) {
         const p = road.sample(s);
@@ -509,6 +620,211 @@ export class Scenery {
   }
 
   // ------------------------------------------------------------------
+  // Junctions (F-20 slice 2). A junction is a place on the road: exit signs,
+  // countdown markers (afritbakens), an exit lane before the bridge and an
+  // on-ramp road after it, coming down from the crossing road. Every mark comes
+  // from junctions.js, so the road and the sim agree without passing a seed.
+  junctionPieces(j, c0, c1, ctx) {
+    const { bucket, group, ch, ox, oz, road, local } = ctx;
+    const inChunk = (s) => s >= c0 && s < c1;
+    if (inChunk(j.sBridge)) this.junctionBridge(j, { bucket, ox, oz, road });
+    for (const sg of [1, -1]) this.junctionRoad(j, sg, c0, c1, { bucket, ox, oz, road });
+    this.junctionPavement(j, c0, c1, { bucket, ox, oz, road, local });
+    this.junctionSigns(j, c0, c1, { group, ch, bucket, ox, oz, road });
+  }
+
+  /** The bridge over the motorway and the crossing road on top of it. */
+  junctionBridge(j, { bucket, ox, oz, road }) {
+    this.overpass(j.sBridge, null, bucket, ox, oz, j.b, { skew: 0, plateau: BRIDGE_PLATEAU_M });
+    const p = road.sample(j.sBridge, {});
+    const x = p.x - ox, z = p.z - oz;
+    const G = guardrailLat();
+    // the crossing road runs along the deck's long axis, its width along the motorway
+    const rx = -Math.cos(p.h), rz = Math.sin(p.h);
+    const wx = p.tx, wz = p.tz;
+    const top = DECK_Y + 0.1;
+    const flatEnd = G + 7 + BRIDGE_PLATEAU_M;
+    const yAt = (t) => {
+      if (t <= G + 7) return top;
+      if (t <= flatEnd) return DECK_Y + 0.06;
+      if (t <= flatEnd + 50) return DECK_Y + 0.06 + (-0.24 - DECK_Y) * ((t - flatEnd) / 50);
+      return -0.24;
+    };
+    const halfW = 3.5;
+    const asph = bucket('asphalt');
+    const mk = bucket('marking');
+    const P = (t, off, y) => [x + rx * t + wx * off, y, z + rz * t + wz * off];
+    let prev = null;
+    for (let t = -300; t <= 300 + 1e-6; t += 10) {
+      const y = yAt(Math.abs(t));
+      const row = { t, a: P(t, -halfW, y), b: P(t, halfW, y) };
+      if (prev) {
+        groundQuad(asph, prev.a, prev.b, row.b, row.a, [[0, prev.t / 16], [1, prev.t / 16], [1, row.t / 16], [0, row.t / 16]]);
+        // centre line down the crossing road
+        if (Math.abs(t) > G + 7) {
+          const y0 = yAt(Math.abs(t) - 10) + 0.02, y1 = y + 0.02;
+          groundQuad(mk, P(prev.t, -0.09, y0), P(prev.t, 0.09, y0), P(row.t, 0.09, y1), P(row.t, -0.09, y1), [[0, 0], [0, 0], [0, 0], [0, 0]]);
+        }
+      }
+      prev = row;
+    }
+  }
+
+  /** The ramp road (or the exit road, mirrored) of one carriageway. */
+  junctionRoad(j, sg, c0, c1, { bucket, ox, oz, road }) {
+    const asph = bucket('asphalt');
+    const mk = bucket('marking');
+    const grass = bucket('grass');
+    const steel = bucket('steel');
+    const posts = bucket('post');
+    for (const seg of roadSegments(j, sg)) {
+      // reach across to the crossing road at the top end
+      let sA = seg.sA, sB = seg.sB;
+      if (seg.at(sA).y > 5) sA -= 15;
+      if (seg.at(sB).y > 5) sB += 15;
+      const a0 = Math.max(sA, c0), b0 = Math.min(sB, c1);
+      if (b0 - a0 < 1) continue;
+      // the road widens to about 6 m up on the embankment, as the strip's own width at the gore
+      const halfAt = (q) => CONFIG.laneWidth / 2 + 1.25 * clamp(q.y / DECK_Y, 0, 1);
+      const rowsN = [];
+      for (let s = a0; s <= b0 + 1e-6; s += 5) {
+        const ss = Math.min(s, b0);
+        const p = road.sample(ss, {});
+        const q = seg.at(ss);
+        const hw = halfAt(q);
+        const y = q.y + 0.01;
+        const toe = 2 * Math.max(0, q.y + 0.3);
+        const P = (lat, yy) => [p.x - ox + p.nx * lat, yy, p.z - oz + p.nz * lat];
+        rowsN.push({
+          s: ss,
+          y: q.y,
+          lat: q.lat,
+          hw,
+          il: P(q.lat - hw, y),
+          ir: P(q.lat + hw, y),
+          ol: P(q.lat - hw - toe, -0.3),
+          or: P(q.lat + hw + toe, -0.3),
+          el0: P(q.lat - hw + 0.18, y + 0.02),
+          el1: P(q.lat - hw + 0.33, y + 0.02),
+          er0: P(q.lat + hw - 0.33, y + 0.02),
+          er1: P(q.lat + hw - 0.18, y + 0.02),
+          // guardrail on the far side, where the road is up in the air
+          rail: P(q.lat + Math.sign(sg) * (hw + 0.7), q.y),
+        });
+      }
+      const z0 = [[0, 0], [0, 0], [0, 0], [0, 0]];
+      const E = pavementEdge();
+      const auv = (lat, ss) => [(lat + E) / (2 * E), ss / 16];
+      for (let i = 1; i < rowsN.length; i++) {
+        const A = rowsN[i - 1], B = rowsN[i];
+        groundQuad(asph, A.il, A.ir, B.ir, B.il, [auv(A.lat - A.hw, A.s), auv(A.lat + A.hw, A.s), auv(B.lat + B.hw, B.s), auv(B.lat - B.hw, B.s)]);
+        if (A.y > 0.05 || B.y > 0.05) {
+          groundQuad(grass, A.ol, A.il, B.il, B.ol);
+          groundQuad(grass, A.ir, A.or, B.or, B.ir);
+        }
+        groundQuad(mk, A.el0, A.el1, B.el1, B.el0, z0);
+        groundQuad(mk, A.er0, A.er1, B.er1, B.er0, z0);
+        if (A.y > 1 && B.y > 1) {
+          // a rail band: two horizontals and a face, enough at this distance
+          steel.quad([A.rail[0], A.rail[1] + 0.45, A.rail[2]], [B.rail[0], B.rail[1] + 0.45, B.rail[2]],
+            [B.rail[0], B.rail[1] + 0.8, B.rail[2]], [A.rail[0], A.rail[1] + 0.8, A.rail[2]], [0, 0], [1, 0], [1, 1], [0, 1]);
+        }
+      }
+      // guardrail posts along the elevated part
+      for (const r of rowsN) {
+        if (r.y <= 1 || r.s % 16 > 5) continue;
+        posts.addGeo(new THREE.BoxGeometry(0.1, 0.8, 0.12), mat(r.rail[0], r.rail[1] + 0.38, r.rail[2], road.sample(r.s).h));
+      }
+    }
+  }
+
+  /** Widened pavement, the strip's outer edge line and the hatched gore areas. */
+  junctionPavement(j, c0, c1, { bucket, ox, oz, road }) {
+    const E = pavementEdge();
+    const asph = bucket('asphalt');
+    const mk = bucket('marking');
+    const W = j.stripOuter;
+    const z0 = [[0, 0], [0, 0], [0, 0], [0, 0]];
+    for (const sg of [1, -1]) {
+      const mir = (s) => (sg > 0 ? s : mirrorS(j, s));
+      const span = (a, b) => [Math.min(mir(a), mir(b)), Math.max(mir(a), mir(b))];
+      const P = (p, lat, y) => [p.x - ox + p.nx * lat * sg, y, p.z - oz + p.nz * lat * sg];
+      // widened pavement over the exit lane and the strip, tapering at both ends
+      for (const [a, b] of [span(j.exitStart, j.exitGore), span(j.s0 - 60, j.s1 + 80)]) {
+        const a0 = Math.max(a, c0), b0 = Math.min(b, c1);
+        if (b0 - a0 < 1) continue;
+        const wid = (s) => E + (W - E) * clamp(Math.min((s - a) / 80, (b - s) / 80), 0, 1);
+        for (let s = a0; s < b0; s += 10) {
+          const e = Math.min(s + 10, b0);
+          const p1 = road.sample(s, {}), p2 = road.sample(e, {});
+          const w1 = wid(s), w2 = wid(e);
+          const auv = (lat, ss) => [(lat + E) / (2 * E), ss / 16];
+          groundQuad(asph, P(p1, E - 0.6, 0.005), P(p1, w1, 0.005), P(p2, w2, 0.005), P(p2, E - 0.6, 0.005),
+            [auv(E - 0.6, s), auv(w1, s), auv(w2, e), auv(E - 0.6, e)]);
+          groundQuad(mk, P(p1, w1 - 0.35, 0.02), P(p1, w1 - 0.2, 0.02), P(p2, w2 - 0.2, 0.02), P(p2, w2 - 0.35, 0.02), z0);
+        }
+      }
+      // the gore: paved apron between the motorway and the diverging road,
+      // hatching converging to a point where the two roads meet
+      for (const seg of roadSegments(j, sg)) {
+        const lowIsA = seg.at(seg.sA).y <= seg.at(seg.sB).y;
+        const start = lowIsA ? seg.sA : seg.sB - 90;
+        const band = [start, start + 90];
+        const a0 = Math.max(Math.min(...band), c0), b0 = Math.min(Math.max(...band), c1);
+        if (b0 - a0 < 1) continue;
+        const high = (s) => Math.abs(seg.at(s).lat) - (CONFIG.laneWidth / 2 + 1.25 * clamp(seg.at(s).y / DECK_Y, 0, 1));
+        for (let s = a0; s < b0; s += 10) {
+          const e = Math.min(s + 10, b0);
+          const lo1 = E - 0.6, lo2 = E - 0.6;
+          const hi1 = high(s), hi2 = high(e);
+          if (hi1 < lo1 + 0.3 && hi2 < lo2 + 0.3) continue;
+          const p1 = road.sample(s, {}), p2 = road.sample(e, {});
+          const auv = (lat, ss) => [(lat + E) / (2 * E), ss / 16];
+          groundQuad(asph, P(p1, lo1, 0.004), P(p1, Math.max(lo1, hi1), 0.004), P(p2, Math.max(lo2, hi2), 0.004), P(p2, lo2, 0.004),
+            [auv(lo1, s), auv(Math.max(lo1, hi1), s), auv(Math.max(lo2, hi2), e), auv(lo2, e)]);
+          // diagonal hatching: one stripe every 8 m, 5 m long, 0.4 m wide
+          for (let sa = s + 1; sa + 5.4 < e; sa += 8) {
+            const sc = sa + 5;
+            const q1 = road.sample(sa, {}), q1b = road.sample(sa + 0.4, {});
+            const q2 = road.sample(sc, {}), q2b = road.sample(sc + 0.4, {});
+            groundQuad(mk, P(q1, lo1 + 0.15, 0.02), P(q1b, lo1 + 0.15, 0.02),
+              P(q2, Math.max(lo2 + 0.5, high(sc)), 0.02), P(q2b, Math.max(lo2 + 0.5, high(sc + 0.4)), 0.02), z0);
+          }
+        }
+      }
+    }
+  }
+
+  /** Exit signs, countdown markers and the gore sign, on both carriageways. */
+  junctionSigns(j, c0, c1, { group, ch, bucket, ox, oz, road }) {
+    const G = guardrailLat();
+    const posts = bucket('post');
+    const place = j.place;
+    const put = (sSign, sg, lat, tex, w, h, yMid, nPost = 2) => {
+      if (!(sSign >= c0 && sSign < c1)) return;
+      const p = road.sample(sSign, {});
+      const l = lat * sg;
+      const x = p.x - ox + p.nx * l, z = p.z - oz + p.nz * l;
+      const yaw = p.h + (sg > 0 ? Math.PI : 0);
+      const postH = yMid + h / 2;
+      for (let k = 0; k < nPost; k++) {
+        const off = nPost === 1 ? 0 : (k === 0 ? -1 : 1) * (w / 2 - 0.35);
+        posts.addGeo(new THREE.CylinderGeometry(0.06, 0.06, postH, 6), mat(x + p.tx * off, postH / 2, z + p.tz * off, 0));
+      }
+      // a hair in front of the posts, so the board is not fought over
+      const d = sg > 0 ? -0.06 : 0.06;
+      this.signMesh(group, ch, tex, w, h, x + p.tx * d, yMid, z + p.tz * d, yaw, 0.35);
+    };
+    for (const sg of [1, -1]) {
+      const at = (s) => (sg > 0 ? s : mirrorS(j, s));
+      put(at(j.signA), sg, G + 2.6, TX.exitSignTexture(j.number, place, '1200 m'), 3.6, 1.8, 3.1);
+      put(at(j.signB), sg, G + 2.6, TX.exitSignTexture(j.number, place, '600 m'), 3.6, 1.8, 3.1);
+      j.bakens.forEach((s, i) => put(at(s), sg, G + 1.5, TX.afritbakenTexture(3 - i), 0.55, 0.75, 1.25, 1));
+      put(at(j.exitGore), sg, j.stripOuter + 1.3, TX.exitGoreTexture(j.number), 0.95, 0.95, 1.75, 1);
+    }
+  }
+
+  // ------------------------------------------------------------------
   // Distribution centres (F-40, "verdozing"). Every 5 km block may hold one estate of
   // 1-3 boxes on one side of the road, all on one building line. Everything follows
   // from the block number, so any chunk can ask where the estates are.
@@ -518,12 +834,15 @@ export class Scenery {
     let est = null;
     if (hash01(b, 41) < ESTATE_SHARE) {
       const E = pavementEdge();
-      const sg = hash01(b, 42) < 0.65 ? 1 : -1; // mostly on your own side of the road
-      const d0 = E + 100 + hash01(b, 43) * 60; // near (dock) face; the service road stays clear of overpass embankments
+      // an estate at a junction sits on the on-ramp side, behind the ramp road,
+      // and gets a service road back to the crossing road (F-20 slice 2, F-40)
+      const j = junctionAtEstateBlock(b);
+      const sg = j ? 1 : hash01(b, 42) < 0.65 ? 1 : -1; // mostly on your own side of the road
+      const d0 = j ? E + 150 + hash01(b, 43) * 50 : E + 100 + hash01(b, 43) * 60; // near (dock) face
       const dRoom = Math.min(140, E + 275 - d0); // keep the box on the fields
       const n = 1 + Math.floor(hash01(b, 44) * 3);
       const boxes = [];
-      let s = b * ESTATE_BLOCK + 600 + hash01(b, 45) * 2600;
+      let s = j ? j.rampTop + 150 + hash01(b, 45) * 250 : b * ESTATE_BLOCK + 600 + hash01(b, 45) * 2600;
       const sA = s - 55; // car park before the first box
       for (let i = 0; i < n; i++) {
         const L = 150 + hash01(b, 50 + i) * 200;
@@ -533,7 +852,7 @@ export class Scenery {
         boxes.push({ i, sC: s + L / 2, L, D, H, look });
         s += L + 45;
       }
-      est = { b, sg, d0, sA, sB: s - 45 + 15, dMax: d0 + Math.max(...boxes.map((x) => x.D)), boxes };
+      est = { b, sg, d0, sA, sB: s - 45 + 15, dMax: d0 + Math.max(...boxes.map((x) => x.D)), boxes, j };
     }
     this.estates.set(b, est);
     if (this.estates.size > 64) this.estates.delete(this.estates.keys().next().value);
@@ -709,13 +1028,15 @@ export class Scenery {
     }
   }
 
-  overpass(s, local, bucket, ox, oz, K) {
+  overpass(s, local, bucket, ox, oz, K, opts = {}) {
     const p = this.road.sample(s, {});
     const x = p.x - ox, z = p.z - oz;
     const G = guardrailLat();
     const conc = bucket('concrete');
     const span = 2 * (G + 7);
-    const skew = (hash01(K, 9) - 0.5) * 0.5;
+    const skew = opts.skew != null ? opts.skew : (hash01(K, 9) - 0.5) * 0.5;
+    // junctions get a flat embankment top for the ramp road to start on
+    const plateau = opts.plateau || 0;
     const yaw = p.h + skew;
     // deck
     conc.addGeo(new THREE.BoxGeometry(span, 1.3, 12), mat(x, 6.3, z, yaw));
@@ -731,22 +1052,29 @@ export class Scenery {
         );
       }
     }
-    // embankments with abutment walls
+    // embankments with abutment walls (flat on top where `plateau` asks for it)
     const grass = bucket('grass');
     for (const sg of [1, -1]) {
-      const L1 = sg * (G + 7), L2 = sg * (G + 52);
+      const L1 = sg * (G + 7);
+      const Lp = sg * (G + 7 + plateau);
+      const L2 = sg * (G + 7 + plateau + (plateau > 0 ? 50 : 45));
       const pt = (lat, along, y) => [x + rx * lat + Math.sin(yaw) * along, y, z + rz * lat + Math.cos(yaw) * along];
-      const a = pt(L1, -7, 6.9), b = pt(L2, -7, -0.3), c = pt(L2, 7, -0.3), d = pt(L1, 7, 6.9);
-      if (sg > 0) grass.quad(a, d, c, b, [0, 0], [0, 1], [1, 1], [1, 0]);
-      else grass.quad(a, b, c, d, [0, 0], [1, 0], [1, 1], [0, 1]);
-      // sides
+      const tops = plateau > 0 ? [[L1, 6.9], [Lp, 6.9], [L2, -0.3]] : [[L1, 6.9], [L2, -0.3]];
+      for (let i = 1; i < tops.length; i++) {
+        const [la, ya] = tops[i - 1], [lb, yb] = tops[i];
+        const a = pt(la, -7, ya), b = pt(lb, -7, yb), c = pt(lb, 7, yb), d = pt(la, 7, ya);
+        if (sg > 0) grass.quad(a, d, c, b, [0, 0], [0, 1], [1, 1], [1, 0]);
+        else grass.quad(a, b, c, d, [0, 0], [1, 0], [1, 1], [0, 1]);
+        // the vertical side faces of this part of the embankment
+        const a0 = pt(la, -7, -0.3), d0 = pt(la, 7, -0.3);
+        const b0 = pt(lb, -7, -0.3), c0p = pt(lb, 7, -0.3);
+        grass.quad(a, a0, b0, b, [0, 0], [0, 1], [1, 1], [1, 0]);
+        grass.quad(d, c, c0p, d0, [0, 0], [0, 1], [1, 1], [1, 0]);
+      }
+      const a = pt(L1, -7, 6.9), b = pt(L1, 7, 6.9);
       const a0 = pt(L1, -7, -0.3), d0 = pt(L1, 7, -0.3);
-      grass.tri(a, a0, b, [0, 0], [0, 1], [1, 1]);
-      grass.tri(d, c, d0, [0, 0], [1, 1], [0, 1]);
-      grass.tri(a, b, a0, [0, 0], [1, 1], [0, 1]);
-      grass.tri(d, d0, c, [0, 0], [0, 1], [1, 1]);
-      conc.quad(a0, d0, d, a, [0, 0], [1, 0], [1, 1], [0, 1]);
-      conc.quad(a0, a, d, d0, [0, 0], [0, 1], [1, 1], [1, 0]);
+      conc.quad(a0, d0, b, a, [0, 0], [1, 0], [1, 1], [0, 1]);
+      conc.quad(a0, a, b, d0, [0, 0], [0, 1], [1, 1], [1, 0]);
     }
   }
 

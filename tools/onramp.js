@@ -1,25 +1,42 @@
-// On-ramp check (F-20 slice 1): traffic on an acceleration strip merging into
-// lane 0, measured headless. Reports where and how fast cars merge, the gaps
-// they accept, what it costs the new follower in lane 0, stops at the end of
-// the strip, throughput past the ramp, and any collisions.
-// Usage: node tools/onramp.js [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7]
+// On-ramp check (F-20): traffic on an acceleration strip merging into lane 0,
+// measured headless. Reports where and how fast cars merge, the gaps they
+// accept, what it costs the new follower in lane 0, stops at the end of the
+// strip, throughput past the ramp, and any collisions. With `road` > 0 the cars
+// come down a ramp road first (the junction of slice 2); `road=0` is slice 1.
+// Usage: node tools/onramp.js [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7] [road=300]
 // CFG_<key>=<value> env overrides, as in tools/closure.js.
 import { Traffic, followerIn, gapBetween, leaderIn } from '../src/traffic.js';
 import { CONFIG } from '../src/config.js';
 import { ARCHETYPES } from '../src/archetypes.js';
 import { KMH } from '../src/util.js';
 
-const [lanes = 3, density = 12, perMin = 6, minutes = 10, seed = 7] = process.argv.slice(2).map(Number);
+const [lanes = 3, density = 12, perMin = 6, minutes = 10, seed = 7, roadArg] = process.argv.slice(2).map(Number);
 CONFIG.lanes = lanes;
 for (const [k, v] of Object.entries(process.env)) if (k.startsWith('CFG_')) CONFIG[k.slice(4)] = +v;
+const roadM = Number.isFinite(roadArg) ? roadArg : CONFIG.rampRoadM;
 
 const started = Date.now();
-const RAMP_S = 700; // where cars appear, relative to the (fixed) player position
+const RAMP_S = 700; // the ramp top (where cars appear), relative to the (fixed) player position
 const tr = new Traffic({ dir: 1, density, ahead: 1500, behind: 1500, seed, limitKmh: 100 });
 tr.initialFill(0, null);
-const ramp = tr.addRamp(RAMP_S, { perMin });
+const ramp = tr.addRamp(RAMP_S, { perMin, roadM });
+const s0 = ramp.s0;
 const s1 = ramp.s1;
 const THROUGH_S = s1 + 200;
+
+// how the ramp top behaves: inserted, blocked (no gap), or held (you were close)
+const spawns = { ok: 0, blocked: 0, held: 0 };
+const spawnOrig = tr.spawnFromRamp.bind(tr);
+tr.spawnFromRamp = (r) => {
+  const v = spawnOrig(r);
+  if (v) spawns.ok++;
+  else spawns.blocked++;
+  return v;
+};
+const heldState = new Map(); // ramp -> was it held last tick
+const rampRoad = new Map(); // id -> { t, s } when the car appeared at the top
+const rampTimes = [];
+const s0kmh = [];
 
 const pct = (a, p) => {
   if (!a.length) return null;
@@ -52,6 +69,10 @@ const dt = 1 / 30;
 const steps = Math.round((minutes * 60) / dt);
 for (let i = 0; i < steps; i++) {
   tr.step(dt, 0, null);
+  for (const r of tr.ramps) {
+    if (r.held && !heldState.get(r)) spawns.held++;
+    heldState.set(r, r.held);
+  }
 
   // ---- collisions, in every lane list and on the strip
   for (const list of [...tr.lanes, tr.strip]) {
@@ -76,6 +97,15 @@ for (let i = 0; i < steps; i++) {
     const prev = lastLane.get(veh.id);
     const wasS = lastS.get(veh.id);
 
+    // ---- how long the ramp road takes, and the speed at the end of it
+    if (veh.lane === -1 && roadM > 0 && !rampRoad.has(veh.id) && s <= ramp.sTop + 5) rampRoad.set(veh.id, { t: tr.time, s });
+    const came = rampRoad.get(veh.id);
+    if (came && wasS != null && wasS < s0 && s >= s0) {
+      rampTimes.push(tr.time - came.t);
+      s0kmh.push(veh.v / KMH);
+      rampRoad.delete(veh.id);
+    }
+
     // ---- the merge itself: the lane index flips from -1 to 0
     if (prev === -1 && veh.lane === 0) {
       const nl = leaderIn(tr.lanes[0], veh);
@@ -99,7 +129,7 @@ for (let i = 0; i < steps; i++) {
     // ---- no car may move INTO the strip, and none may be on it outside a span
     if (veh.lane === -1) {
       if (prev != null && prev !== -1) intoStrip++;
-      if (!tr.ramps.some((r) => s >= r.s0 - 60 && s <= r.s1 + 60)) outsideSpan++;
+      if (!tr.ramps.some((r) => s >= r.sTop - 60 && s <= r.s1 + 60)) outsideSpan++;
     }
 
     // ---- a car stopped at the end of the strip, waiting for a gap
@@ -160,8 +190,12 @@ const under2 = braking.filter((a) => a < -2).length;
 const under4 = braking.filter((a) => a < -4).length;
 const med = (a) => pct(a, 0.5);
 
-console.log(`on-ramp check · ${lanes} lanes · density ${density} · ${perMin}/min · seed ${seed} · ${minutes} min\n`);
+console.log(`on-ramp check · ${lanes} lanes · density ${density} · ${perMin}/min · seed ${seed} · ${minutes} min · ramp road ${roadM} m\n`);
 console.log(`merges ${merges.length} · stops at the end ${stops.n} (longest ${stops.longest.toFixed(0)} s) · collisions ${crashes.size} · emergency stops ${emerg.size}`);
+console.log(`stops per merge         ${merges.length ? (stops.n / merges.length).toFixed(2) : '–'} (1 in ${stops.n ? (merges.length / stops.n).toFixed(1) : '–'})`);
+console.log(`ramp road               time top → s0 p10 ${fmt(pct(rampTimes, 0.1), 1)} · p50 ${fmt(pct(rampTimes, 0.5), 1)} · p90 ${fmt(pct(rampTimes, 0.9), 1)} s`);
+console.log(`speed at s0             p10 ${fmt(pct(s0kmh, 0.1))} · p50 ${fmt(pct(s0kmh, 0.5))} · p90 ${fmt(pct(s0kmh, 0.9))} km/h`);
+console.log(`spawns at the top       ${spawns.ok} in · ${spawns.blocked} blocked · ${spawns.held} held for you`);
 console.log(`position on the strip   p10 ${fmt(pct(pos, 0.1))} m · p50 ${fmt(pct(pos, 0.5))} m · p90 ${fmt(pct(pos, 0.9))} m   (from s0, strip ${CONFIG.rampStripM} m)`);
 console.log(`speed at the merge      p10 ${fmt(pct(kmh, 0.1))} · p50 ${fmt(pct(kmh, 0.5))} · p90 ${fmt(pct(kmh, 0.9))} km/h`);
 console.log(`speed difference        p10 ${fmt(pct(dvs, 0.1))} · p50 ${fmt(pct(dvs, 0.5))} · p90 ${fmt(pct(dvs, 0.9))} km/h   (to lane 0 there)`);

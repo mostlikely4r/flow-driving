@@ -27,6 +27,8 @@ const TYPE_PARAMS = {
 };
 
 const EURO_RULE_MIN_SPEED = 55 * KMH;
+// How far before the end of a ramp road (its gore, s0) a car indicates left.
+const RAMP_SIGNAL_M = 100;
 
 // ---------- neighbour search in a lane list sorted by u ----------
 function firstAbove(list, u) {
@@ -174,11 +176,14 @@ export class Traffic {
 
   /**
    * Add an on-ramp (F-20). It is not a closure: no red cross, no matrix sign,
-   * no arrow-board truck. Cars appear at s0 on the hard shoulder (lane -1, the
-   * acceleration strip, "invoegstrook") and have to merge into lane 0 before
-   * s1. A stopped obstacle just past s1 makes a car with no gap stop there.
+   * no arrow-board truck. With `roadM` the cars appear at the top of a ramp
+   * road (lane -1 from sTop to s0, so following and spacing work as on any
+   * lane) at ramp-top speed, drive down it, and then have the acceleration
+   * strip ("invoegstrook") to merge into lane 0 before s1. A stopped obstacle
+   * just past s1 makes a car with no gap stop there.
    */
-  addRamp(s0, { perMin = CONFIG.rampPerMin, stripM = CONFIG.rampStripM } = {}) {
+  addRamp(sTop, { perMin = CONFIG.rampPerMin, stripM = CONFIG.rampStripM, roadM = CONFIG.rampRoadM, truckShare = null } = {}) {
+    const s0 = sTop + roadM;
     const s1 = s0 + stripM;
     const obs = {
       id: -2000 - this.ramps.length,
@@ -196,7 +201,7 @@ export class Traffic {
       signalLane: -1,
       indicator: 0,
     };
-    const r = { s0, s1, obs, perMin, spawnT: this.rampGap(perMin), retryT: 0 };
+    const r = { sTop, s0, s1, roadM, obs, perMin, truckShare, spawnT: this.rampGap(perMin), retryT: 0, due: false, held: false };
     this.ramps.push(r);
     return r;
   }
@@ -396,12 +401,13 @@ export class Traffic {
     return veh;
   }
 
-  randomTypeVariant() {
+  randomTypeVariant(truckShare = null) {
     const mix = CONFIG.mix;
+    // a ramp that serves a distribution centre brings its share of lorries (F-40)
     const type = pickWeighted(this.rng, [
       ['car', mix.car],
       ['van', mix.van],
-      ['truck', mix.truck],
+      ['truck', truckShare != null ? truckShare : mix.truck],
       ['caravan', mix.caravan],
     ]);
     const variant = pickWeighted(this.rng, TYPE_VARIANTS[type]);
@@ -1015,19 +1021,35 @@ export class Traffic {
   }
 
   /**
-   * Invoegen (F-20): merging from an acceleration strip into lane 0. The car
-   * indicates left from the moment it appears and keeps the signal on (the
-   * F-38 closure-signal exception), merges once the gap is safe and it is
+   * Invoegen (F-20): merging from an acceleration strip into lane 0. A car on
+   * the ramp road upstream of the gore follows the car ahead and nothing else;
+   * from 100 m before the gore (s0) it indicates left and keeps the signal on
+   * (the F-38 closure-signal exception), merges once the gap is safe and it is
    * within its own speed band of lane 0, and in the last metres takes any safe
    * gap. With no gap it brakes for the end of the strip and stops there.
    */
   stripLogic(veh, dt) {
     if (veh.state === 'move') return this.advanceMove(veh, dt);
     const s = this.dir * veh.u;
+    // No merging before s0: on the ramp road the car just drives (and follows).
+    const ramp = veh.ramp;
+    const sigFrom = ramp && ramp.roadM > 0 ? ramp.s0 - RAMP_SIGNAL_M : -Infinity;
+    if (s < sigFrom) {
+      if (veh.state !== 'none') {
+        veh.state = 'none';
+        veh.targetLane = veh.lane;
+        veh.closureSig = false;
+      }
+      veh.signalLane = -1;
+      veh.indicator = 0;
+      veh.intent = -1;
+      return;
+    }
     const dEnd = this.closedAhead(-1, s); // metres to the end of the strip
     if (veh.state === 'none') this.beginSignal(veh, 0, true);
     veh.signalT += dt;
     veh.closureSig = true; // a merge signal may wait, never withdrawn
+    if (ramp && s < ramp.s0) return; // the gore: not before the strip begins
     if (!this.mergeReady(veh, dEnd)) return;
     const ev = this.evaluate(veh, 0);
     if (!ev.safe) return;
@@ -1184,36 +1206,54 @@ export class Traffic {
       this.insertAt(s, null, type, variant, { strictBehind: true });
     }
     // on-ramps add their own cars, so the edges above spawn fewer (F-20)
-    this.updateRamps(sMin, sMax);
+    this.updateRamps(sMin, sMax, sPlayer);
   }
 
   /**
    * On-ramp arrivals (F-20): one Poisson timer per ramp, frozen while the ramp
    * is outside the simulated range. A failed insertion (a car too close ahead
-   * on the strip) is retried a second later; nothing is queued. Called from
-   * maintain(), which runs every 0.2 s.
+   * on the ramp road) is retried a second later; nothing is queued. While the
+   * player is within rampSpawnHoldM of the ramp top the timer stays fired but
+   * nobody appears, so no car pops in at arm's length. Called from maintain(),
+   * which runs every 0.2 s.
    */
-  updateRamps(sMin, sMax) {
+  updateRamps(sMin, sMax, sPlayer) {
     const dt = 0.2;
     for (const r of this.ramps) {
-      if (r.s0 > sMax || r.s1 < sMin - 250) continue;
+      if (r.sTop > sMax || r.s1 < sMin - 250) continue;
       if (r.retryT > 0) {
         r.retryT -= dt;
         if (r.retryT > 0) continue;
-      } else {
+      } else if (!r.due) {
         r.spawnT -= dt;
         if (r.spawnT > 0) continue;
         r.spawnT = this.rampGap(r.perMin);
+        r.due = true;
       }
-      if (!this.spawnFromRamp(r)) r.retryT = 1;
+      if (sPlayer != null && Math.abs(sPlayer - r.sTop) < CONFIG.rampSpawnHoldM) {
+        r.held = true; // stay due, come as soon as the player is clear
+        continue;
+      }
+      r.held = false;
+      if (this.spawnFromRamp(r)) {
+        r.due = false;
+        r.retryT = 0;
+      } else {
+        r.retryT = 1; // no gap at the top: try again in a second
+      }
     }
   }
 
-  /** One car appears at the start of a ramp's strip, at entry speed. */
+  /** One car appears at the top of a ramp road (or the strip, with no ramp road), at entry speed. */
   spawnFromRamp(r) {
-    const [type, variant] = this.randomTypeVariant();
-    const kmh = Math.max(30, (type === 'truck' ? 60 : CONFIG.rampEntryKmh) + gauss(this.rng) * (type === 'truck' ? 5 : 6));
-    return this.insertAt(r.s0, -1, type, variant, { v: kmh * KMH });
+    const [type, variant] = this.randomTypeVariant(r.truckShare ?? null);
+    const truck = type === 'truck';
+    const kmh = r.roadM > 0
+      ? Math.max(20, (truck ? 35 : CONFIG.rampTopKmh) + gauss(this.rng) * (truck ? 5 : 8))
+      : Math.max(30, (truck ? 60 : CONFIG.rampEntryKmh) + gauss(this.rng) * (truck ? 5 : 6));
+    const veh = this.insertAt(r.sTop, -1, type, variant, { v: kmh * KMH });
+    if (veh) veh.ramp = r;
+    return veh;
   }
 
   // ---------------- main step ----------------

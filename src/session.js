@@ -15,6 +15,7 @@ import { Traffic } from './traffic.js';
 import { MSI, gantryIndexAt } from './msi.js';
 import { Journal } from './journal.js';
 import { SCENARIOS, applyScenario } from './scenarios.js';
+import { junctionsNear, junctionHasEstate } from './junctions.js';
 
 const IDLE = { steer: 0, throttle: 0, brake: 0, analog: false };
 
@@ -32,6 +33,7 @@ export function bindSim({ road, player, traffic, msi = null, rng = Math.random, 
     journal: journal || new Journal(),
     notices: [], // sim-level things the renderer/HUD may want to show
     scenario: scenario || null,
+    ramps: new Map(), // junction block -> the ramp the sim has for it (F-20)
   };
 }
 
@@ -59,6 +61,7 @@ export function createSim({ seed, timeOfDay, scenario = null, rng = Math.random 
   const msi = (traffic.msi = new MSI(traffic));
   player.update(0.001, IDLE, { vehicles: [], lanes: [] });
   if (sc) {
+    if (sc.player.s != null) player.s = sc.player.s; // a junction scenario starts at its own place
     player.placeInLane(sc.player.lane, sc.player.kmh ?? 100);
     applyScenario(traffic, sc, player.s);
     player.update(0.001, IDLE, traffic);
@@ -97,6 +100,7 @@ export function stepSim(sim, dt, ctl) {
   for (let i = 0; i < tsub; i++) sim.traffic.step(dt / tsub, p.s, p.proxy);
   if (sim.msi) sim.msi.update(dt, p.s);
   updateClosures(sim, dt);
+  updateJunctionRamps(sim);
   sim.journal.tick(dt, p, sim.traffic, playerLimit(sim));
   sim.time += dt;
 }
@@ -131,6 +135,31 @@ export function updateClosures(sim, dt) {
     }
   }
   sim.lastGantry = gi;
+}
+
+/**
+ * On-ramps in free play (F-20). One ramp per junction, kept while it is in the
+ * simulated range and removed once well behind, the way closures are. Ramps are
+ * tracked by junction block, so a ramp is never added twice. `sim.ramps` holds
+ * the ones the sim has; `traffic.ramps` is what the sim and the scenery read.
+ */
+export function updateJunctionRamps(sim) {
+  const { player, traffic } = sim;
+  if (sim.scenario || !CONFIG.rampsFreePlay) return;
+  const sMin = player.s - CONFIG.rangeBehind;
+  const sMax = player.s + CONFIG.rangeAhead + 500;
+  for (const j of junctionsNear(sMin, sMax)) {
+    if (j.rampTop < sMin || j.rampTop > sMax) continue;
+    if (sim.ramps.has(j.b)) continue;
+    const perMin = CONFIG.rampPerMin * (traffic.densityScale ?? 1);
+    const truckShare = junctionHasEstate(j) ? 0.3 : null; // lorries from the estate beside it (F-40)
+    sim.ramps.set(j.b, traffic.addRamp(j.rampTop, { perMin, truckShare }));
+  }
+  for (const [b, r] of sim.ramps) {
+    if (r.s1 >= player.s - CONFIG.rangeBehind - 200) continue;
+    traffic.removeRamp(r);
+    sim.ramps.delete(b);
+  }
 }
 
 /** A key press, exactly as handlePresses maps it. Returns false for other keys. */

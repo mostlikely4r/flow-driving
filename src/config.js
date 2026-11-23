@@ -48,9 +48,14 @@ export const DEFAULTS = {
   politeness: 1.0, // scales how much AI lets others in / moves right for faster cars
 
   // --- on-ramps (F-20) ---
-  rampStripM: 350, // length of the acceleration strip, from where cars appear to its end
+  junctionEveryKm: [3, 6], // spacing between junctions in free play (one per block)
+  rampRoadM: 400, // length of the on-ramp road, from the crossing road to the start of the strip
+  rampTopKmh: 50, // mean speed at the ramp top for cars (sd 8); trucks 35 (sd 5)
+  rampsFreePlay: true, // on-ramps at junctions in free play (off = scenery only)
+  rampSpawnHoldM: 120, // no car appears while you are this close to the ramp top
+  rampStripM: 350, // length of the acceleration strip, from the start of the strip to its end
   rampPerMin: 6, // mean cars per minute entering from a ramp (Poisson)
-  rampEntryKmh: 80, // mean speed entering the strip for cars (sd 6); trucks 60 (sd 5)
+  rampEntryKmh: 80, // mean speed entering the strip for cars (sd 6); trucks 60 (sd 5). Only used with rampRoadM 0
   mergeKmhDefault: 12, // merge once within this many km/h of lane-0 traffic, if the gap is safe
   mergeLastM: 120, // in the last this many metres of the strip any safe gap will do
 

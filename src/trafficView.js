@@ -4,6 +4,7 @@ import { createVehicleVisual, applyLook } from './vehicles.js';
 import { lookFor } from './archetypes.js';
 import { mulberry32, clamp } from './util.js';
 import { CONFIG } from './config.js';
+import { rampProfile } from './junctions.js';
 
 const COL = {
   head: [1, 0.93, 0.82],
@@ -63,8 +64,8 @@ export class TrafficView {
    * Position a visual. Shared by AI and player.
    * (x,z,yaw) is the centre of the front body.
    */
-  static pose(vis, x, z, yaw, pitch, roll = 0) {
-    vis.front.position.set(x, 0, z);
+  static pose(vis, x, z, yaw, pitch, roll = 0, y = 0) {
+    vis.front.position.set(x, y, z);
     vis.front.rotation.set(pitch, yaw, roll);
     if (vis.trailer) {
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
@@ -87,7 +88,7 @@ export class TrafficView {
   }
 
   /** Emit glows for one part. state: {night, brake, indL, indR, markers} */
-  static glowPart(glow, part, emitters, cam, st, scaleAll = 1) {
+  static glowPart(glow, part, emitters, cam, st, scaleAll = 1, yOff = 0) {
     const yaw = part.rotation.y;
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const px = part.position.x, pz = part.position.z;
@@ -136,7 +137,7 @@ export class TrafficView {
         default:
           continue;
       }
-      const ex = e.pos.x, ey = e.pos.y, ez = e.pos.z;
+      const ex = e.pos.x, ey = e.pos.y + yOff, ez = e.pos.z;
       const wx = px + ex * c + ez * s;
       const wz = pz - ex * s + ez * c;
       const dxw = e.dir.x * c + e.dir.z * s;
@@ -187,13 +188,26 @@ export class TrafficView {
         }
         vis.root.visible = true;
         const fc = s + dir * (veh.len / 2 - veh.frontLen / 2);
-        const latW = dir * veh.latLocal;
+        // On a ramp road (F-20) the car follows the road up to the crossing road:
+        // lateral offset and height come from the path, not from the lane.
+        const ramp = veh.lane === -1 ? veh.ramp : null;
+        const onRamp = ramp && fc < ramp.s0;
+        let latW, y = 0, latRate = veh.latRate;
+        if (onRamp) {
+          const a = rampProfile(ramp.sTop, ramp.s0, fc);
+          const dd = (rampProfile(ramp.sTop, ramp.s0, fc + 2).lat - rampProfile(ramp.sTop, ramp.s0, fc - 2).lat) / 4;
+          latW = dir * a.lat;
+          y = a.y;
+          latRate = dd * Math.max(veh.v, 2);
+        } else {
+          latW = dir * veh.latLocal;
+        }
         const p = road.sample(fc);
         const x = p.x + p.nx * latW;
         const z = p.z + p.nz * latW;
-        const yaw = p.h + (dir < 0 ? Math.PI : 0) - Math.atan2(veh.latRate, Math.max(veh.v, 2));
+        const yaw = p.h + (dir < 0 ? Math.PI : 0) - Math.atan2(latRate, Math.max(veh.v, 2));
         const pitch = clamp(-veh.acc * 0.0045, -0.012, 0.02);
-        TrafficView.pose(vis, x, z, yaw, pitch);
+        TrafficView.pose(vis, x, z, yaw, pitch, 0, y);
 
         // lamps
         const phase = (time + (veh.id % 7) * 0.09) % 0.72;
@@ -214,8 +228,8 @@ export class TrafficView {
         const dist = Math.abs(ds);
         if (dist < 1500) {
           const st = { night, brake: veh.brake, indL, indR, head: true, lights };
-          TrafficView.glowPart(this.glow, vis.front, vis.emFront, cam, st);
-          if (vis.trailer) TrafficView.glowPart(this.glow, vis.trailer, vis.emTrailer, cam, st);
+          TrafficView.glowPart(this.glow, vis.front, vis.emFront, cam, st, 1, y);
+          if (vis.trailer) TrafficView.glowPart(this.glow, vis.trailer, vis.emTrailer, cam, st, 1, y);
         }
         if (night && dist < 700) {
           const fx = Math.sin(yaw), fz = Math.cos(yaw);

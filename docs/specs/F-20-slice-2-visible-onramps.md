@@ -1,6 +1,6 @@
 # F-20 slice 2: visible on-ramps (spec)
 
-Status: written 2026-11-23, not built · BACKLOG item **F-20** (M2: The road breathes) ·
+Status: built 2026-11-23 · BACKLOG item **F-20** (M2: The road breathes) ·
 Baseline commit `d3f0a8e` · Follows [F-20-slice-1-onramps.md](F-20-slice-1-onramps.md)
 
 ## Why
@@ -256,7 +256,7 @@ coming down it show before they reach the strip.
 
 ## Steps
 
-### 1. Ramp road in the sim, and the stall check
+### 1. Ramp road in the sim, and the stall check — *built*
 
 - `src/junctions.js` (placement, marks and paths; no scenery yet), the CONFIG keys, and the
   **Sim: the ramp road** rules.
@@ -277,7 +277,7 @@ coming down it show before they reach the strip.
   it), `npm run onramp`.
 - Commit: "On-ramps slice 2 P1: ramp road in the sim (F-20)".
 
-### 2. The junction on screen, ramps in free play
+### 2. The junction on screen, ramps in free play — *built*
 
 - Everything under **Scenery**, **Rendering cars**, **Lane map**, **Scenarios** and **Sim: ramps
   in free play**.
@@ -293,7 +293,7 @@ coming down it show before they reach the strip.
 **Stop here for the user to try** (see **Try it**). Per AGENTS.md this is a look, not a gate: if
 the user isn't around, carry on and note it.
 
-### 3. Estates next to junctions (*proposal*, small)
+### 3. Estates next to junctions (*proposal*, small) — *built*
 
 - In `estate(b)`: if a junction lies in the estate block, place the estate on the on-ramp side.
   Its car park starts 150–400 m past `rampTop` (in s), and the building line stays clear of
@@ -303,7 +303,7 @@ the user isn't around, carry on and note it.
 - Quick check: `npm run build`, `npm run onramp` (one run, nothing collapses), and a shot.
 - Commit: "On-ramps slice 2 P3: distribution centres at junctions (F-20, F-40)".
 
-### 4. README and BACKLOG
+### 4. README and BACKLOG — *built*
 
 - README: junctions in free play, `rampsFreePlay`, the new `onramp` arguments, and the
   scenarios' new start.
@@ -367,4 +367,115 @@ and strip on the lane map.
 
 ## Results
 
-*(filled in by the build)*
+Built 2026-11-23, steps 1–4. Full check (`build`, `simtest`, `personas`, `moments`, `bottest`) took
+about 90 s wall clock; the 36 `onramp` runs below about 12 min, in the background.
+
+### Placement
+
+A one-off probe against `src/junctions.js`, blocks −5..19: spacing 3.72–5.74 km, the closest gantry
+61 m (junction 1), block 0 at 2500, nothing dropped. `junctionsNear(0, 3000)` returns junction 0 only.
+
+### Step 1: the 12 runs
+
+`npm run onramp <lanes> <density> 6 10 <seed> <road>` — one ramp, ramp top at s 700, strip 350 m,
+6/min. `road=0` is slice 1 (cars appear at the start of the strip at 80 km/h) and reproduces the
+slice-1 table exactly; `road=300`/`400` put that distance in front of the strip instead.
+
+| run | merges | pos p50 | km/h p50 | stops | stops/merge | longest | s0 km/h p50 | ramp s p50 | lane 0 near / 1 km up | veh/min | coll | em |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2L D8 S7 · road 0 | 54 | 187 m | 65 | 16 | 0.30 | 109 s | – | – | 53 (−35) | 33 | 0 | 0 |
+| 2L D8 S8 · road 0 | 42 | 228 m | 67 | 8 | 0.19 | 112 s | – | – | 71 (−17) | 32 | 0 | 0 |
+| 2L D12 S7 · road 0 | 31 | 142 m | 67 | 37 | 1.19 | 158 s | – | – | 46 (−37) | 41 | 0 | 1 |
+| 2L D12 S8 · road 0 | 42 | 234 m | 45 | 16 | 0.38 | 145 s | – | – | 40 (−43) | 40 | 0 | 0 |
+| 2L D16 S7 · road 0 | 47 | 249 m | 24 | 50 | 1.06 | 224 s | – | – | 44 (−27) | 43 | 0 | 0 |
+| 2L D16 S8 · road 0 | 42 | 255 m | 40 | 22 | 0.52 | 260 s | – | – | 39 (−32) | 44 | 0 | 0 |
+| 3L D8 S7 · road 0 | 38 | 287 m | 41 | 12 | 0.32 | 98 s | – | – | 42 (−44) | 47 | 0 | 0 |
+| 3L D8 S8 · road 0 | 45 | 244 m | 47 | 18 | 0.40 | 138 s | – | – | 46 (−38) | 47 | 0 | 0 |
+| 3L D12 S7 · road 0 | 38 | 178 m | 68 | 38 | 1.00 | 170 s | – | – | 54 (−26) | 63 | 0 | 0 |
+| 3L D12 S8 · road 0 | 37 | 205 m | 60 | 9 | 0.24 | 248 s | – | – | 58 (−22) | 62 | 0 | 0 |
+| 3L D16 S7 · road 0 | 36 | 241 m | 23 | 85 | 2.36 | 110 s | – | – | 39 (−10) | 63 | 0 | 0 |
+| 3L D16 S8 · road 0 | 53 | 181 m | 46 | 38 | 0.72 | 118 s | – | – | 40 (−35) | 63 | 0 | 0 |
+| **road 0 total** | **505** | | | **349** | **0.69** | | | | | | 0 | 1 |
+| 2L D8 S7 · road 400 | 50 | 212 m | 64 | 12 | 0.24 | 80 s | 80 | 18.7 | 63 (−25) | 34 | 0 | 0 |
+| 2L D8 S8 · road 400 | 49 | 267 m | 48 | 19 | 0.39 | 79 s | 86 | 18.4 | 57 (−31) | 35 | 0 | 0 |
+| 2L D12 S7 · road 400 | 39 | 249 m | 27 | 28 | 0.72 | 135 s | 81 | 18.8 | 40 (−44) | 44 | 0 | 0 |
+| 2L D12 S8 · road 400 | 46 | 214 m | 15 | 66 | 1.43 | 149 s | 78 | 18.8 | 42 (−42) | 43 | 0 | 0 |
+| 2L D16 S7 · road 400 | 41 | 228 m | 13 | 203 | 4.95 | 133 s | 70 | 21.1 | 40 (+7) | 46 | 0 | 1 |
+| 2L D16 S8 · road 400 | 30 | 254 m | 9 | 63 | 2.10 | 241 s | 71 | 21.8 | 41 (−15) | 46 | 0 | 0 |
+| 3L D8 S7 · road 400 | 42 | 184 m | 67 | 7 | 0.17 | 145 s | 82 | 19.0 | 65 (−20) | 49 | 0 | 0 |
+| 3L D8 S8 · road 400 | 39 | 250 m | 65 | 8 | 0.21 | 125 s | 84 | 19.0 | 69 (−16) | 50 | 0 | 0 |
+| 3L D12 S7 · road 400 | 38 | 272 m | 45 | 103 | 2.71 | 146 s | 73 | 19.2 | 41 (−41) | 68 | 0 | 0 |
+| 3L D12 S8 · road 400 | 25 | 262 m | 13 | 473 | 18.92 | 91 s | 60 | 26.3 | 37 (−44) | 67 | 0 | 0 |
+| 3L D16 S7 · road 400 | 24 | 235 m | 20 | 286 | 11.92 | 143 s | 61 | 19.7 | 42 (−33) | 70 | 0 | 0 |
+| 3L D16 S8 · road 400 | 29 | 255 m | 8 | 170 | 5.86 | 177 s | 76 | 20.5 | 40 (−17) | 70 | 0 | 1 |
+| **road 400 total** | **452** | | | **1438** | **3.18** | | | | | | 0 | 2 |
+| road 300 total (12 runs) | 432 | | | 1458 | 3.38 | | 26–86 | 14–26 | 36–62 | 34–73 | 0 | 1 |
+
+At density ≤ 12 (the 8 runs the target is about): road 0 median 0.32 stops per merge (0.19–1.19),
+road 300 median 0.85 (0.32–10.05), road 400 median 0.56 (0.17–18.92).
+
+**Read it as a finding, not as tuning:** the ramp road does **not** remove the stalls. It moves the
+extra distance to *in front of* the merge point, where a car on a free ramp already arrives at
+lane-0 speed (speed at the gore p50 73–86 km/h at density ≤ 12), while the jam at the end of the
+strip now queues along the ramp road too — so every car in a longer queue records a stop, and fewer
+cars merge at all (452 against 505 in 12 runs). The mechanism slice 1 measured is unchanged: a
+stalled merger needs a 100–180 m gap in lane 0, and lane 0 still makes no room (that is slice 3).
+The target (under 1 stop in 10 merges at density ≤ 12) is **missed by both**, and this is the
+measurement slice 3 should start from, not a ramp-geometry knob.
+
+**`rampRoadM` 400 over 300** (the one lever step 1 allows): at density ≤ 12 the median stop rate is
+0.56 against 0.85, and the speed at the gore stays ≥ 60 km/h in every run where 300 dipped to 26;
+merge counts are slightly higher (306 against 287 at ≤ 12). Both leave the stall problem intact, so
+400 is picked for the extra room to reach speed, not because it fixes anything.
+
+Checks in all 36 runs: 0 collisions, 2 emergency stops (both at density 16, both away from the
+merge), 0 cars in lane −1 outside a ramp's span, 0 cars moving into lane −1, no lane change started
+before `s0`. `simtest` is byte-identical to `d3f0a8e`; `personas` 55/55, `moments` 5/5 (2 probes),
+`bottest` 30/30 `ok` unchanged; `npm run scenario onramp` and `onramp-busy` run and merge.
+
+### What changed from the plan
+
+1. **The scenarios start 900 m before `s0`, not "about 250 m before the bridge".** Those are not the
+   same number: with `rampRoadM` 400, `s0 − 900` is 485 m before the bridge. The explicit "900 m
+   before `s0`" was built; the parenthetical does not follow from it. At that start you meet the
+   exit lane 65 m ahead, the gore, the bridge, the ramp top and then the merge — the direction signs
+   (`signA`/`signB`) and part of the *afritbakens* are already behind you. Free play is where you
+   see the whole junction from 1200 m. Moving the start is one number (`RAMP_START` in
+   `scenarios.js`) if the signs should be in the scenario too.
+2. **`junctionEveryKm` is really used**: the junction block is `(min + max) / 2 × 1000` m and the
+   bridge sits in the middle third of it, so the key drives placement instead of documenting it.
+3. **`DUTCH_PLACES`/`ROUTES` moved to `junctions.js`**, as allowed.
+4. **`overpass()` grew `opts`** (`skew`, `plateau`) instead of a second bridge builder: a junction's
+   embankment has a flat top at 6.9 m from the deck out to `G + 70` so the ramp road starts on it,
+   then slopes to the ground by `G + 120`. The crossing road runs over the deck and down that slope
+   into the polder out to ±300 m, with a centre line.
+5. **The ramp road widens at the top**: 6 m up on the embankment, narrowing to the strip's own
+   3.5 m where it meets the gore, so it never overlaps lane 0 (a constant 6 m ribbon would have).
+6. **Extras not in the plan:** the whole junction is mirrored for the other carriageway (bridge,
+   crossing road, ramp and exit roads, signs, hatching), not just the signs; the strip's outer edge
+   line is drawn where the pavement widens; the gore apron is hatched over its last 90 m on each
+   side; a junction's ramp top holds spawning while you are within `rampSpawnHoldM` of it.
+7. **Estates**: the decision ("does this junction have one") lives in `junctions.js`
+   (`junctionAtEstateBlock`, `junctionHasEstate`) because the sim needs it too (30% trucks on that
+   ramp); the geometry stays in `scenery.js`. The estate's building line moves out to `E + 150..200`
+   so its service road meets the crossing road where that is already at ground level.
+8. **Stops are counted on the ramp road too** (every car in lane −1 that stands for over a second
+   in `[sTop, s1 + 20]`), which is why the ramp-road rows show so many more stop episodes than
+   slice 1 for the same jams.
+
+### Not in this build
+
+Unchanged from the list above, and one more: the end of the strip still stalls merge candidates
+because lane 0 makes no room, which is the first thing slice 3 should measure. `rampRoadM` was left
+at 400; `rampTopKmh` 50 (trucks 35, sd 8/5) is the plan's guess, confirmed only indirectly — the
+gore speed in a free run is 73–86 km/h, so the ramp road does its job when nothing is queued.
+
+### Try it
+
+`npm run dev`, start free play, stay in lane 0 or 1. Within about a minute: an exit sign (1200 m), a
+second (600 m), then the 3-2-1 *afritbakens* and the exit lane opening on the right. A bridge
+follows. Just after it, cars come down the ramp on your right, signal near the end of the hatched
+gore, and merge from the strip. Keep driving: the next junction comes 3-6 km on. Then try
+`?scenario=onramp-busy` and the night (T) to see the lit junction. U shows the ramp road and strip
+on the lane map.
+

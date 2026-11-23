@@ -15,6 +15,12 @@ import { laneLat } from './layout.js';
 import { VARIANTS } from './variants.js';
 import { ARCHETYPES } from './archetypes.js';
 import { defaultVariant, personaSeed, sampleSpec } from './personaSpec.js';
+import { junction, junctionHasEstate } from './junctions.js';
+
+// Where the on-ramp scenarios start: 900 m before junction 0's strip begins
+// (about 600 m before its bridge), so you meet the signs, the countdown
+// markers, the exit lane and then the cars coming down the ramp.
+const RAMP_START = junction(0).s0 - 900;
 
 export const SCENARIOS = {
   elephant: {
@@ -179,16 +185,17 @@ export const SCENARIOS = {
   onramp: {
     title: 'Merging from the on-ramp',
     about:
-      'Three lanes. About 600 m ahead cars appear on the hard shoulder with their left indicator on, ' +
-      'speed up to the speed of the right lane and slot in where there is a gap. Lane 0 does not make ' +
-      'room on purpose yet, so a merger can have to run to the end of the strip. ' +
-      'Watch the lane map (U): the strip is a short band right of lane 0.',
+      'Three lanes. You are at a junction: the exit lane opens on the right, then the bridge over the ' +
+      'motorway. Just after it cars come down the ramp road from the crossing road on your right, signal ' +
+      'near the end of the hatched gore and merge on the strip where there is a gap. Lane 0 does not make ' +
+      'room on purpose yet, so a merger can have to run to the end of the strip. Watch the lane map (U): ' +
+      'the ramp road is the faint band right of lane 0.',
     lanes: 3,
     timeOfDay: 'day',
     seed: 24,
     density: 10,
-    ramps: [{ ds: 600 }],
-    player: { lane: 1, kmh: 100, want: 104 },
+    junctions: [{ b: 0 }],
+    player: { s: RAMP_START, lane: 1, kmh: 100, want: 104 },
     vehicles: (() => {
       const r = mulberry32(93);
       const out = [];
@@ -210,14 +217,15 @@ export const SCENARIOS = {
   'onramp-busy': {
     title: 'Busy on-ramp',
     about:
-      'Three lanes, twice the traffic and twice the ramp flow. Some cars run to the end of the strip and ' +
-      'zip in there; the lane you are watching the ramp from gets busier too. Lane map: U.',
+      'Three lanes, twice the traffic and twice the ramp flow, at the same junction: signs, countdown ' +
+      'markers, exit lane, bridge, then a steady stream of cars down the ramp road. Some run to the end ' +
+      'of the strip and zip in there; the lane you are watching the ramp from gets busier too. Lane map: U.',
     lanes: 3,
     timeOfDay: 'day',
     seed: 25,
     density: 16,
-    ramps: [{ ds: 600, perMin: 12 }],
-    player: { lane: 1, kmh: 100, want: 104 },
+    junctions: [{ b: 0, perMin: 12 }],
+    player: { s: RAMP_START, lane: 1, kmh: 100, want: 104 },
     vehicles: (() => {
       const r = mulberry32(94);
       const out = [];
@@ -951,6 +959,12 @@ export function applyScenario(traffic, sc, sPlayer, { includeYou = false } = {})
   for (const c of sc.closures || []) traffic.addClosure(c.lane, sPlayer + c.ds, sPlayer + c.ds + c.len);
   traffic.ramps.length = 0;
   for (const r of sc.ramps || []) traffic.addRamp(sPlayer + r.ds, r.perMin != null ? { perMin: r.perMin } : {});
+  for (const jr of sc.junctions || []) {
+    const j = junction(jr.b);
+    const opts = { truckShare: junctionHasEstate(j) ? 0.3 : null };
+    if (jr.perMin != null) opts.perMin = jr.perMin;
+    traffic.addRamp(j.rampTop, opts);
+  }
   const specs = [...sc.vehicles];
   if (includeYou) specs.push({ tag: 'you', type: 'car', variant: 'estate', lane: sc.player.lane, ds: 0, kmh: sc.player.kmh, want: sc.player.want });
   const placed = [];
