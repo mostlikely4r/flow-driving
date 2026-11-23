@@ -1,6 +1,6 @@
 # Spec: real-sim stage test for the moment detectors (F-37)
 
-Status: ready to build · Written 2026-11-21 · Part of **Proefrit (F-37)**, see `BACKLOG.md`
+Status: ready to build · Written 2026-11-21 · Part of **Proefrit (F-37)**, see `docs/F-37-proefrit.md`
 
 ## Why
 

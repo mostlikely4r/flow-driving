@@ -1,9 +1,10 @@
 # Flow Driving
 
 A traffic driving game on Dutch roads about being part of traffic, not racing through it. JavaScript,
-Three.js, Vite. `README.md` explains what is simulated and how to run each tool; `BACKLOG.md`
-holds the vision, the pillars (Authentic, Readable traffic, Calm), how items are scored, the
-milestones and every feature by ID. Read the pillars before proposing anything.
+Three.js, Vite. `README.md` explains what is simulated and how to run each tool;
+`docs/vision.md` holds the vision, the pillars (Authentic, Readable traffic, Calm), how items are
+scored and the milestones; `BACKLOG.md` holds every feature by ID, in the vibeview format
+(`~/Desktop/vibeview/FORMAT.md`). Read the pillars before proposing anything.
 
 ## Commands
 
@@ -29,7 +30,8 @@ Read by `/spec` and `/build`.
 
 - **Plans:** `docs/specs/<ID>-<name>.md`, with the BACKLOG feature ID when there is one (for
   example `F-37-slice-2`). Style: `docs/F-37-slice-2.md` (goal and non-goals, baseline, then
-  numbered steps). The plan names its BACKLOG item, and the item's status links to the plan.
+  numbered steps). The plan names its BACKLOG item, and the item's `plan:` field links to the
+  plan.
 - **Private:** nothing.
 - **Quick check:** `npm run build`, plus the one headless tool closest to the change (`simtest`
   for the traffic model, `personas` for archetypes, `moments` for detectors, `bottest` for the
@@ -41,10 +43,11 @@ Read by `/spec` and `/build`.
 - **Review:** from the repo root, against the uncommitted tree:
 
       codex exec review -m gpt-6-luna --uncommitted "This change builds <plan path>.
-      Judge it against that plan, AGENTS.md and the pillars in BACKLOG.md: report bugs, missed
+      Judge it against that plan, AGENTS.md and the pillars in docs/vision.md: report bugs, missed
       plan requirements and checks missing; skip style nits. Touched: <files>. Checks: <run>."
 
-- **Done also means:** the BACKLOG item's status says what was built, in its usual style.
+- **Done also means:** the BACKLOG item's `status:` field is updated (`built`, or `building`
+  while slices remain) and its text gets a line on what was built, in its usual style.
 - **Human drives guide, they don't gate:** a plan may suggest a drive or scenario to try, but
   never waits on one. The headless checks and a quick look at the scenario are enough to close an
   item. When the user drives and brings a journal or report, that starts a new session.

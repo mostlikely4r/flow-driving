@@ -5,14 +5,14 @@ new idea before you build it, so we can agree it fits the game first.
 
 ## What a change is judged by
 
-The pillars in [BACKLOG.md](BACKLOG.md), in this order:
+The pillars in [docs/vision.md](docs/vision.md), in this order:
 
 1. **Authentic.** Dutch rules, roads, signs and driver habits.
 2. **Readable traffic.** Situations you can see building up and predict.
 3. **Calm.** Nothing rewards speed, reflexes or risk.
 
 Visual quality is a quality bar, not a reason on its own. Read the vision and the pillars in
-`BACKLOG.md` before proposing a feature; a change that breaks one of them will be asked to change,
+`docs/vision.md` before proposing a feature; a change that breaks one of them will be asked to change,
 however nice it looks.
 
 ## Before a pull request

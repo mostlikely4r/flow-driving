@@ -331,7 +331,7 @@ All present at `1e93d31` (checked while writing this spec):
   starting overtakes 150 m+ early. A separate item.
 - `phantom-brake`: the unmarked "braked twice for an empty middle lane" (8:10, 8:21 in the human
   drive), plus the known gaps (closure obstacles are not journal rows, and 2 Hz misses short
-  taps). See "Open: what the stage test cannot see yet" in `BACKLOG.md`.
+  taps). See "Open: what the stage test cannot see yet" in `docs/F-37-proefrit.md`.
 - A van's flickering rear windows (mark at 1:15; probably two surfaces drawn in the same place), and the night fps dips (min 20, 94 s under 30 fps).
 - The bot's own gate failing on every seed (`run.json` `failed: 5`: right share and p50 both can't
   hold on default traffic). Known from F-37 slice 2. Don't read it as a result of this change.

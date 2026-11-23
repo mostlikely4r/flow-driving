@@ -1,6 +1,6 @@
 # F-37 slice 2: bot driver and runner (spec)
 
-Status: ready to build. Part of "Proefrit: the playtest loop (F-37)" in `BACKLOG.md`; read that
+Status: ready to build. Part of "Proefrit: the playtest loop (F-37)" in `docs/F-37-proefrit.md`; read that
 section first. This document only covers slice 2.
 
 ## 1. Goal and non-goals

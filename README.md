@@ -13,8 +13,8 @@ No install.
 
 **An authentic Dutch driving simulator where the game is being part of traffic.**
 
-Three pillars decide every argument, in this order ([BACKLOG.md](BACKLOG.md) has the vision, the
-milestones and every feature):
+Three pillars decide every argument, in this order ([docs/vision.md](docs/vision.md) has the vision
+and the milestones, [BACKLOG.md](BACKLOG.md) every feature):
 
 1. **Authentic.** Dutch rules, roads, signs and driver habits. When in doubt, do what really
    happens on the A12 at 17:30, not what is convenient or "gamey".
