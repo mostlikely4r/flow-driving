@@ -74,8 +74,10 @@ Everything below is how the simulation works, what to tune, and the tools that c
 - **Road** (`src/road.js`, `src/scenery.js`): endless procedural A-road with gentle clothoid curves,
   3 lanes plus a hard shoulder, concrete median barrier, guardrails, ditches, polder fields,
   hectometre posts, matrix-sign gantries, blue guide signs, 100 (6-19 h) / 130 (19-6 h) signs,
-  viaducts, noise walls, lit stretches, farms, poplars, wind turbines and distribution centres
-  (estates of 1-3 boxes with docks, trailers, an office and a lit logo).
+  viaducts, noise walls, lit stretches, farms, poplars, wind turbines, distribution centres
+  (estates of 1-3 boxes with docks, trailers, an office and a lit logo) and **junctions** every
+  3-6 km: exit signs, *afritbakens*, an exit lane, a bridge, and an on-ramp road that AI cars drive
+  down onto the acceleration strip.
 - Day (limit 100), dusk and night (limit 130). Live interior and side mirrors.
 
 ### Checks
@@ -183,19 +185,34 @@ withdrawn after 6 s or more, re-signals within 20 s and who blocked them) for a 
 
 `src/msi.js`, `src/closureView.js`: gantries every 500 m show a queue warning (flashing 50 / 70) behind slow traffic by themselves, and arrow / red cross / 70 around a lane closure. Closures appear at random in free play (`closuresPer10km`), or try `?scenario=closure` in dev mode. `node tools/closure.js [lanes] [density] [closedLane] [minutes]` checks safety and throughput headless.
 
-### On-ramps (slice 1: sim only)
+### On-ramps and junctions
 
-`src/traffic.js` (`addRamp`, `stripLogic`, `mergeReady`): an acceleration strip
-(`invoegstrook`) is lane −1, on the hard shoulder, so nothing else in the model had to move.
-Cars appear at the start of the strip at ~80 km/h (trucks 60), indicate left from the moment they
-appear, speed up to lane-0 speed and merge into the first safe gap; near the end they take a tight
-zipper gap, and with no gap at all they stop at the end of the strip. A merger gives way: it waits
-for a gap it can hold, and lane 0 makes no room for it yet (that is slice 3). `?scenario=onramp`
-(3 lanes, quiet) and `?scenario=onramp-busy` (denser, twice the ramp flow) show it in dev mode;
-`npm run onramp [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7]` measures merges, gaps,
-stops at the end, follower braking, lane-0 speed near the ramp and throughput (`CFG_<key>=<value>`
-overrides, as in `closure.js`). Knobs: `rampStripM`, `rampPerMin`, `rampEntryKmh`,
-`mergeKmhDefault`, `mergeLastM` in `config.js`, plus `mergeKmh` per archetype.
+`src/junctions.js` places a junction every 3–6 km from s alone (block 0 fixed at 2500, so free play
+meets one within a minute), nudged clear of the matrix and ANWB gantries. A junction is a place on
+the road: a blue exit direction sign at 1200 m and at 600 m, the 3-2-1 *afritbakens* at 300/200/100
+m, the exit lane opening (`exitStart`), its gore (`exitGore`), the bridge over the motorway, and
+then the on-ramp road coming down from the crossing road to the acceleration strip. Both
+carriageways get the same junction mirrored, and it is lit from the exit lane to the end of the
+strip. Scenery draws it; nothing else has to know where a junction is.
+
+`src/traffic.js` (`addRamp`, `stripLogic`, `mergeReady`): the ramp road and the acceleration strip
+(`invoegstrook`) are both lane −1 — the ramp road upstream, the strip from `s0` to `s1`. Cars appear
+at the top of the ramp road at ~50 km/h (trucks 35), drive down it, indicate left from 100 m before
+the strip, speed up to lane-0 speed and merge into the first safe gap; near the end they take a
+tight zipper gap, and with no gap at all they stop at the end of the strip. A merger gives way: it
+waits for a gap it can hold, and lane 0 makes no room for it yet (that is slice 3). No car appears
+out of thin air on the motorway, and none appears while you are within `rampSpawnHoldM` of a ramp
+top.
+
+Free play adds one ramp per junction while it is in the simulated range (`rampsFreePlay`, off =
+scenery only), at `rampPerMin × densityScale`. `?scenario=onramp` places you at junction 0, before
+the exit lane and the bridge; `onramp-busy` is the same junction with twice the traffic and twice
+the ramp flow. `npm run onramp [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7] [road=400]`
+measures merges, gaps, stops at the end, stops per merge, ramp-road time, speed at the end of the
+ramp road, follower braking, lane-0 speed near the ramp and throughput (`road=0` is the slice-1
+strip without a ramp road; `CFG_<key>=<value>` overrides, as in `closure.js`). Knobs: `rampRoadM`,
+`rampTopKmh`, `rampStripM`, `rampPerMin`, `rampSpawnHoldM`, `rampEntryKmh`, `mergeKmhDefault`,
+`mergeLastM`, `junctionEveryKm`, `rampsFreePlay` in `config.js`, plus `mergeKmh` per archetype.
 
 ### Lane map
 
