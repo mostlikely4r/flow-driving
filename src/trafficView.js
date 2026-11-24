@@ -2,7 +2,7 @@
 // their lamps into the glow / beam systems.
 import { createVehicleVisual, applyLook } from './vehicles.js';
 import { lookFor } from './archetypes.js';
-import { mulberry32, clamp } from './util.js';
+import { mulberry32, clamp, slipAngle } from './util.js';
 import { CONFIG } from './config.js';
 import { rampProfile } from './junctions.js';
 
@@ -205,7 +205,7 @@ export class TrafficView {
         const p = road.sample(fc);
         const x = p.x + p.nx * latW;
         const z = p.z + p.nz * latW;
-        const yaw = p.h + (dir < 0 ? Math.PI : 0) - Math.atan2(latRate, Math.max(veh.v, 2));
+        const yaw = p.h + (dir < 0 ? Math.PI : 0) - slipAngle(latRate, veh.v);
         const pitch = clamp(-veh.acc * 0.0045, -0.012, 0.02);
         TrafficView.pose(vis, x, z, yaw, pitch, 0, y);
 

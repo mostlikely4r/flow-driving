@@ -25,7 +25,7 @@ import { rigRoadTexture } from './textures.js';
 import { TrafficView } from './trafficView.js';
 import { DemoSession } from './demoSession.js';
 import { DEMO_LIMIT } from './scenarios.js';
-import { clamp } from './util.js';
+import { clamp, slipAngle } from './util.js';
 import {
   gapSeconds,
   headwayGap,
@@ -586,7 +586,7 @@ export class CastStage {
       const z = v.u - star.u;
       // the rig's +x is the left of travel, `lat` grows to the right
       const x = d.centerLat - v.latLocal;
-      const yaw = v.v > 2 ? -Math.atan2(v.latRate || 0, v.v) : 0;
+      const yaw = v.v > 2 ? -slipAngle(v.latRate || 0, v.v) : 0;
       TrafficView.pose(v.vis, x, z, yaw, clamp(-v.acc * 0.004, -0.012, 0.018));
       driveDemoLamps(v.vis, v, night, blink);
     }

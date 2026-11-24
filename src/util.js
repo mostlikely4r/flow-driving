@@ -37,6 +37,16 @@ export function lcProfileDeriv(t) {
   return 0.5 * Math.PI * Math.sin(Math.PI * t);
 }
 
+/**
+ * How far a car's nose is turned while it crosses a lane line, in radians. A
+ * lane change is a few degrees of steering; without the cap a car pulling away
+ * from a standstill showed ~50°, because its lateral speed was divided by a
+ * 2 m/s floor (the zipper move crosses 3.5 m in 2.2 s).
+ */
+export function slipAngle(latRate, v) {
+  return clamp(Math.atan2(latRate || 0, Math.max(v, 2)), -0.15, 0.15); // ~8.6°
+}
+
 export function gauss(rng) {
   let u = 0, v = 0;
   while (u === 0) u = rng();
