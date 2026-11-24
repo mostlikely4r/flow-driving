@@ -125,6 +125,7 @@ export class Traffic {
     this.events = []; // lane change events etc. (for debugging/stats)
     this.closures = []; // lane closures: {lane, s0, s1, obs}
     this.ramps = []; // on-ramps (F-20): {s0, s1, sEnd, obs, perMin, spawnT, retryT}
+    this.exits = []; // exits (F-21): {b, sStart, sGore, sTop, share, obs, taken, missed}
     this.strip = []; // the acceleration strip, lane -1 (F-20), rebuilt like `lanes`
     this.msi = null; // matrix signs (msi.js), if any
   }
@@ -212,6 +213,57 @@ export class Traffic {
   removeRamp(r) {
     const i = this.ramps.indexOf(r);
     if (i >= 0) this.ramps.splice(i, 1);
+  }
+
+  /**
+   * Add an exit (F-21) at junction `j`: a share of the cars passing it leave
+   * there, moving right early, onto the already-drawn exit lane and up the exit
+   * road. `obs` is the give-way line at the crossing road — an AI-only stopped
+   * obstacle whose nose sits at `exitTop`, so a car that has left the motorway
+   * waits there (and for nothing beyond the bridge).
+   */
+  addExit(j, { share = CONFIG.exitShare, truckShare = CONFIG.exitTruckShare } = {}) {
+    const obs = {
+      id: -3000 - this.exits.length,
+      isObstacle: true,
+      type: 'obstacle',
+      lane: -1,
+      targetLane: -1,
+      state: 'none',
+      u: this.dir * (j.exitTop + 10), // its nose sits at exitTop, the give-way line
+      len: 20,
+      width: 2.4,
+      latLocal: laneLat(-1, this.N),
+      v: 0, v0: 0, acc: 0, a: 1, b: 2, T: 1, s0: 2,
+      brake: true,
+      signalLane: -1,
+      indicator: 0,
+    };
+    const x = {
+      b: j.b,
+      sStart: j.exitStart,
+      sGore: j.exitGore,
+      sTop: j.exitTop,
+      share,
+      truckShare,
+      obs,
+      taken: 0,
+      missed: 0,
+    };
+    this.exits.push(x);
+    return x;
+  }
+
+  /** Take an exit off the road, with anyone still on it. */
+  removeExit(x) {
+    const i = this.exits.indexOf(x);
+    if (i >= 0) this.exits.splice(i, 1);
+    for (let k = this.vehicles.length - 1; k >= 0; k--) {
+      const veh = this.vehicles[k];
+      if (veh.exit !== x) continue;
+      this.vehicles.splice(k, 1);
+      this.onRemove(veh);
+    }
   }
 
   /** Seconds until the next car on a ramp (Poisson, mean 60 / perMin). */
@@ -467,15 +519,17 @@ export class Traffic {
     }
     if (player) {
       for (const li of player.lanesOcc) if (li >= 0 && li < N) this.lanes[li].push(player);
-      // On the hard shoulder inside a ramp's span (strip and run-out): the
-      // strip cars must see you.
+      // On the hard shoulder inside a ramp's span (strip and run-out), or on an
+      // exit lane (F-21): the lane −1 cars must see you.
       if (player.lane === -1) {
         const s = this.dir * player.u;
-        if (this.ramps.some((r) => s >= r.s0 - 20 && s <= r.sEnd + 20)) this.strip.push(player);
+        if (this.ramps.some((r) => s >= r.s0 - 20 && s <= r.sEnd + 20)
+          || this.exits.some((x) => s >= x.sStart - 20 && s <= x.sGore + 20)) this.strip.push(player);
       }
     }
     for (const c of this.closures) if (c.lane < N) this.lanes[c.lane].push(c.obs);
     for (const r of this.ramps) this.strip.push(r.obs);
+    for (const x of this.exits) this.strip.push(x.obs);
     for (const l of this.lanes) l.sort((a, b) => a.u - b.u);
     this.strip.sort((a, b) => a.u - b.u);
   }
@@ -530,8 +584,10 @@ export class Traffic {
     // it stays alongside a gap rather than running on to the end of the strip.
     if (veh.lane === -1) {
       const s = this.dir * veh.u;
-      const s0 = veh.ramp ? veh.ramp.s0 : -Infinity;
-      const nl = s >= s0 ? this.mergeLeader(veh) : null;
+      // A car on an acceleration strip (F-20) eases off toward the lane it is
+      // joining. An exit car (F-21) is not merging: it brakes for the exit road
+      // further down, by its own curve, and follows the give-way line after it.
+      const nl = veh.ramp && s >= veh.ramp.s0 ? this.mergeLeader(veh) : null;
       // (only where lane 0 is actually flowing: in a jam this belongs to F-22,
       // and lifting off to a crawl on the strip only builds a queue)
       if (nl && nl.v > CONFIG.mergeLiftMinKmh * KMH && veh.v > nl.v + this.mergeBand(veh, this.stripLeft(veh, s)) * KMH) {
@@ -554,6 +610,18 @@ export class Traffic {
           vl.v = cap;
           vl.acc = 0;
           a = Math.min(a, Math.max(idm(veh, vl, 1, veh.s0 + veh.v * veh.T), -1.5));
+        }
+      }
+      // Leaving at an exit (F-21): out on the exit lane the car slows for the
+      // exit road — to exitGoreKmh by the gore and on to 40 km/h before the top
+      // — and never harder than −2.5 m/s². Past that the give-way line does it.
+      if (veh.exit) {
+        const vT = this.exitTargetSpeed(veh, s);
+        if (vT != null && veh.v > vT + 0.3) {
+          const vl = veh.exitVirt || (veh.exitVirt = { u: 0, len: 0, v: 0, acc: 0 });
+          vl.v = vT;
+          vl.acc = 0;
+          a = Math.min(a, Math.max(idm(veh, vl, 1, veh.s0 + veh.v * veh.T), -2.5));
         }
       }
     }
@@ -803,6 +871,30 @@ export class Traffic {
     // Lane closures: get out of a lane that closes ahead (some early, some at
     // the very end, zipper style), and never into one.
     let closure = 0;
+    // Leaving at an exit (F-21): from dGo out, a driver heading for the exit
+    // moves right one lane at a time and stops overtaking. The urge is in `inc`
+    // like the closure term, but it is also a wish of its own (`exit`): in a
+    // left lane, with lane 0 running 10 km/h slower, the speed this driver would
+    // lose outweighs any bribe — and a leaving driver has to go anyway. So the
+    // wish stands and the usual safety gates decide when. Inside the last 300 m
+    // it is a signal-and-wait as out of a closing lane; further out an ordinary
+    // right move, where lining up (F-38) and the usual gap rules apply.
+    let exitUrge = 0;
+    let exitNoLeft = false;
+    let exitWant = false;
+    if (veh.exit) {
+      const d = veh.exit.sStart - this.dir * veh.u;
+      const dGo = this.exitGo(veh);
+      if (d < dGo) {
+        if (t > veh.lane) exitNoLeft = true;
+        else if (t >= 0 && t < veh.lane) {
+          const u = 0.5 + 2.5 * clamp((dGo - d) / Math.max(1, dGo - CONFIG.exitSignalM), 0, 1);
+          if (d < CONFIG.exitSignalM) closure = u;
+          else exitUrge = u;
+          exitWant = true;
+        }
+      }
+    }
     // a car on the acceleration strip always wants lane 0 (F-20)
     if (veh.lane === -1) closure = 3;
     if (this.closures.length) {
@@ -817,7 +909,7 @@ export class Traffic {
         if (dCur < start || dCur === 0) closure += 0.5 + 2.5 * (dCur === 0 ? Math.max(0.4, 1 - dEnd / 600) : 1 - dCur / Math.max(1, start));
       }
     }
-    const inc = selfish + p * (dNf + dOf) + love + closure;
+    const inc = selfish + p * (dNf + dOf) + love + closure + exitUrge;
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
     // after an overtake, going back right is the plan (F-09)
@@ -835,10 +927,10 @@ export class Traffic {
     // Nobody moves LEFT just to be nice to the car behind: politeness may hold
     // back an overtake, but the driver must gain something themselves. (Flashed
     // drivers are the exception: they're pressed to move, handled by bias.)
-    const wants = inc > need && (!left || selfish > veh.thr * 0.5 || closure > 0);
+    const wants = !exitNoLeft && (exitWant || inc > need) && (!left || selfish > veh.thr * 0.5 || closure > 0);
     // closure and zip are read by laneLogic (F-38): those moves keep the old
     // signal-and-wait behaviour, the rest may only signal for a gap.
-    return { safe, inc, wants, margin: inc - need, closure, zip: !!zip };
+    return { safe, inc, wants, margin: inc - need, closure, zip: !!zip, exit: exitWant };
   }
 
   /**
@@ -925,6 +1017,9 @@ export class Traffic {
     }
     // An acceleration strip (F-20) has its own rules: always lane 0, always
     // indicating, merging when it is safe and fast enough.
+    // A car leaving at an exit (F-21) has its own too: onto the exit lane and no
+    // lane changes after that.
+    if (veh.exit && this.exitLogic(veh, dt)) return;
     if (veh.lane === -1) return this.stripLogic(veh, dt);
     if (veh.state === 'none') {
       veh.cooldown -= dt;
@@ -981,8 +1076,12 @@ export class Traffic {
       // Otherwise line up first (right moves only; for the left the intent stays
       // and the next decision looks again).
       let go = best.ev.safe;
-      if (!go && forced) {
-        go = left ? best.ev.margin > 0.25 && this.rng() < 0.35 : best.ev.margin > 0.1 && this.rng() < 0.5;
+      if (!go && (forced || best.ev.exit)) {
+        // Out of a closing lane: indicate and wait, and some drivers will make
+        // room. A leaving driver does the same, and may also put its indicator
+        // on for a gap that is visibly opening (F-21).
+        go = (best.ev.exit && this.projectedSafe(veh, best.t, veh.tSignal + CONFIG.signalHorizonS))
+          || (left ? best.ev.margin > 0.25 && this.rng() < 0.35 : best.ev.margin > 0.1 && this.rng() < 0.5);
       } else if (!go) {
         go = this.projectedSafe(veh, best.t, veh.tSignal + CONFIG.signalHorizonS);
       }
@@ -1002,7 +1101,11 @@ export class Traffic {
       const cornered = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
       if (veh.signalT >= (cornered ? Math.min(veh.tSignal, 0.7) : veh.tSignal)) {
         const ev = this.evaluate(veh, t);
-        if (ev.safe && ev.margin > -0.3) {
+        // A leaving driver (F-21) is not weighing the move up: what counts is
+        // that the gap is there. Its margin is negative in a fast left lane by
+        // construction — that is the speed it loses getting right — so the
+        // ordinary "finds it a bit worse" test would never let it go.
+        if (ev.safe && (ev.exit || ev.margin > -0.3)) {
           veh.state = 'move';
           veh.lcT = 0;
           veh.zipping = this.closures.length > 0 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 200;
@@ -1024,8 +1127,10 @@ export class Traffic {
           veh.recheckT = 1;
           // A closure signal may keep waiting (merging out of a closed lane is
           // real behaviour); any other signal is withdrawn after a short hold.
+          // A leaving driver's does not go out at all: it has to get right, and
+          // the last chance before the gore is what ends it.
           const hold = veh.closureSig ? 8 : CONFIG.signalHoldS;
-          if (ev.margin < -0.15 || veh.signalT > veh.tSignal + hold) this.cancelChange(veh);
+          if (!ev.exit && (ev.margin < -0.15 || veh.signalT > veh.tSignal + hold)) this.cancelChange(veh);
         }
       }
     } else if (veh.state === 'move') {
@@ -1042,7 +1147,10 @@ export class Traffic {
       // or a car merging into the same lane from the other side
       const nf = followerIn(this.laneList(veh.targetLane), veh);
       const nl = leaderIn(this.laneList(veh.targetLane), veh);
-      if ((nf && nf !== veh && idm(nf, veh) < -5) || (nl && nl.state === 'move' && idm(veh, nl) < -4)) {
+      // (two cars going to the same exit do not call each other's move off: the
+      // one ahead is simply the leader this one follows onto the exit lane)
+      const sameExit = veh.exit && nl && nl.exit === veh.exit;
+      if ((nf && nf !== veh && idm(nf, veh) < -5) || (nl && nl.state === 'move' && !sameExit && idm(veh, nl) < -4)) {
         if (veh.lane === -1) {
           // a merge off the strip that is called off: stay on the strip,
           // signal still on, and try again from there
@@ -1133,6 +1241,117 @@ export class Traffic {
     // Occupy lane 0 now, so a car merging from the other side sees us.
     const tl0 = this.lanes[0];
     if (!tl0.includes(veh)) tl0.splice(firstAbove(tl0, veh.u), 0, veh);
+  }
+
+  /**
+   * Uitvoegen (F-21): a car that is leaving at an exit gets onto the exit lane
+   * and, once there, never changes lane again. In lane 0 it indicates right from
+   * the first afritbaken (300 m), and crosses once it is half way along the
+   * taper, at motorway speed and with an ordinary gap in front and behind — it
+   * slows down on the exit lane, not in lane 0. Past `sGore − 30` it gives up
+   * and drives on rather than diving across: a missed exit is readable, a dive
+   * is not. Returns true when it has handled this tick.
+   */
+  exitLogic(veh, dt) {
+    const x = veh.exit;
+    const s = this.dir * veh.u;
+    // a move under way: onto the exit lane, or one called off and reversing back
+    if (veh.state === 'move') {
+      if (veh.targetLane !== -1 && veh.lane !== -1) return false; // an ordinary lane change
+      const wasS = s;
+      const wasV = veh.v;
+      this.advanceMove(veh, dt);
+      // counted when it is properly across, not when a called-off move reverses
+      if (!veh.exitDone && veh.lane === -1 && veh.state === 'none') {
+        veh.exitDone = true;
+        veh.exitCross = { s: wasS, v: wasV };
+        x.taken++;
+      }
+      return true;
+    }
+    if (veh.lane === -1) {
+      // On the exit lane. A move onto it that was called off at the line comes
+      // back here signalling right (advanceMove reversed it); it goes back into
+      // lane 0 as soon as the gap allows and tries for the next one.
+      if (veh.state === 'signal' && veh.targetLane === 0) {
+        veh.signalT += dt;
+        const nl = leaderIn(this.lanes[0], veh);
+        const nf = followerIn(this.lanes[0], veh);
+        const safe = this.gapSafe(veh, nl, nf,
+          nl ? gapBetween(nl, veh) : 0, nf ? gapBetween(veh, nf) : 0);
+        if (safe && veh.signalT >= 0.8) {
+          veh.state = 'move';
+          veh.lcT = 0;
+          veh.zipping = false;
+          const tl = this.lanes[0];
+          if (!tl.includes(veh)) tl.splice(firstAbove(tl, veh.u), 0, veh);
+        }
+      }
+      return true;
+    }
+    // last chance: from here on a car in the wrong lane drives on
+    if (s > x.sGore - 30) {
+      if (veh.state === 'signal') this.cancelChange(veh);
+      veh.exit = null;
+      x.missed++;
+      return false; // an ordinary car again
+    }
+    // still working its way right, or signalling into lane 0: the normal lane
+    // logic has it, and one of these ticks finds it in lane 0 in time
+    if (veh.lane !== 0) return false;
+    if (veh.state === 'signal' && veh.targetLane !== -1) return false;
+    const d = x.sStart - s;
+    if (veh.state === 'none') {
+      if (d >= CONFIG.exitSignalM) return false; // too early to mean anything yet
+      this.beginSignal(veh, -1, true); // right indicator, and it stays on
+      return true;
+    }
+    // signalling for the exit lane: keep it on, and cross when the gap is there
+    veh.signalT += dt;
+    if (s < x.sStart + 40) return true; // not before half way along the taper
+    if (veh.signalT < Math.max(veh.tSignal, 1)) return true;
+    const nl = leaderIn(this.strip, veh);
+    if (nl && idm(veh, nl) < -2.2) return true; // give way: never brake in lane 0
+    const nf = followerIn(this.strip, veh);
+    if (nf && !this.followerSafe(veh, nf, gapBetween(veh, nf))) return true;
+    veh.state = 'move';
+    veh.lcT = 0;
+    veh.zipping = false;
+    // occupy the exit lane now, so a car behind sees it in this same step
+    const strip = this.strip;
+    if (!strip.includes(veh)) strip.splice(firstAbove(strip, veh.u), 0, veh);
+    return true;
+  }
+
+  /**
+   * How far before its exit lane a leaving driver starts working right (F-21).
+   * Patsers leave it to just before the 600 m sign; a careful driver is already
+   * moving over from before the first blue sign (1200 m).
+   */
+  exitGo(veh) {
+    return CONFIG.exitGoM + CONFIG.exitGoSpreadM * (veh.mergeEarly ?? 0.5);
+  }
+
+  /**
+   * The speed an exiting car aims for at s (F-21): from the speed it crossed
+   * onto the exit lane with, down to exitGoreKmh at the gore, and on down to
+   * 40 km/h 80 m before the crossing road. null past that: the give-way line
+   * stops it by plain IDM.
+   */
+  exitTargetSpeed(veh, s) {
+    const x = veh.exit;
+    const vGore = CONFIG.exitGoreKmh * KMH;
+    if (s <= x.sGore) {
+      const c = veh.exitCross;
+      const sFrom = c ? c.s : x.sStart;
+      const vFrom = c ? c.v : veh.v;
+      const t = clamp((s - sFrom) / Math.max(1, x.sGore - sFrom), 0, 1);
+      return vFrom + (vGore - vFrom) * t;
+    }
+    const sEnd = x.sTop - 80;
+    if (s >= sEnd) return null;
+    const t = clamp((s - x.sGore) / Math.max(1, sEnd - x.sGore), 0, 1);
+    return vGore + (40 * KMH - vGore) * t;
   }
 
   /** The speed a strip car compares itself with for the merge gate (F-20). */
@@ -1343,6 +1562,62 @@ export class Traffic {
     }
     // on-ramps add their own cars, so the edges above spawn fewer (F-20)
     this.updateRamps(sMin, sMax, sPlayer);
+    // exits roll who is leaving, and clear the give-way at the top (F-21)
+    this.updateExits(sPlayer);
+  }
+
+  /**
+   * Leaving at an exit (F-21): every car is rolled once per exit as it crosses
+   * the window [sStart − 2500, sStart − 1000], so a driver has a kilometre and a
+   * half to get right. A car that appeared closer than that, a car coming off an
+   * on-ramp and a scenario's scripted car never leave, and a car already holding
+   * another exit is not rolled for this one. Random numbers are only drawn when
+   * an exit with a share is on the road, so a Traffic without exits is exactly
+   * the run it was before.
+   */
+  updateExits(sPlayer) {
+    for (const x of this.exits) {
+      if (!(x.share > 0) && !(x.truckShare > 0)) continue;
+      for (const veh of this.vehicles) {
+        const s = this.dir * veh.u;
+        if (s < x.sStart - 2500 || s > x.sStart - 1000) continue;
+        if (veh.exitRolled === x.b) continue;
+        if (veh.ramp && veh.lane === -1) continue; // a merger stays a merger
+        if (veh.brakeEvent) continue; // a scripted car keeps its script
+        veh.exitRolled = x.b;
+        if (veh.exit) continue; // one exit per car
+        const p = veh.type === 'truck' ? x.truckShare : x.share;
+        if (this.rng() < p) veh.exit = x;
+      }
+    }
+    this.updateGiveWay(sPlayer);
+  }
+
+  /**
+   * The give-way at the top of the exit road (F-21): a car that has come to a
+   * stop there waits `exitWaitS` and is gone, so the next one moves up. While
+   * you are near the top nobody disappears in front of you: they wait their turn.
+   */
+  updateGiveWay(sPlayer) {
+    const dt = 0.2;
+    const [lo, hi] = CONFIG.exitWaitS;
+    for (let i = this.vehicles.length - 1; i >= 0; i--) {
+      const veh = this.vehicles[i];
+      const x = veh.exit;
+      if (!x || veh.lane !== -1) continue;
+      const s = this.dir * veh.u;
+      if (s < x.sTop - 25) continue; // not at the give-way line yet
+      if (veh.v >= 0.5) {
+        veh.giveWayT = null; // still moving up: the wait starts when it stops
+        continue;
+      }
+      if (veh.giveWayT == null) veh.giveWayT = lo + this.rng() * (hi - lo);
+      if (sPlayer != null && Math.abs(sPlayer - x.sTop) < CONFIG.rampSpawnHoldM) continue;
+      veh.giveWayT -= dt;
+      if (veh.giveWayT > 0) continue;
+      this.vehicles.splice(i, 1);
+      this.onRemove(veh);
+    }
   }
 
   /**

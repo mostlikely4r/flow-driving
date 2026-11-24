@@ -34,6 +34,7 @@ export function bindSim({ road, player, traffic, msi = null, rng = Math.random, 
     notices: [], // sim-level things the renderer/HUD may want to show
     scenario: scenario || null,
     ramps: new Map(), // junction block -> the ramp the sim has for it (F-20)
+    exits: new Map(), // junction block -> the exit the sim has for it (F-21)
   };
 }
 
@@ -101,6 +102,7 @@ export function stepSim(sim, dt, ctl) {
   if (sim.msi) sim.msi.update(dt, p.s);
   updateClosures(sim, dt);
   updateJunctionRamps(sim);
+  updateJunctionExits(sim);
   sim.journal.tick(dt, p, sim.traffic, playerLimit(sim));
   sim.time += dt;
 }
@@ -159,6 +161,31 @@ export function updateJunctionRamps(sim) {
     if (r.sEnd >= player.s - CONFIG.rangeBehind - 200) continue;
     traffic.removeRamp(r);
     sim.ramps.delete(b);
+  }
+}
+
+/**
+ * Exits in free play (F-21), beside the on-ramps: one per junction, kept from
+ * far enough back that its roll window is inside the simulated range (so nobody
+ * appears already past the chance to leave) until the give-way at the top is
+ * well behind you. Tracked by junction block, so an exit is never added twice.
+ */
+export function updateJunctionExits(sim) {
+  const { player, traffic } = sim;
+  if (sim.scenario || !CONFIG.exitsFreePlay) return;
+  const sMin = player.s - CONFIG.rangeBehind;
+  const sMax = player.s + CONFIG.rangeAhead + 500;
+  for (const j of junctionsNear(sMin, sMax)) {
+    if (j.sTop < sMin - 200) continue; // the exit is behind you
+    if (j.exitStart - 2500 > sMax) continue; // its roll window is not in range yet
+    if (sim.exits.has(j.b)) continue;
+    const truckShare = junctionHasEstate(j) ? 0.3 : CONFIG.exitTruckShare;
+    sim.exits.set(j.b, traffic.addExit(j, { share: CONFIG.exitShare, truckShare }));
+  }
+  for (const [b, x] of sim.exits) {
+    if (x.sTop >= player.s - CONFIG.rangeBehind - 200) continue;
+    traffic.removeExit(x);
+    sim.exits.delete(b);
   }
 }
 

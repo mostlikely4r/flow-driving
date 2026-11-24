@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { clamp } from './util.js';
 import { gapBetween, leaderIn } from './traffic.js';
+import { junction } from './junctions.js';
 
 export const OVERLAY_MODES = ['off', 'ar-rel', 'ar-abs', 'dev'];
 export const OVERLAY_NAMES = {
@@ -203,9 +204,21 @@ export class Overlay {
     return `#${veh.id} ${veh.drives || veh.type} merging · ${left} · ${diff}\n${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s\n${st} · strip lane`;
   }
 
+  /** Dev overlay for a car leaving at an exit: "exit 14 · 820 m". */
+  exitText(veh, traffic, full) {
+    const x = veh.exit;
+    const s = traffic.dir * veh.u;
+    const d = Math.round(x.sStart - s);
+    const where = d > 0 ? `${d} m` : s > x.sGore ? 'on the exit road' : 'on the exit lane';
+    if (!full) return `exit ${junction(x.b).number} ${where}`;
+    const st = veh.state === 'move' ? `moving right ${Math.round(veh.lcT * 100)}%` : veh.state === 'signal' ? `signalling right ${veh.signalT.toFixed(1)}s` : 'in lane';
+    return `#${veh.id} ${veh.drives || veh.type} exit ${junction(x.b).number} · ${where}\n${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s\n${st} · lane ${veh.lane}`;
+  }
+
   devText(veh, full, traffic) {
-    // a car on an acceleration strip: what it is doing, and how far it has left
-    if (veh.lane === -1) return this.mergeText(veh, traffic, full);
+    // a car on an acceleration strip (F-20), or one on the exit lane (F-21):
+    // what it is doing, and how far it has left
+    if (veh.lane === -1) return veh.exit ? this.exitText(veh, traffic, full) : this.mergeText(veh, traffic, full);
     const f = [];
     if (veh.limitOffset > 10) f.push('SPD');
     else if (veh.limitOffset < -3) f.push('SLOW');
@@ -215,9 +228,9 @@ export class Overlay {
     if (veh.pressureT > 0) f.push('PRESSED');
     if (veh.drafting) f.push('DRAFT');
     const who = veh.persona ? (veh.drives ? veh.persona : `${veh.persona}-look, drives normal`) : veh.variant;
-    const head = `#${veh.id}${veh.tag ? ' "' + veh.tag + '"' : ''} ${who}${f.length ? ' · ' + f.join(' ') : ''}`;
+    const head = `#${veh.id}${veh.tag ? ' "' + veh.tag + '"' : ''} ${who}${f.length ? ' · ' + f.join(' ') : ''}${veh.exit ? ' · exit' : ''}`;
     const stShort = veh.state === 'signal' ? ` sig${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.state === 'move' ? ` mov${veh.targetLane > veh.lane ? 'L' : 'R'}` : veh.intent >= 0 ? ` want${veh.intent > veh.lane ? 'L' : 'R'}` : '';
-    if (!full) return `${veh.tag ? veh.tag : veh.drives || '#' + veh.id} ${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)}${f.length ? ' ' + f[0] : ''}${stShort}`;
+    if (!full) return `${veh.tag ? veh.tag : veh.drives || '#' + veh.id} ${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)}${f.length ? ' ' + f[0] : ''}${stShort}${veh.exit ? ' exit' : ''}`;
     const sp = `${Math.round(veh.v * KMH)}/${Math.round(veh.v0 * KMH)} km/h · T ${veh.T.toFixed(1)}s · p ${veh.p.toFixed(2)} · ant ${(veh.antic ?? 0).toFixed(2)}`;
     let st;
     const dir = (t) => (t > veh.lane ? 'L' : 'R');
@@ -231,6 +244,7 @@ export class Overlay {
       st += ` · no signal ${side} ${veh.noSignalT[side].toFixed(1)}s`;
     }
     if (veh.passing) st += ' · passing';
+    if (veh.exit && veh.lane >= 0) st += ` · ${this.exitText(veh, traffic, false)}`;
     if (veh.returnT > 0) st += ' · going back right';
     if (veh.anticOn) st += ` · easing for ${veh.anticOn.isPlayer ? 'YOU' : veh.anticOn.tag || '#' + veh.anticOn.id}`;
     const ev = (e, name) => (e ? `${name} ${e.margin >= 0 ? '+' : ''}${e.margin.toFixed(2)}${e.safe ? '' : ' unsafe'}` : `${name} –`);

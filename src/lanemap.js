@@ -95,7 +95,8 @@ export class LaneMap {
     const laneH = 20;
     const top = 18; // ruler / title
     const ramps = traffic.ramps || [];
-    const stripH = ramps.length ? 14 : 0; // the acceleration strip, right of lane 0
+    const exits = traffic.exits || [];
+    const stripH = ramps.length || exits.length ? 14 : 0; // the strip and the exit lane, right of lane 0
     const mapH = top + N * laneH + stripH + 6;
     const diagH = this.mode === 2 ? ROWS + 20 : 0;
     const H = mapH + diagH;
@@ -248,6 +249,30 @@ export class LaneMap {
       c.stroke();
     }
 
+    // exits (F-21): the exit lane beside lane 0, hatching at the gore where it
+    // leaves the motorway and the exit road running off the edge of the map
+    for (const x of exits) {
+      const y = top + N * laneH + 2;
+      const xa = Math.max(pad, X(x.sStart)), xb = Math.min(pad + iw, X(x.sGore));
+      if (xb > xa) {
+        c.fillStyle = 'rgba(70, 76, 84, 0.6)';
+        c.fillRect(xa, y, xb - xa, stripH - 4);
+        c.fillStyle = 'rgba(235, 240, 245, 0.35)';
+        c.fillRect(xa, y - 0.5, xb - xa, 1);
+      }
+      const xe = Math.min(pad + iw, xb + Math.max(6, 25 * pxm));
+      if (xe > xb) {
+        c.strokeStyle = 'rgba(235, 240, 245, 0.4)';
+        c.lineWidth = 1;
+        c.beginPath();
+        for (let x = xb; x < xe; x += 6) {
+          c.moveTo(x, y + stripH - 5);
+          c.lineTo(Math.min(xe, x + 4), y);
+        }
+        c.stroke();
+      }
+    }
+
     // vehicles (lateral position is continuous, so drift and lane changes show)
     const yOfLat = (lat) => {
       const l0 = laneY(N - 1) + laneH / 2; // centre of the leftmost lane
@@ -258,7 +283,7 @@ export class LaneMap {
       return stripH ? Math.min(y, stripY) : y;
     };
     const blink = performance.now() % 720 < 380;
-    const drawVeh = (s, lat, len, wid, v, brake, ind, isPlayer, tag) => {
+    const drawVeh = (s, lat, len, wid, v, brake, ind, isPlayer, tag, leaving) => {
       const x1 = X(s + len / 2), x0 = X(s - len / 2);
       if (x1 < pad || x0 > pad + iw) return;
       const y = yOfLat(lat);
@@ -286,11 +311,17 @@ export class LaneMap {
         c.font = '700 9px system-ui, sans-serif';
         c.fillText(tag, x0 + 2, y + 0.5);
       }
+      // leaving at the exit (F-21): a tick toward the exit lane, so a car that is
+      // going to leave can be read before it indicates
+      if (leaving) {
+        c.fillStyle = 'rgba(120, 220, 255, 0.95)';
+        c.fillRect(x0 + w * 0.5 - 1.5, y + h / 2 + 1, 3, 2);
+      }
     };
     const TAG = { leasebak: 'L', patser: 'P', pensioner: 'O', sok: 'S', family: 'F', whitevan: 'W', ev: 'E' };
     for (const veh of traffic.vehicles) {
       const tag = veh.drives ? TAG[veh.drives] : veh.type === 'truck' ? 'T' : veh.type === 'van' ? 'v' : '';
-      drawVeh(traffic.dir * veh.u, veh.latLocal, veh.len, veh.width || 1.8, veh.v, veh.brake, veh.indicator, false, tag);
+      drawVeh(traffic.dir * veh.u, veh.latLocal, veh.len, veh.width || 1.8, veh.v, veh.brake, veh.indicator, false, tag, !!veh.exit);
     }
     const pBrake = player.brake > 0.05 || (player.acc < -1 && !player.cc.on);
     drawVeh(player.s, player.lat, player.len, player.width, player.v, pBrake, player.ind, true, 'YOU');

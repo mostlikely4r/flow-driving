@@ -21,6 +21,9 @@ import { junction, junctionHasEstate } from './junctions.js';
 // (about 600 m before its bridge), so you meet the signs, the countdown
 // markers, the exit lane and then the cars coming down the ramp.
 const RAMP_START = junction(0).s0 - 900;
+// Where the exit scenario starts: 2000 m before junction 0's exit lane opens, so
+// the roll window (2500 to 1000 m out) is already in the simulated range.
+const EXIT_START = junction(0).exitStart - 2000;
 
 export const SCENARIOS = {
   elephant: {
@@ -242,6 +245,23 @@ export const SCENARIOS = {
       }
       return out;
     })(),
+  },
+
+  exit: {
+    title: 'Leaving the motorway',
+    about:
+      'Two kilometres before the junction. As the blue signs pass, a few cars ahead of you drift right into lane 0, ' +
+      'indicate at the countdown markers, slide onto the exit lane at motorway speed, brake there and climb the ' +
+      'exit road to the give-way at the top. A quarter of the cars leave here, so one pass shows several. On the ' +
+      'lane map (U) they are marked before they indicate; nobody brakes in lane 0 in front of you.',
+    lanes: 3,
+    timeOfDay: 'day',
+    seed: 26,
+    density: 10,
+    fill: true, // no hand-placed cars: generated traffic, as free play has it
+    junctions: [{ b: 0, exitShare: 0.25 }],
+    player: { s: EXIT_START, lane: 1, kmh: 100, want: 104 },
+    vehicles: [],
   },
 
   slot: {
@@ -959,11 +979,16 @@ export function applyScenario(traffic, sc, sPlayer, { includeYou = false } = {})
   for (const c of sc.closures || []) traffic.addClosure(c.lane, sPlayer + c.ds, sPlayer + c.ds + c.len);
   traffic.ramps.length = 0;
   for (const r of sc.ramps || []) traffic.addRamp(sPlayer + r.ds, r.perMin != null ? { perMin: r.perMin } : {});
+  traffic.exits.length = 0;
   for (const jr of sc.junctions || []) {
     const j = junction(jr.b);
     const opts = { truckShare: junctionHasEstate(j) ? 0.3 : null };
     if (jr.perMin != null) opts.perMin = jr.perMin;
     traffic.addRamp(j.rampTop, opts);
+    // the same junction's exit, unless the scenario says it has none (F-21)
+    if (jr.exit !== false) {
+      traffic.addExit(j, jr.exitShare != null ? { share: jr.exitShare } : {});
+    }
   }
   const specs = [...sc.vehicles];
   if (includeYou) specs.push({ tag: 'you', type: 'car', variant: 'estate', lane: sc.player.lane, ds: 0, kmh: sc.player.kmh, want: sc.player.want });
@@ -988,5 +1013,7 @@ export function applyScenario(traffic, sc, sPlayer, { includeYou = false } = {})
     placed.push(veh);
   }
   traffic.buildLanes(null);
+  // a scenario with no hand-placed cars wants the road filled at its density
+  if (sc.fill) traffic.initialFill(sPlayer, null);
   return placed;
 }

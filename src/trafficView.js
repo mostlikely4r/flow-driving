@@ -4,7 +4,7 @@ import { createVehicleVisual, applyLook } from './vehicles.js';
 import { lookFor } from './archetypes.js';
 import { mulberry32, clamp, slipAngle } from './util.js';
 import { CONFIG } from './config.js';
-import { rampProfile } from './junctions.js';
+import { rampProfile, exitPath, junction } from './junctions.js';
 
 const COL = {
   head: [1, 0.93, 0.82],
@@ -192,10 +192,20 @@ export class TrafficView {
         // lateral offset and height come from the path, not from the lane.
         const ramp = veh.lane === -1 ? veh.ramp : null;
         const onRamp = ramp && fc < ramp.s0;
+        // ...and on an exit road (F-21) the mirror of it, climbing away
+        const exit = veh.lane === -1 ? veh.exit : null;
+        const onExitRoad = exit && fc > exit.sGore;
         let latW, y = 0, latRate = veh.latRate;
         if (onRamp) {
           const a = rampProfile(ramp.sTop, ramp.s0, fc);
           const dd = (rampProfile(ramp.sTop, ramp.s0, fc + 2).lat - rampProfile(ramp.sTop, ramp.s0, fc - 2).lat) / 4;
+          latW = dir * a.lat;
+          y = a.y;
+          latRate = dd * Math.max(veh.v, 2);
+        } else if (onExitRoad) {
+          const j = junction(exit.b);
+          const a = exitPath(j, fc);
+          const dd = (exitPath(j, fc + 2).lat - exitPath(j, fc - 2).lat) / 4;
           latW = dir * a.lat;
           y = a.y;
           latRate = dd * Math.max(veh.v, 2);

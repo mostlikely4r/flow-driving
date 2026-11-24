@@ -65,6 +65,17 @@ export const DEFAULTS = {
   mergeFollowM: 9, // invoegen: from the middle of the strip on, two car lengths is a gap (F-20 slice 4)
   mergeFollowB: 3, // ...if the new follower need brake no harder than this (m/s²; −4 is a hard brake)
 
+  // --- exits (F-21) ---
+  exitsFreePlay: true, // exits at junctions in free play (off = scenery only)
+  exitShare: 0.12, // share of cars, vans and caravans passing a junction that leave there
+  exitTruckShare: 0.08, // ...and of lorries (0.3 where the junction has an estate, as its ramp)
+  exitGoreKmh: 70, // the speed an exiting car has by the gore, so it brakes on the exit lane
+  exitWaitS: [1, 4], // how long a car waits at the give-way at the top, uniform
+  exitGoM: 700, // a leaving driver starts working right this many metres + ...
+  exitGoSpreadM: 1100, // ... this × mergeEarly further out: a patser just before the 600 m sign,
+  // a careful driver from before the first blue sign (1200 m).
+  exitSignalM: 300, // in lane 0 it indicates right this far before the exit lane opens (the first baken)
+
   // --- player car ---
   steeringAssist: 2, // 0: raw, 1: follows road curve, 2: also straightens after release
   keyboardSteerRate: 1.7, // how fast keyboard steering ramps in (1/s)
