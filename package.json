@@ -12,6 +12,8 @@
     "headway": "node tools/headway.js",
     "onramp": "node tools/onramp.js",
     "onrampsuite": "node tools/onrampsuite.js",
+    "exits": "node tools/exits.js",
+    "exitsuite": "node tools/exitsuite.js",
     "personas": "node tools/personas.js",
     "scenario": "node tools/scenario.js",
     "abtest": "node tools/abtest.js",
