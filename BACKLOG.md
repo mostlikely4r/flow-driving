@@ -645,8 +645,10 @@ Gentle "driving style" feedback through other drivers' reactions, such as being 
 hogging a lane, instead of a score. (From the old parking lot.)
 
 ## F-48 · Toekomstflitsen: the promised now
-- status: parked
-- effort: L
+- status: specced
+- priority: P3
+- effort: XL
+- plan: docs/specs/F-48-toekomstflitsen.md
 
 A separate mode on the same engine: the same A12 and the same drivers, but the world and car shapes
 as people in 1990 imagined "now" would look, in the spirit of Robbert and Rudolf Das
@@ -657,3 +659,33 @@ traffic stays real Dutch drivers. Possible because the sim is kept apart from re
 scenery are procedural. Our own designs in that spirit, never copies of the books' illustrations.
 Large (new car bodies and a scenery set); waits until the real world is done. (From the old parking
 lot.)
+
+Specced 2026-11-24 in four slices, still waiting for M2/M3: live toggle (F9) with a median guideway
+spine over the left lane and automated cabin platoons, a brochure palette; wedge bodies that keep
+every archetype tell; glass terraced buildings, freight-tube portals at overpasses and 1990-style
+gantries with unchanged sign content; electric sounds and a "Radio Toekomst". Every future piece
+stands in for a present-day one; sky, sea and rail wait for F-49, F-50 and F-51.
+
+## F-49 · Rail line beside the motorway
+- status: parked
+- pillar: Authentic
+
+A double-track railway running beside the motorway on some stretches (like the A12 near Utrecht
+and the A2), with an occasional intercity or freight train passing. Present-day first; it is also
+the twin that F-48's future rail needs.
+
+## F-50 · Planes on approach
+- status: parked
+- pillar: Authentic
+
+Aircraft low overhead on a stretch near an airport (like the A4 along Schiphol), on approach or
+climbing out, with the sound. Present-day first; it is also the twin that F-48's future aircraft
+need.
+
+## F-51 · Harbour stretch with ships
+- status: parked
+- pillar: Authentic
+
+A stretch along water or a port (like the A15 through the Rotterdam port, or a dyke road with the
+IJsselmeer beside it) with ships passing and cranes on the skyline. Present-day first; it is also
+the twin that F-48's future ships and ports need.
