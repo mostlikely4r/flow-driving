@@ -261,7 +261,7 @@ Everything the expanded overlay shows now, plus predicted paths, target gaps and
 drawn in the world. Later; separate from the AR overlay.
 
 ## F-20 · On-ramps (AI only)
-- status: specced
+- status: building
 - priority: P1
 - value: 5
 - effort: L
@@ -306,10 +306,23 @@ road too, so more cars stop and fewer merge. Speed at the end of the ramp road p
 merge against 3.2 at 400 (both against 0.7 at 0). The merge is a gap-acceptance problem (F-22):
 slice 3 starts there.
 
-Slice 3 (gap acceptance and making room) specced: [docs/specs/F-20-slice-3-making-room.md](docs/specs/F-20-slice-3-making-room.md).
-The strip stays 350 m; the speed-match gate relaxes over the second half of the strip, and cooperative
-lane-0 drivers move left (or lift off briefly) for a merger alongside or just behind. Target 0.1 stops
-per merge at density 8, better than baseline at 12; density 16 is F-22.
+Slice 3 built: [docs/specs/F-20-slice-3-making-room.md](docs/specs/F-20-slice-3-making-room.md).
+The on-ramp tool now tells the truth (throughput line inside the sim for any strip length, ramp flow
+through `rampPerMin`, a gate reading and a courtesy reading), and `npm run onrampsuite` runs the
+12-run matrix against `tools/onramp-baseline.json` (`--save` writes it); with `--save` on the
+unchanged sim it reproduces the slice-2 table number for number. The **speed-match gate widens from
+the middle of the strip** to `mergeLastM` (`mergeRelaxKmh` 30) and a merger faster than lane 0 eases
+toward its speed with a virtual leader (`mergeLiftMinKmh` 50) instead of overtaking it on the strip.
+12 runs: stops per merge at density 8 **median 0.28 against the 0.1 target — not met**, density 12
+**0.74 against 4.53** and better on 3 of 4 runs, lane-0 near 66 km/h at 8 (was 65) and 46 at 12 (41),
+0 collisions, 3 emergency stops against 2 (both at density 16). Over 8 seeds per density the medians
+are 0.22 at 8 and 1.45 at 12 (slice 2: 0.29 and 3.19), so the 0.1 target needs more than a 350 m
+strip can give. Lane 0 making room was built both ways round and dropped on the numbers: lane 0
+lifting off for a signaller collapses to 7-31 km/h (the slice-1 deadlock class), and the mirror image
+(the merger easing back to drop in behind) is a wash at density 8 and worse at 12 (3.40 against 1.45)
+because it takes the run-up away from the cars behind on the strip. The 2-seed matrix is too noisy to
+judge a rule by (2L D12 S9 is 15 stops per merge in every variant, 2L D12 S7 swings 0.73 to 11.85 on
+a 6 s change); widening it to 4 seeds comes first next time. Exits are F-21, jams F-22.
 
 ## F-21 · Exits (AI only)
 - status: idea

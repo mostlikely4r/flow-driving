@@ -2,15 +2,6 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
-## Q-2 · On-ramps slice 3 · build
-- state: in progress
-- backlog: F-20
-- plan: docs/specs/F-20-slice-3-making-room.md
-- added: 2026-11-23
-
-Compare 12 `npm run onramp` runs with slice 2's numbers (stops per merge, lane-0 speed loss near
-the ramp); 0 collisions.
-
 ## Q-3 · Drive a junction and bring a journal · test
 - state: queued
 - backlog: F-20
@@ -55,6 +46,19 @@ Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; w
 reflections can be a second slice.
 
 ## Done
+
+## Q-2 · On-ramps slice 3 · build
+- state: done
+- backlog: F-20
+- plan: docs/specs/F-20-slice-3-making-room.md
+- done: 2026-11-24
+- added: 2026-11-23
+
+Compare 12 `npm run onramp` runs with slice 2's numbers (stops per merge, lane-0 speed loss near
+the ramp); 0 collisions. Done: the matrix runs as `npm run onrampsuite` (109 s, baseline saved in
+`tools/onramp-baseline.json`). Density 12 stops per merge 0.74 against 4.53, lane-0 near 46 against
+41, 0 collisions. The 0.1 target at density 8 is not met (0.28) and lane 0 making room was built
+and dropped on the numbers — both recorded in the plan.
 
 ## Q-1 · On-ramps slice 3: gap acceptance and making room · spec
 - state: done

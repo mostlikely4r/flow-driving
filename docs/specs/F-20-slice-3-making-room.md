@@ -51,6 +51,12 @@ belongs to F-22.
 Density 16, and 3 lanes at density 12, are jams: they are reported, not targeted (*decided*: F-22's
 job).
 
+**Measured 2026-11-24** (12 runs): density 8 median **0.28** against the 0.1 target, density 12
+**0.74** against 4.53 (better on 3 of 4 runs and in total), lane-0 near 66 km/h at 8 (was 65) and
+46 at 12 (was 41), 0 collisions, 3 emergency stops against 2. Over 8 seeds per density the best
+variant measured is 0.22 at density 8 and 1.45 at 12, so the 0.1 target is not reachable with a
+350 m strip; step 3 has what was tried and why it was dropped.
+
 **Non-goals** (*decided*):
 - No change to `rampStripM` (stays 350), `rampRoadM` (stays 400) or the rendered junction.
 - No ramp flow that varies over the day, no matrix-sign queue warning.
@@ -198,6 +204,38 @@ Check: the matrix against the step-2 numbers and the baseline. The "done when" l
 must pass. In particular watch "lane 0 near": if it drops, the rule is too broad (narrow the window
 or the lift before anything else). `npm run personas` and `npm run simtest` unchanged.
 
+*Not built: measured and dropped, 2026-11-24 (the user's call).* The rule was built as written and
+then the other way round — cooperative lane-0 drivers move left for a merger alongside or just
+behind them, and lift off when they cannot — and measured over 8 runs per density (2 and 3 lanes ×
+density 8, 12 × seeds 7–10). Moving over almost never happens (10 times in one run against 47
+mergers taken on: lane 1 is dense at both densities), so the lift-off fallback becomes continuous —
+one car is easing ~1.7 of the time — and lane 0 near the ramp falls to 7–31 km/h with 1.2–5.0
+stops per merge: the slice-1 deadlock class again. Narrower windows (3 m instead of 25, caps of
+1–4 s, −0.3 instead of −0.8 m/s², only inside `mergeLastM`) move the numbers but never back below
+the build without the rule.
+
+The second try, on the reading that the *merger* is the one that should give way: a merger locked
+beside a lane-0 car, too close to drop in behind it and not fast enough to get past, eases back
+until a following gap is open and then merges there. At density 8 that is a wash (0.22 median
+either way); at 12 it is worse (3.40 against 1.45), because a merger that sheds ~10 km/h to open a
+gap takes the run-up away from the cars behind it on the strip, and a stop there becomes a queue on
+the ramp road.
+
+Medians over those 8 runs per density (total in brackets, lane-0 near after the dot):
+
+| | density 8 | density 12 |
+|---|---|---|
+| slice 2 | 0.29 (0.35) · 56 | 3.19 (3.88) · 41 |
+| this slice, step 2 only | **0.22 (0.23) · 66** | **1.45 (2.95) · 45** |
+| plus lane 0 making room | 0.22 (0.22) · 64 | 3.40 (4.30) · 43 |
+| plus the merger giving way | 0.24 (0.27) · 64 | 1.36 (2.92) · 44 |
+
+So the slice ships the gate change only, and `tools/onramp.js` keeps its courtesy reading for
+whenever this comes back. The 2-seed matrix is too fragile to judge a rule at these densities (2L
+D12 S9 is 15 stops per merge in every variant, and 2L D12 S7 swings 0.73 ↔ 11.85 on a 6-second
+change in a 10-minute run); widening the matrix to 4 seeds is the first thing a later slice should
+do.
+
 ### Step 4: close the item
 
 - Full check (see "How we'll know"); note how long each took the first time in this file, so the
@@ -207,6 +245,16 @@ or the lift before anything else). `npm run personas` and `npm run simtest` unch
 - `README.md`: the `onrampsuite` command and the new columns in the on-ramp section.
 - Commit.
 
+*Built 2026-11-24.* Full check, first-time times on this machine: `npm run build` 4 s,
+`npm run simtest` 9 s, `npm run personas` 2 s, `npm run moments` 1 s, `npm run bottest` 6 s, the
+shared-file check (`sync-prompts.ts --check`) 0.2 s; the matrix 117 s. `simtest`, `personas`,
+`moments` and `bottest` are unchanged — everything new here is gated on lane −1. The matrix's
+courtesy line is printed as INFO now that no rule makes room: it is a reading, not a target.
+Review (codex, gpt-6-luna) raised three points: the matrix did not check a child process's exit
+status (fixed), `--runs` accepted impossible values silently (fixed), and the matrix gate
+"contradicts" shipping with the density-8 target unmet (kept: the target is the plan's, and a FAIL
+there is the honest reading of it).
+
 ## 6. How we'll know
 
 - **Matrix** (step 1 runner): pass/fail lines for every "done when" item, 12 runs, ~2.5 min, in the
@@ -215,13 +263,14 @@ or the lift before anything else). `npm run personas` and `npm run simtest` unch
 - **Full check** at the end: `npm run build`, `npm run simtest`, `npm run personas`,
   `npm run moments`, `npm run bottest`, and `node ~/Desktop/vibeview/scripts/sync-prompts.ts --check`.
 - **Try it:** `npm run dev`, open `?scenario=onramp` and watch the strip at junction 0 for two
-  minutes: merging cars should slot in during the second half of the strip rather than stop at its
-  end, and now and then a lane-0 car beside a merger should move over to the left lane or visibly ease
-  off (no brake lights) to let it in. `?scenario=onramp-busy` may still queue; that is F-22.
+  minutes: merging cars should accept a wider speed difference on the second half of the strip, and
+  one that is too fast for lane 0 should ease down toward its speed instead of running past it.
+  Nothing in lane 0 makes room on purpose (step 3, dropped); `?scenario=onramp-busy` may still
+  queue, which is F-22.
 
-The Readable claim (that a lane-0 car making room reads as courtesy, not as hesitation) is a
-**guess**, not a measurement. Per `AGENTS.md`, a drive guides and does not gate: the headless
-numbers close this slice, and a journal from Q-3 starts a new session.
+The Readable claim (that a merger easing down reads as merging, not as hesitation) is a **guess**,
+not a measurement. Per `AGENTS.md`, a drive guides and does not gate: the headless numbers close
+this slice, and a journal from Q-3 starts a new session.
 
 ## 7. Not doing
 

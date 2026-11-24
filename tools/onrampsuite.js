@@ -6,7 +6,7 @@
 // Usage:
 //   node tools/onrampsuite.js           run the matrix and check it against the saved baseline
 //   node tools/onrampsuite.js --save    run the matrix and write tools/onramp-baseline.json
-//   node tools/onrampsuite.js --runs=4  quick check on the density-8 runs only
+//   node tools/onrampsuite.js --runs=4  only the first four density-8 runs (a quick check)
 //
 // About 1.5 min. Run it in the background with the output to a log.
 import { spawnSync } from 'node:child_process';
@@ -20,7 +20,14 @@ const baselinePath = join(here, 'onramp-baseline.json');
 const argv = process.argv.slice(2);
 const save = argv.includes('--save');
 const only = argv.find((a) => a.startsWith('--runs='));
-const onlyN = only ? Number(only.slice(7)) : null;
+let onlyN = null;
+if (only) {
+  onlyN = Number(only.slice(7));
+  if (!Number.isInteger(onlyN) || onlyN < 1) {
+    console.error(`--runs needs a positive whole number, not "${only.slice(7)}"`);
+    process.exit(2);
+  }
+}
 
 const PER_MIN = 6;
 const MINUTES = 10;
@@ -48,6 +55,12 @@ const rows = [];
 for (const [i, r] of runs.entries()) {
   const args = [tool, String(r.lanes), String(r.density), String(PER_MIN), String(MINUTES), String(r.seed), String(ROAD), '--json'];
   const p = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: here });
+  if (p.error || p.status !== 0) {
+    const why = p.error ? p.error.message : `exit ${p.status}`;
+    const tail = (p.stderr || '').replace(/[\r\n]+/g, ' | ').trim().slice(-300);
+    console.error(`run ${i + 1}/${runs.length} (${r.lanes}L ${r.density} ${r.seed}) failed (${why}): ${tail}`);
+    process.exit(1);
+  }
   const line = (p.stdout || '').split('\n').find((l) => l.startsWith('JSON '));
   if (!line) {
     console.error(`run ${i + 1}/${runs.length} (${r.lanes}L ${r.density} ${r.seed}) produced no result: ${(p.stderr || '').trim().split('\n').slice(-3).join(' | ')}`);
@@ -104,6 +117,11 @@ const check = (ok, label, detail) => {
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `   (${detail})` : ''}`);
 };
+// a part of the matrix that was not run (--runs trims it) is not a failure
+const skip = (when, label) => {
+  if (when) console.log(`SKIP  ${label}`);
+  return when;
+};
 
 console.log(`\nagainst tools/onramp-baseline.json (saved ${base.saved.slice(0, 10)})\n`);
 // 1. density 8: median stops per merge at or under 1 in 10
@@ -114,7 +132,9 @@ const d12pairs = d12.map((r) => [r, baseBy.get(key(r))]).filter(([, b]) => b);
 const better = d12pairs.filter(([r, b]) => r.stopsPerMerge < b.stopsPerMerge).length;
 const now12 = sum(d12, 'stops') / Math.max(1, sum(d12, 'merges'));
 const was12 = baseSum(d12pairs.map(([, b]) => b), 'stops') / Math.max(1, baseSum(d12pairs.map(([, b]) => b), 'merges'));
-check(better >= 3 && sum(d12, 'stops') < sum(d12pairs.map(([, b]) => b), 'stops'), 'stops per merge at density 12 lower than baseline', `better on ${better}/${d12pairs.length} runs · ${fmt(now12, 2)} against ${fmt(was12, 2)}`);
+if (!skip(d12pairs.length === 0, 'stops per merge at density 12 lower than baseline (no density-12 runs)')) {
+  check(better >= 3 && sum(d12, 'stops') < sum(d12pairs.map(([, b]) => b), 'stops'), 'stops per merge at density 12 lower than baseline', `better on ${better}/${d12pairs.length} runs · ${fmt(now12, 2)} against ${fmt(was12, 2)}`);
+}
 // 3. no collisions, and no more emergency stops than the baseline
 const coll = sum(rows, 'collisions');
 const emerg = sum(rows, 'emergency');
@@ -127,14 +147,18 @@ const near12 = med(d12.map((r) => r.lane0Near));
 const baseNear8 = med(baseD8.map((r) => r.lane0Near));
 const baseNear12 = med(baseD12.map((r) => r.lane0Near));
 check(near8 != null && baseNear8 != null && near8 >= baseNear8 - 0.05, 'lane-0 speed near the ramp not lower at density 8', `now ${fmt(near8)} km/h, was ${fmt(baseNear8)}`);
-check(near12 != null && baseNear12 != null && near12 >= baseNear12 - 0.05, 'lane-0 speed near the ramp not lower at density 12', `now ${fmt(near12)} km/h, was ${fmt(baseNear12)}`);
+if (!skip(!d12.length, 'lane-0 speed near the ramp at density 12 (no density-12 runs)')) {
+  check(near12 != null && baseNear12 != null && near12 >= baseNear12 - 0.05, 'lane-0 speed near the ramp not lower at density 12', `now ${fmt(near12)} km/h, was ${fmt(baseNear12)}`);
+}
 // 5. courtesy: lane 0 makes room, and mergers use it
 const made = sum(rows, 'madeRoom');
 const used = sum(rows, 'usedRoom');
 const baseMade = sum(baseRows, 'madeRoom');
 const baseUsed = sum(baseRows, 'usedRoom');
-check(made > 0 && used > 0, 'courtesy reading: lane 0 makes room and mergers use it', `made room ${made} (was ${baseMade}) · used it ${used} (${made ? Math.round((100 * used) / made) : 0}%, was ${baseMade ? Math.round((100 * baseUsed) / baseMade) : 0}%)`);
+// no rule makes room yet (step 3 was dropped), so this is a reading, not a target
+console.log(`INFO  courtesy reading (no rule yet: lane 0 easing, inferred)   made room ${made} (was ${baseMade}) · merger used it ${used} (${made ? Math.round((100 * used) / made) : 0}%, was ${baseMade ? Math.round((100 * baseUsed) / baseMade) : 0}%)`);
 
 console.log(`\n${failed ? `${failed} check(s) failing` : 'all checks pass'} · ${Math.round((Date.now() - started) / 1000)} s`);
 console.log('(density 16 and 3 lanes at 12 are jams: reported, not targeted — F-22)');
+console.log('(the targets are section 3 of docs/specs/F-20-slice-3-making-room.md: a FAIL is an unmet target, not a broken sim)');
 process.exit(failed ? 1 : 0);

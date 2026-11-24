@@ -199,19 +199,26 @@ strip. Scenery draws it; nothing else has to know where a junction is.
 (`invoegstrook`) are both lane −1 — the ramp road upstream, the strip from `s0` to `s1`. Cars appear
 at the top of the ramp road at ~50 km/h (trucks 35), drive down it, indicate left from 100 m before
 the strip, speed up to lane-0 speed and merge into the first safe gap; near the end they take a
-tight zipper gap, and with no gap at all they stop at the end of the strip. A merger gives way: it
-waits for a gap it can hold, and lane 0 makes no room for it yet (that is slice 3). No car appears
-out of thin air on the motorway, and none appears while you are within `rampSpawnHoldM` of a ramp
-top.
+tight zipper gap, and with no gap at all they stop at the end of the strip. Over the second half of
+the strip the speed-match gate widens by `mergeRelaxKmh`, and a merger that is too fast for lane 0
+eases toward its speed (a virtual leader, above `mergeLiftMinKmh`) instead of overtaking it on the
+strip. A merger gives way: it waits for a gap it can hold, and lane 0 makes no room on purpose —
+measured, see F-20. No car appears out of thin air on the motorway, and none appears while you are
+within `rampSpawnHoldM` of a ramp top.
 
 Free play adds one ramp per junction while it is in the simulated range (`rampsFreePlay`, off =
 scenery only), at `rampPerMin × densityScale`. `?scenario=onramp` places you at junction 0, before
 the exit lane and the bridge; `onramp-busy` is the same junction with twice the traffic and twice
 the ramp flow. `npm run onramp [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7] [road=400]`
 measures merges, gaps, stops at the end, stops per merge, ramp-road time, speed at the end of the
-ramp road, follower braking, lane-0 speed near the ramp and throughput (`road=0` is the slice-1
-strip without a ramp road; `CFG_<key>=<value>` overrides, as in `closure.js`). Knobs: `rampRoadM`,
-`rampTopKmh`, `rampStripM`, `rampPerMin`, `rampSpawnHoldM`, `rampEntryKmh`, `mergeKmhDefault`,
+ramp road, follower braking, lane-0 speed near the ramp, throughput, the merge gate (seconds spent
+faster or slower than the speed a merger compares itself with) and courtesy (how often lane 0 could
+make room and the merger used it), and prints one `JSON` line with `--json` (`road=0` is the
+slice-1 strip without a ramp road; `CFG_<key>=<value>` overrides, as in `closure.js`).
+`npm run onrampsuite` runs the 12-run matrix (2 and 3 lanes × density 8/12/16 × seeds 7/8) and
+checks it against `tools/onramp-baseline.json`; `--save` writes that baseline, `--runs=4` runs only the
+density-8 part. Knobs: `rampRoadM`, `rampTopKmh`, `rampStripM`, `rampPerMin`,
+`rampSpawnHoldM`, `rampEntryKmh`, `mergeKmhDefault`, `mergeRelaxKmh`, `mergeLiftMinKmh`,
 `mergeLastM`, `junctionEveryKm`, `rampsFreePlay` in `config.js`, plus `mergeKmh` per archetype.
 
 ### Lane map
