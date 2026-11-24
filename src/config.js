@@ -62,6 +62,8 @@ export const DEFAULTS = {
   mergeRelaxKmh: 30, // ...and this much more over the second half of the strip (F-20)
   mergeLiftMinKmh: 50, // only ease a too-fast merger toward lane 0 above this lane-0 speed (F-20)
   mergeLastM: 120, // in the last this many metres of the strip any safe gap will do
+  mergeFollowM: 9, // invoegen: from the middle of the strip on, two car lengths is a gap (F-20 slice 4)
+  mergeFollowB: 3, // ...if the new follower need brake no harder than this (m/s²; −4 is a hard brake)
 
   // --- player car ---
   steeringAssist: 2, // 0: raw, 1: follows road curve, 2: also straightens after release

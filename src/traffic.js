@@ -745,6 +745,12 @@ export class Traffic {
     const nl = leaderIn(tgt, veh);
     const nf = followerIn(tgt, veh);
     let safe = true;
+    // A car merging off the strip into lane 0 from the middle of the strip on
+    // (or along the run-out) takes the Dutch gap: a couple of car lengths and a
+    // firm but ordinary brake for the car behind. That replaces the follower
+    // half of both the zipper and the normal test there; ordinary lane changes
+    // and the first half of the strip keep today's tests. (F-20 slice 4)
+    const invoegen = t !== veh.lane && veh.lane === -1 && t === 0 && this.mergeFollowZone(veh);
     // Zipper (ritsen): with your lane closing just ahead you take a tight gap,
     // as long as the driver behind only has to brake moderately. For a car on
     // an acceleration strip (F-20) the end of the strip counts as that closure.
@@ -753,7 +759,7 @@ export class Traffic {
       // room to finish the move before the block? otherwise slow down first
       if (veh.v > 2 && this.closedAhead(veh.lane, this.dir * veh.u, 200) < 6 + veh.v * 2.4) safe = false;
       if (nl && gapBetween(nl, veh) < 1.5 + veh.v * 0.2 + Math.max(0, veh.v - nl.v) * 0.8) safe = false;
-      if (nf) {
+      if (nf && !invoegen) {
         const g = gapBetween(veh, nf);
         // the driver behind needs their reaction time too
         if (g < 2 + nf.v * (0.45 + (nf.react ?? 0.8) * 0.6) || idm(nf, veh) < -(nf.isPlayer ? 1.8 : 2.2)) safe = false;
@@ -761,7 +767,9 @@ export class Traffic {
     } else if (nl) {
       if (!this.leaderSafe(veh, nl, gapBetween(nl, veh))) safe = false;
     }
-    if (nf && !zip) {
+    if (nf && invoegen) {
+      if (!this.mergeFollowerOk(veh, nf)) safe = false;
+    } else if (nf && !zip) {
       if (!this.followerSafe(veh, nf, gapBetween(veh, nf))) safe = false;
     }
     const aOld = veh.accPure;
@@ -1108,9 +1116,16 @@ export class Traffic {
     if (nl && idm(veh, nl) < -2.2) return;
     // A car joining well below the speed of the lane-0 car behind it cannot use
     // the tight zipper gap: from (nearly) a standstill that gap closes too fast
-    // for the car behind, and the one behind that.
+    // for the car behind, and the one behind that. From the middle of the strip
+    // on it is invoegen instead: two car lengths and a firm but ordinary brake
+    // for the car behind is what a Dutch driver takes, and what the car behind
+    // expects to have to do. (F-20 slice 4)
     const nf = followerIn(this.lanes[0], veh);
-    if (nf && veh.v < nf.v - 3 && !this.followerSafe(veh, nf, gapBetween(veh, nf))) return;
+    if (nf) {
+      if (this.mergeFollowZone(veh)) {
+        if (!this.mergeFollowerOk(veh, nf)) return;
+      } else if (veh.v < nf.v - 3 && !this.followerSafe(veh, nf, gapBetween(veh, nf))) return;
+    }
     veh.state = 'move';
     veh.lcT = 0;
     // near the end: the short, decisive zipper move, at any speed difference
@@ -1153,6 +1168,30 @@ export class Traffic {
     let nl = leaderIn(this.lanes[0], veh);
     while (nl && gapBetween(nl, veh) <= 0) nl = leaderIn(this.lanes[0], nl);
     return nl && gapBetween(nl, veh) < 150 ? nl : null;
+  }
+
+  /**
+   * True from the middle of the strip on, and along the run-out (F-20 slice 4):
+   * there a merger takes the Dutch gap instead of asking for a big one.
+   */
+  mergeFollowZone(veh) {
+    const r = veh.ramp;
+    if (!r) return false;
+    return this.dir * veh.u >= r.s0 + (r.s1 - r.s0) / 2;
+  }
+
+  /**
+   * Invoegen: is the gap in front of `nf` one this merger takes? Two car
+   * lengths, and the car behind need brake firmly but not hard. The IDM term
+   * carries the closing speed, so a slow or stopped merger still needs a long
+   * gap in front of a fast car: B makes merging at speed easy, not pulling out
+   * from a standstill. With the player behind, the zipper's gentler limit.
+   */
+  mergeFollowerOk(veh, nf) {
+    const g = gapBetween(veh, nf);
+    if (g < (CONFIG.mergeFollowM ?? 9)) return false;
+    const b = nf.isPlayer ? 1.8 : (CONFIG.mergeFollowB ?? 3);
+    return idm(nf, veh, 1, g) >= -b;
   }
 
   /**

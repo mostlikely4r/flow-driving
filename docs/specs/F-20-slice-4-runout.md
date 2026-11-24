@@ -171,6 +171,20 @@ and all but 162 of 2168 of them at what will become the hard end.
 Check: the matrix. Stops should move from "on the strip" to nothing, not to "hard end"; merges in
 the run-out should be most of what used to be stops. Then **Try it** (section 6) once, by eye.
 
+*Built 2026-11-24.* As proposed: `rampRunoutM` 150, `runoutUnderKmh` 5, `r.sEnd`, the AI's stop
+marker at `sEnd`, `closedAhead(-1, s)` counting to `sEnd`, and the speed gate reading `s1` through a
+new `stripLeft(veh, s)` (clamped at 0, so past the paint any speed difference is accepted). The
+run-out target speed is a virtual leader like the lift-off, from `runoutSpeed()`: the lane-0 car
+alongside or within 30 m, minus 5 km/h, floored at 15 km/h. The player's strip-end wall is gone, and
+session removal, the player's strip span, `mergeText` ("run-out · 60 m left"), the lane map (the
+run-out in a lighter tone) and the tool's span check all moved to `sEnd`.
+
+Matrix after this step (229 s): density 8 median **0.05** stops per merge (was 0.24), density 12
+**0.19** (was 1.98); 221 of 1042 merges (21%) in the run-out; stops on the strip 476 (the jams),
+run-out 125, hard end 54 — **0.074 per merge**, over the 1-in-20 target, and 0 merges braked under
+−4. Lane 0 near the ramp went *up*: 82 km/h at density 8 and 66 at 12, against 67 and 45. Stops did
+move off the strip as intended, and onto the hard end as feared; step 3 clears them.
+
 ### Step 3: merge like a Dutchman (*decided*: ~2 car lengths and let the follower brake; numbers are *proposals*)
 
 `src/traffic.js` (`stripLogic`, a new `mergeFollowerOk`), `src/config.js`.
@@ -193,6 +207,19 @@ the run-out should be most of what used to be stops. Then **Try it** (section 6)
   else, and write the values used here.
 
 Check: the matrix; the section 3 lines must pass. `npm run simtest` and `personas` unchanged.
+
+*Built 2026-11-24.* `mergeFollowM` 9 and `mergeFollowB` 3 as proposed, no adjustment needed; the
+zone is `mergeFollowZone()` — from the middle of the strip on and along the run-out — and
+`mergeFollowerOk()` replaces the follower half of both the zipper and the normal test for those
+merges only. The player as follower keeps the zipper's −1.8. The first half of the strip and every
+ordinary lane change still use `followerSafe`.
+
+Matrix (253 s), every section 3 line passing: density 8 median **0.00** stops per merge (was 0.24),
+density 12 median **0.00** (was 1.98); hard-end stops **7 in 757 merges (0.009**, target 0.05);
+merges whose new follower braked under −4 m/s² **3 of 749 (0.4%**, target 3%); 0 collisions;
+5 emergency stops against the baseline's 6; lane 0 near the ramp 80 km/h at density 8 and 72 at 12
+(baseline 67 and 45). Under −2 m/s² came down to 4.5% from 16.4% rather than rising as the plan
+expected: mergers no longer stop and then dive, they take the gap at speed.
 
 ### Step 4: close the slice
 

@@ -261,7 +261,7 @@ Everything the expanded overlay shows now, plus predicted paths, target gaps and
 drawn in the world. Later; separate from the AR overlay.
 
 ## F-20 · On-ramps (AI only)
-- status: specced
+- status: building
 - priority: P1
 - value: 5
 - effort: L
@@ -329,6 +329,25 @@ drives on 2026-11-24: mergers stood at the strip end and an invisible wall on th
 trapped the player. A merger with no gap rolls on along a 150 m run-out on the hard shoulder, takes
 a ~2-car-length gap from the middle of the strip on and lets the follower brake; the player's wall
 goes; the matrix goes to 4 seeds first.
+
+Slice 4 built: [docs/specs/F-20-slice-4-runout.md](docs/specs/F-20-slice-4-runout.md). The matrix is
+24 runs now (4 seeds), with stops split by place (strip, run-out, hard end), merges in the run-out
+and follower braking under −4, and it checks the plan's section 3 lines against a fresh baseline
+(the one in the tree was stale: saved in slice 3 P1, before P2's relax gate, so 2L D8 S7 read 14
+stops against its 12). **The strip now ends in a run-out:** past `s1` a merger with no gap keeps
+rolling for `rampRunoutM` 150 m along the vluchtstrook, indicating left, at `runoutUnderKmh` 5 under
+the lane-0 car alongside (floored at 15 km/h, a virtual leader), and it never undertakes lane 0
+there. From the middle of the strip on it merges like a Dutchman: `mergeFollowM` 9 m (two car
+lengths) in front of a follower that need brake no harder than `mergeFollowB` 3 m/s² by IDM; the
+first half of the strip and ordinary lane changes are untouched. The AI's stop marker moved out to
+`r.sEnd` (invisible, AI only) and **the player's strip-end wall is gone** — past a strip the hard
+shoulder is just the hard shoulder, and a run-out car follows you there. 24 runs: **stops per merge
+median 0.00 at density 8 (0.24) and 0.00 at 12 (1.98)**; hard-end stops 7 in 757 merges (0.009,
+target 1 in 20); merges braking the new follower under −4 m/s² 3 of 749 (0.4%, target 3%), under −2
+4.5% (16.4% — it fell rather than rose, because mergers now take gaps at speed instead of stopping
+and diving); 0 collisions, 5 emergency stops against 6; lane 0 200 m before the strip end 80 km/h at
+density 8 and 72 at 12 (67 and 45). Both slice-3 targets met with room; density 16 is still a jam
+(F-22).
 
 ## F-21 · Exits (AI only)
 - status: idea
