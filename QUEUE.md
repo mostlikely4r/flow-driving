@@ -2,6 +2,16 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-8 · On-ramps slice 4: the run-out and merging like a Dutchman · build
+- state: queued
+- backlog: F-20
+- plan: docs/specs/F-20-slice-4-runout.md
+- added: 2026-11-24
+
+A merger with no gap rolls on along the hard shoulder (150 m run-out) instead of standing at the
+strip end, takes a ~2-car-length gap and lets the follower brake; the invisible wall that trapped
+your car goes. Matrix widened to 4 seeds first.
+
 ## Q-3 · Drive a junction and bring a journal · test
 - state: queued
 - backlog: F-20

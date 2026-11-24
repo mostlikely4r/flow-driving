@@ -261,14 +261,14 @@ Everything the expanded overlay shows now, plus predicted paths, target gaps and
 drawn in the world. Later; separate from the AR overlay.
 
 ## F-20 · On-ramps (AI only)
-- status: building
+- status: specced
 - priority: P1
 - value: 5
 - effort: L
 - risk: High
 - pillar: Readable
 - milestone: M2
-- plan: docs/specs/F-20-slice-3-making-room.md
+- plan: docs/specs/F-20-slice-4-runout.md
 
 Merge lane, acceleration strip, AI zipper-merge and making room.
 
@@ -323,6 +323,12 @@ lifting off for a signaller collapses to 7-31 km/h (the slice-1 deadlock class),
 because it takes the run-up away from the cars behind on the strip. The 2-seed matrix is too noisy to
 judge a rule by (2L D12 S9 is 15 stops per merge in every variant, 2L D12 S7 swings 0.73 to 11.85 on
 a 6 s change); widening it to 4 seeds comes first next time. Exits are F-21, jams F-22.
+
+Slice 4 specced: [docs/specs/F-20-slice-4-runout.md](docs/specs/F-20-slice-4-runout.md). From two
+drives on 2026-11-24: mergers stood at the strip end and an invisible wall on the hard shoulder
+trapped the player. A merger with no gap rolls on along a 150 m run-out on the hard shoulder, takes
+a ~2-car-length gap from the middle of the strip on and lets the follower brake; the player's wall
+goes; the matrix goes to 4 seeds first.
 
 ## F-21 · Exits (AI only)
 - status: idea
@@ -702,3 +708,20 @@ need.
 A stretch along water or a port (like the A15 through the Rotterdam port, or a dyke road with the
 IJsselmeer beside it) with ships passing and cranes on the skyline. Present-day first; it is also
 the twin that F-48's future ships and ports need.
+
+## F-52 · Lane changes look like a slide
+- status: built
+- priority: P2
+- value: 3
+- effort: S
+- risk: Low
+- pillar: Authentic
+- milestone: M2
+
+A car crossing a lane line was drawn with its nose up to ~50° into the new lane: the view turned
+it by `atan2(latRate, max(v, 2))`, and the zipper move crosses 3.5 m in 2.2 s while the forward
+speed was floored at 2 m/s. So a merger pulling away from a standstill — or any slow lane change —
+slid sideways instead of steering. Seen in a drive report on the on-ramp scenario (2026-11-24);
+ordinary lane changes sit at 2° median, 6–16° at p99, so the cap only touches the pathological
+frames. Done: `slipAngle` in `util.js` caps the drawn slip at 8.6° and both views (`trafficView`,
+`castStage`) use it. Render only; the traffic numbers do not move.
