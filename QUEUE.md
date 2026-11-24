@@ -2,16 +2,6 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
-## Q-8 · On-ramps slice 4: the run-out and merging like a Dutchman · build
-- state: queued
-- backlog: F-20
-- plan: docs/specs/F-20-slice-4-runout.md
-- added: 2026-11-24
-
-A merger with no gap rolls on along the hard shoulder (150 m run-out) instead of standing at the
-strip end, takes a ~2-car-length gap and lets the follower brake; the invisible wall that trapped
-your car goes. Matrix widened to 4 seeds first.
-
 ## Q-3 · Drive a junction and bring a journal · test
 - state: queued
 - backlog: F-20
@@ -56,6 +46,22 @@ Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; w
 reflections can be a second slice.
 
 ## Done
+
+## Q-8 · On-ramps slice 4: the run-out and merging like a Dutchman · build
+- state: done
+- backlog: F-20
+- plan: docs/specs/F-20-slice-4-runout.md
+- done: 2026-11-24
+- added: 2026-11-24
+
+A merger with no gap rolls on along the hard shoulder (150 m run-out) instead of standing at the
+strip end, takes a ~2-car-length gap and lets the follower brake; the invisible wall that trapped
+your car goes. Matrix widened to 4 seeds first. Done: `npm run onrampsuite` is 24 runs (~4 min) with
+stops split by place, run-out merges and braking under −4, against a fresh baseline (the old one was
+stale, from slice 3 P1). 24 runs: stops per merge median 0.00 at density 8 (0.24) and 0.00 at 12
+(1.98); hard-end stops 7 in 757; 0.4% of merges braked the new follower under −4; 0 collisions, 5
+emergency stops against 6; lane 0 near the ramp 80 km/h at 8 and 72 at 12 (67 and 45). Both slice-3
+targets met; density 16 is still a jam (F-22).
 
 ## Q-2 · On-ramps slice 3 · build
 - state: done
