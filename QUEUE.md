@@ -3,7 +3,7 @@
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
 ## Q-9 · Exits slice 1: cars move right early and leave · build
-- state: queued
+- state: in progress
 - backlog: F-21
 - plan: docs/specs/F-21-exits.md
 - added: 2026-11-24
@@ -45,6 +45,12 @@ Slice 4 (`compare.js`, `jij`) waits for at least 3 of your journals.
 
 Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; wet-road
 reflections can be a second slice.
+
+## Q-10 · Toekomstflitsen: the promised now · spec
+- state: queued
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- added: 2026-11-24
 
 ## Done
 
