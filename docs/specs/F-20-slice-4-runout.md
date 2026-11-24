@@ -230,6 +230,11 @@ expected: mergers no longer stop and then dive, they take the gap at speed.
   `mergeFollowM`, `mergeFollowB`, the 4-seed matrix and its new columns.
 - Commit.
 
+*Built 2026-11-24.* Full check, first time: `npm run build` 4 s, `npm run simtest` 8 s,
+`npm run personas` 2 s, `npm run moments` 1 s, `npm run bottest` 5 s, `sync-prompts.ts --check`
+clean — 20 s together, so the list needs no trimming. The 24-run matrix takes about 4 min (235 s for
+the baseline, 229 s after step 2, 253 s after step 3).
+
 ## 6. How we'll know
 
 - **Matrix** after every step: `npm run onrampsuite`, 24 runs, ~4 min, in the background with
