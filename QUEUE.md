@@ -2,6 +2,15 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-9 · Exits slice 1: cars move right early and leave · build
+- state: queued
+- backlog: F-21
+- plan: docs/specs/F-21-exits.md
+- added: 2026-11-24
+
+Step 1 is the smallest version to drive (`?scenario=exit`); step 2 adds `npm run exits` /
+`exitsuite` with a no-exit control per run. On-ramp matrix must stay exact.
+
 ## Q-3 · Drive a junction and bring a journal · test
 - state: queued
 - backlog: F-20
@@ -9,14 +18,6 @@
 
 Free play with `rampsFreePlay` on, F8 at merges that look right or wrong. The journal starts a new
 session; it guides, it doesn't gate.
-
-## Q-4 · Exits: cars move right early and leave · spec
-- state: queued
-- backlog: F-21
-- added: 2026-11-23
-
-Reuse slice 2's exit lane, gore and signs, which are already rendered. AI only; the player taking
-an exit is F-31.
 
 ## Q-6 · Proefrit: fix the stage-test probes · build
 - state: queued
@@ -46,6 +47,16 @@ Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; w
 reflections can be a second slice.
 
 ## Done
+
+## Q-4 · Exits: cars move right early and leave · spec
+- state: done
+- plan: docs/specs/F-21-exits.md
+- done: 2026-11-24
+- backlog: F-21
+- added: 2026-11-23
+
+Reuse slice 2's exit lane, gore and signs, which are already rendered. AI only; the player taking
+an exit is F-31. Done: plan `docs/specs/F-21-exits.md` (planner's proposals; nothing was talked through).
 
 ## Q-8 · On-ramps slice 4: the run-out and merging like a Dutchman · build
 - state: done

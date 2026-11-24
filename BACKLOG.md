@@ -350,15 +350,22 @@ density 8 and 72 at 12 (67 and 45). Both slice-3 targets met with room; density 
 (F-22).
 
 ## F-21 · Exits (AI only)
-- status: idea
+- status: specced
 - priority: P1
 - value: 4
 - effort: M
 - risk: Med
 - pillar: Authentic
 - milestone: M2
+- plan: docs/specs/F-21-exits.md
 
 Cars move right early and leave the motorway.
+
+Slice 1 specced: [docs/specs/F-21-exits.md](docs/specs/F-21-exits.md). About 12% of cars passing a
+junction leave there (proposal); they drift right from 700–1800 m out by `mergeEarly`, stop
+overtaking, indicate at the bakens, cross onto the exit lane at speed, brake on it, climb the exit
+road and wait at the give-way at the top. A car in the wrong lane misses the exit, never dives.
+`?scenario=exit` first, then `npm run exitsuite` with a no-exit control.
 
 ## F-22 · Bottlenecks and jams
 - status: building
