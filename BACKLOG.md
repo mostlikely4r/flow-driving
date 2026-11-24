@@ -261,14 +261,14 @@ Everything the expanded overlay shows now, plus predicted paths, target gaps and
 drawn in the world. Later; separate from the AR overlay.
 
 ## F-20 · On-ramps (AI only)
-- status: building
+- status: specced
 - priority: P1
 - value: 5
 - effort: L
 - risk: High
 - pillar: Readable
 - milestone: M2
-- plan: docs/specs/F-20-slice-2-visible-onramps.md
+- plan: docs/specs/F-20-slice-3-making-room.md
 
 Merge lane, acceleration strip, AI zipper-merge and making room.
 
@@ -305,6 +305,11 @@ road too, so more cars stop and fewer merge. Speed at the end of the ramp road p
 0 near the ramp still 21-47 km/h below a kilometre upstream. `rampRoadM` 300 gave 3.4 stops per
 merge against 3.2 at 400 (both against 0.7 at 0). The merge is a gap-acceptance problem (F-22):
 slice 3 starts there.
+
+Slice 3 (gap acceptance and making room) specced: [docs/specs/F-20-slice-3-making-room.md](docs/specs/F-20-slice-3-making-room.md).
+The strip stays 350 m; the speed-match gate relaxes over the second half of the strip, and cooperative
+lane-0 drivers move left (or lift off briefly) for a merger alongside or just behind. Target 0.1 stops
+per merge at density 8, better than baseline at 12; density 16 is F-22.
 
 ## F-21 · Exits (AI only)
 - status: idea
