@@ -209,8 +209,8 @@ export class LaneMap {
       c.textAlign = 'left';
     }
 
-    // on-ramps: the ramp road (faint: the cars are not on the strip yet) and the
-    // strip beside lane 0, with the hatched gore after it
+    // on-ramps: the ramp road (faint: the cars are not on the strip yet), the
+    // strip beside lane 0 and its run-out, with the hatched gore after it
     for (const r of ramps) {
       const xa = Math.max(pad, X(r.s0)), xb = Math.min(pad + iw, X(r.s1));
       const y = top + N * laneH + 2;
@@ -228,6 +228,13 @@ export class LaneMap {
         c.fillRect(xa, y, xb - xa, stripH - 4);
         c.fillStyle = 'rgba(235, 240, 245, 0.45)';
         c.fillRect(xa, y - 0.5, xb - xa, 1);
+      }
+      // the run-out (F-20 slice 4): past the paint a car with no gap keeps
+      // rolling along the hard shoulder, so it reads lighter than the strip
+      const xrun = Math.min(pad + iw, X(r.sEnd));
+      if (xrun > xb) {
+        c.fillStyle = 'rgba(70, 76, 84, 0.5)';
+        c.fillRect(xb, y, xrun - xb, stripH - 4);
       }
       // the gore area (verdrijvingsvlak) at the end of the strip
       const xe = Math.min(pad + iw, xb + Math.max(6, 25 * pxm));

@@ -156,7 +156,7 @@ export function updateJunctionRamps(sim) {
     sim.ramps.set(j.b, traffic.addRamp(j.rampTop, { perMin, truckShare }));
   }
   for (const [b, r] of sim.ramps) {
-    if (r.s1 >= player.s - CONFIG.rangeBehind - 200) continue;
+    if (r.sEnd >= player.s - CONFIG.rangeBehind - 200) continue;
     traffic.removeRamp(r);
     sim.ramps.delete(b);
   }

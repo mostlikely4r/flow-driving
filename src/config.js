@@ -54,6 +54,8 @@ export const DEFAULTS = {
   rampsFreePlay: true, // on-ramps at junctions in free play (off = scenery only)
   rampSpawnHoldM: 120, // no car appears while you are this close to the ramp top
   rampStripM: 350, // length of the acceleration strip, from the start of the strip to its end
+  rampRunoutM: 150, // past the strip a car with no gap keeps rolling along the vluchtstrook (F-20 slice 4)
+  runoutUnderKmh: 5, // on the run-out it aims this far under the lane-0 car alongside, so gaps slide past
   rampPerMin: 6, // mean cars per minute entering from a ramp (Poisson)
   rampEntryKmh: 80, // mean speed entering the strip for cars (sd 6); trucks 60 (sd 5). Only used with rampRoadM 0
   mergeKmhDefault: 12, // merge once within this many km/h of lane-0 traffic, if the gap is safe

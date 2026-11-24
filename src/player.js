@@ -340,25 +340,10 @@ export class Player {
         }
       }
     }
-    // the end of an acceleration strip (F-20) is solid on the hard shoulder too
-    for (const r of traffic.ramps || []) {
-      const dlat = r.obs.latLocal - this.lat;
-      if (Math.abs(dlat) > r.obs.width / 2 + hw - 0.05) continue;
-      const front = this.s + this.len / 2;
-      if (front > r.s1 && this.s - this.len / 2 < r.s1 + 20) {
-        const p = this.road.sample(this.s);
-        const pen = front - r.s1;
-        this.x -= p.tx * pen;
-        this.z -= p.tz * pen;
-        this.s -= pen;
-        const hit = this.v;
-        this.v = 0;
-        if (hit > 1 && this.clock - this.lastHit > 0.9) {
-          this.lastHit = this.clock;
-          this.emit('crash', { strength: Math.min(3, hit / 5) });
-        }
-      }
-    }
+    // (F-20 slice 4: the end of an acceleration strip is not solid. Past the
+    // strip the hard shoulder is just the hard shoulder; the AI's stop marker
+    // out at the end of the run-out is AI-only, and nothing here may trap a
+    // player who cannot reverse.)
     for (const veh of traffic.vehicles) {
       const dl = veh.u - this.s;
       if (Math.abs(dl) > 25) continue;

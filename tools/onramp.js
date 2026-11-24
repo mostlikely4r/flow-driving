@@ -172,7 +172,7 @@ for (let i = 0; i < steps; i++) {
     const wasS = lastS.get(veh.id);
 
     // ---- the merge gate: which side binds, faster or slower than lane 0
-    if (veh.lane === -1 && s >= s0 && !tr.mergeReady(veh, tr.closedAhead(-1, s))) {
+    if (veh.lane === -1 && s >= s0 && !tr.mergeReady(veh, tr.stripLeft(veh, s))) {
       if (veh.v > tr.mergeSpeed(veh)) gate.faster += dt;
       else gate.slower += dt;
     }

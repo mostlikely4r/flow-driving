@@ -124,7 +124,7 @@ export class Traffic {
     this.onRemove = onRemove || (() => {});
     this.events = []; // lane change events etc. (for debugging/stats)
     this.closures = []; // lane closures: {lane, s0, s1, obs}
-    this.ramps = []; // on-ramps (F-20): {s0, s1, obs, perMin, spawnT, retryT}
+    this.ramps = []; // on-ramps (F-20): {s0, s1, sEnd, obs, perMin, spawnT, retryT}
     this.strip = []; // the acceleration strip, lane -1 (F-20), rebuilt like `lanes`
     this.msi = null; // matrix signs (msi.js), if any
   }
@@ -179,12 +179,15 @@ export class Traffic {
    * no arrow-board truck. With `roadM` the cars appear at the top of a ramp
    * road (lane -1 from sTop to s0, so following and spacing work as on any
    * lane) at ramp-top speed, drive down it, and then have the acceleration
-   * strip ("invoegstrook") to merge into lane 0 before s1. A stopped obstacle
-   * just past s1 makes a car with no gap stop there.
+   * strip ("invoegstrook") to merge into lane 0 before the paint ends at s1.
+   * Past that they run on along the vluchtstrook for `runoutM` more metres and
+   * merge there (slice 4); a stopped, AI-only obstacle whose nose sits at sEnd
+   * is what a car with no gap at all stops behind.
    */
-  addRamp(sTop, { perMin = CONFIG.rampPerMin, stripM = CONFIG.rampStripM, roadM = CONFIG.rampRoadM, truckShare = null } = {}) {
+  addRamp(sTop, { perMin = CONFIG.rampPerMin, stripM = CONFIG.rampStripM, roadM = CONFIG.rampRoadM, runoutM = CONFIG.rampRunoutM, truckShare = null } = {}) {
     const s0 = sTop + roadM;
     const s1 = s0 + stripM;
+    const sEnd = s1 + runoutM;
     const obs = {
       id: -2000 - this.ramps.length,
       isObstacle: true,
@@ -192,7 +195,7 @@ export class Traffic {
       lane: -1,
       targetLane: -1,
       state: 'none',
-      u: this.dir * (s1 + 10), // its nose sits at s1, the end of the strip
+      u: this.dir * (sEnd + 10), // its nose sits at sEnd, the end of the run-out
       len: 20,
       width: 2.4,
       latLocal: laneLat(-1, this.N),
@@ -201,7 +204,7 @@ export class Traffic {
       signalLane: -1,
       indicator: 0,
     };
-    const r = { sTop, s0, s1, roadM, obs, perMin, truckShare, spawnT: this.rampGap(perMin), retryT: 0, due: false, held: false };
+    const r = { sTop, s0, s1, sEnd, roadM, runoutM, obs, perMin, truckShare, spawnT: this.rampGap(perMin), retryT: 0, due: false, held: false };
     this.ramps.push(r);
     return r;
   }
@@ -229,15 +232,15 @@ export class Traffic {
 
   /**
    * Metres from s to the start of a closure in `lane` (0 if inside), or Infinity.
-   * For lane -1 (F-20) it counts the end of the acceleration strip instead: a
-   * car out of strip is in the same hurry as a car at the end of a closed lane.
+   * For lane -1 (F-20) it counts the end of the run-out instead: a car out of
+   * strip is in the same hurry as a car at the end of a closed lane.
    */
   closedAhead(lane, s, within = 1500) {
     let d = Infinity;
     if (lane === -1) {
       for (const r of this.ramps) {
-        if (r.s1 < s) continue;
-        const x = Math.max(0, r.s1 - s);
+        if (r.sEnd < s) continue;
+        const x = Math.max(0, r.sEnd - s);
         if (x < within && x < d) d = x;
       }
       return d;
@@ -252,6 +255,17 @@ export class Traffic {
 
   get N() {
     return this.laneCount;
+  }
+
+  /**
+   * Metres from a strip car to the painted end of its strip (F-20), 0 once past
+   * it. The speed gate reads this; the hard end (what a car brakes for) is
+   * `closedAhead(-1, s)`, out at the end of the run-out.
+   */
+  stripLeft(veh, s) {
+    const r = veh.ramp;
+    if (!r) return this.closedAhead(-1, s);
+    return Math.max(0, r.s1 - s);
   }
 
   setLimit(kmh) {
@@ -453,10 +467,11 @@ export class Traffic {
     }
     if (player) {
       for (const li of player.lanesOcc) if (li >= 0 && li < N) this.lanes[li].push(player);
-      // On the hard shoulder inside a ramp's span: the strip cars must see you.
+      // On the hard shoulder inside a ramp's span (strip and run-out): the
+      // strip cars must see you.
       if (player.lane === -1) {
         const s = this.dir * player.u;
-        if (this.ramps.some((r) => s >= r.s0 - 20 && s <= r.s1 + 20)) this.strip.push(player);
+        if (this.ramps.some((r) => s >= r.s0 - 20 && s <= r.sEnd + 20)) this.strip.push(player);
       }
     }
     for (const c of this.closures) if (c.lane < N) this.lanes[c.lane].push(c.obs);
@@ -519,7 +534,7 @@ export class Traffic {
       const nl = s >= s0 ? this.mergeLeader(veh) : null;
       // (only where lane 0 is actually flowing: in a jam this belongs to F-22,
       // and lifting off to a crawl on the strip only builds a queue)
-      if (nl && nl.v > CONFIG.mergeLiftMinKmh * KMH && veh.v > nl.v + this.mergeBand(veh, this.closedAhead(-1, s)) * KMH) {
+      if (nl && nl.v > CONFIG.mergeLiftMinKmh * KMH && veh.v > nl.v + this.mergeBand(veh, this.stripLeft(veh, s)) * KMH) {
         // a virtual leader at lane-0 speed, a normal following distance ahead:
         // the merger eases off toward that speed. (Reading the real gap would
         // treat the car alongside as if it were 5 m in front and brake.)
@@ -527,6 +542,19 @@ export class Traffic {
         vl.v = nl.v;
         vl.acc = 0;
         a = Math.min(a, Math.max(idm(veh, vl, 1, veh.s0 + veh.v * veh.T), -1.5));
+      }
+      // Out on the run-out (F-20 slice 4): no gap by the end of the strip is not
+      // a reason to stand still. Aim a little under the lane-0 car alongside so
+      // gaps slide past it, never crawl, and never undertake lane 0 on the
+      // shoulder — the same virtual leader, at the run-out's own target speed.
+      if (veh.ramp && s > veh.ramp.s1) {
+        const cap = this.runoutSpeed(veh, s);
+        if (veh.v > cap + 0.3) {
+          const vl = veh.runoutVirt || (veh.runoutVirt = { u: 0, len: 0, v: 0, acc: 0 });
+          vl.v = cap;
+          vl.acc = 0;
+          a = Math.min(a, Math.max(idm(veh, vl, 1, veh.s0 + veh.v * veh.T), -1.5));
+        }
       }
     }
     veh.accPure = a;
@@ -1045,7 +1073,9 @@ export class Traffic {
    * from 100 m before the gore (s0) it indicates left and keeps the signal on
    * (the F-38 closure-signal exception), merges once the gap is safe and it is
    * within its own speed band of lane 0, and in the last metres takes any safe
-   * gap. With no gap it brakes for the end of the strip and stops there.
+   * gap. With no gap it rolls on past the strip along the run-out (slice 4) and
+   * merges there; only with lane 0 jammed the whole way does it stop, at the end
+   * of the run-out.
    */
   stripLogic(veh, dt) {
     if (veh.state === 'move') return this.advanceMove(veh, dt);
@@ -1064,12 +1094,12 @@ export class Traffic {
       veh.intent = -1;
       return;
     }
-    const dEnd = this.closedAhead(-1, s); // metres to the end of the strip
+    const dEnd = this.closedAhead(-1, s); // metres to the hard end of lane -1
     if (veh.state === 'none') this.beginSignal(veh, 0, true);
     veh.signalT += dt;
     veh.closureSig = true; // a merge signal may wait, never withdrawn
     if (ramp && s < ramp.s0) return; // the gore: not before the strip begins
-    if (!this.mergeReady(veh, dEnd)) return;
+    if (!this.mergeReady(veh, this.stripLeft(veh, s))) return;
     const ev = this.evaluate(veh, 0);
     if (!ev.safe) return;
     // Invoegen: give way. The gap also has to be one this car can hold behind
@@ -1094,6 +1124,26 @@ export class Traffic {
   mergeSpeed(veh) {
     const nl = this.mergeLeader(veh);
     return nl ? nl.v : veh.v0;
+  }
+
+  /**
+   * The speed a run-out car aims for (F-20 slice 4): a little under the lane-0
+   * car alongside or within 30 m, so gaps slide past it, but never so slow that
+   * it crawls beside a queue. With nothing alongside it eases a touch under its
+   * own wanted speed instead.
+   */
+  runoutSpeed(veh, s) {
+    let vL = null;
+    let best = Infinity;
+    for (const c of this.lanes[0]) {
+      if (c.isObstacle) continue;
+      const d = Math.abs(this.dir * c.u - s);
+      if (d > 30 || d >= best) continue;
+      best = d;
+      vL = c.v;
+    }
+    const base = vL == null ? veh.v0 : vL;
+    return Math.max(15 * KMH, base - (CONFIG.runoutUnderKmh ?? 5) * KMH);
   }
 
   /** The genuine lane-0 leader a strip car would follow (F-20), or null. */
@@ -1267,7 +1317,7 @@ export class Traffic {
   updateRamps(sMin, sMax, sPlayer) {
     const dt = 0.2;
     for (const r of this.ramps) {
-      if (r.sTop > sMax || r.s1 < sMin - 250) continue;
+      if (r.sTop > sMax || r.sEnd < sMin - 250) continue;
       if (r.retryT > 0) {
         r.retryT -= dt;
         if (r.retryT > 0) continue;
