@@ -219,6 +219,35 @@ run-out (`r.sEnd`): an invisible, AI-only stop marker. There is no wall there fo
 strip the hard shoulder is just the hard shoulder, and a run-out car follows you on it. The lane map
 draws the run-out in a lighter tone than the strip, and the dev overlay says "run-out · 60 m left".
 
+**Exits** (F-21): the same junction works the other way round. About `exitShare` (12%) of the cars,
+vans and caravans passing it leave there, and `exitTruckShare` (8%; 30% where the junction has a
+distribution centre, matching its ramp's lorries) of the lorries. Each is rolled once, as it crosses
+2500–1000 m before the exit lane, so a car that appears closer than that never leaves there. From
+`exitGoM + exitGoSpreadM × mergeEarly` metres out (700 m for a patser, just before the 600 m sign;
+1.8 km for a careful driver, before the first blue sign) a leaving driver works right one lane at a
+time and stops overtaking; because it has to get right, not because it is worth it, it wants that
+move and its indicator stays on (ordinary drivers withdraw a signal that leads nowhere). In lane 0,
+from `exitSignalM` (300 m, the first
+*afritbaken*) it indicates right and keeps it on, and from 40 m past the exit lane opening, once the
+signal has been up for `tSignal` and a second and the lane is clear, it crosses at motorway speed.
+On the exit lane it slows for the exit road — `exitGoreKmh` (70) by the gore, then 40 km/h before
+the top, never harder than −2.5 m/s² — and stops at the give-way there, where it waits `exitWaitS`
+and is gone (while you are within `rampSpawnHoldM` of the top it waits on). No extra slowing in
+lane 0: the exit lane is where you brake. A car that is still in the wrong lane 30 m before the gore
+gives up and drives on, so nobody dives across two lanes or the gore.
+
+Exits exist in free play when `exitsFreePlay` is on (one per junction, added while its roll window is
+in range and taken off once the top is behind you) and at every `sc.junctions` entry of a scenario
+(`exit: false` opts out). `?scenario=exit` puts you 2 km before junction 0 with a quarter of the cars
+leaving there. `npm run exits [--lanes=3] [--density=8] [--seed=7] [--min=10] [--share=0.12]`
+measures how many leave and how many miss (and the lane they gave up in), how early they were in
+lane 0 for good, the shortest indicator, the speed they cross at against lane 0 there, lane-0 speed
+through the exit, what the cars behind them brake, collisions, emergency stops, stops on the exit
+lane, the queue at the top and the vehicles in range; `--share=0` is the control (it draws no random
+numbers, so it is the same run with nobody leaving). `npm run exitsuite` runs 2 and 3 lanes × density
+8/12 × seeds 7/8/9/10 with a control per run (about 5 minutes) and checks the section 3 lines of the
+F-21 plan.
+
 Free play adds one ramp per junction while it is in the simulated range (`rampsFreePlay`, off =
 scenery only), at `rampPerMin × densityScale`. `?scenario=onramp` places you at junction 0, before
 the exit lane and the bridge; `onramp-busy` is the same junction with twice the traffic and twice

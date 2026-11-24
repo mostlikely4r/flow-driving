@@ -350,7 +350,7 @@ density 8 and 72 at 12 (67 and 45). Both slice-3 targets met with room; density 
 (F-22).
 
 ## F-21 · Exits (AI only)
-- status: specced
+- status: built
 - priority: P1
 - value: 4
 - effort: M
@@ -366,6 +366,24 @@ junction leave there (proposal); they drift right from 700–1800 m out by `merg
 overtaking, indicate at the bakens, cross onto the exit lane at speed, brake on it, climb the exit
 road and wait at the give-way at the top. A car in the wrong lane misses the exit, never dives.
 `?scenario=exit` first, then `npm run exitsuite` with a no-exit control.
+
+Slice 1 built: [docs/specs/F-21-exits.md](docs/specs/F-21-exits.md). Cars leave at `exitShare` 12%
+(lorries 8%, 30% where the junction has an estate), rolled once 2500–1000 m before the exit lane;
+from `exitGoM + exitGoSpreadM × mergeEarly` out (700 m for a patser, 1.8 km for a careful driver)
+they work right lane by lane and stop overtaking, and — measured — that has to be a wish of their
+own, not a MOBIL bribe: in a fast left lane the margin for moving right is −5 to −10, and a
+leaving driver's indicator must not be withdrawn either (that pair of fixes is what took missed
+exits from 17% to 2.2%). In lane 0 they indicate at the first baken (`exitSignalM` 300) and cross
+40 m into the exit lane at motorway speed; on it they slow to `exitGoreKmh` 70 by the gore and
+40 km/h near the top, never harder than −2.5 m/s², then stop at the give-way, wait `exitWaitS` and
+are gone. A car still in the wrong lane 30 m before the gore gives up and drives on. Free play adds
+one exit per junction; `?scenario=exit`; `npm run exits` / `npm run exitsuite` (16 runs + a control
+each, 266 s). Suite: **missed 2.2% at density 8 and 3.8% at 12**, in lane 0 for good median 1180 m
+and p10 429 m, shortest indicator 1.0 s, speed across level with lane 0 there, lane 0 through the
+exit within 0.4 km/h of the control, follower braking under −4 on 0.0% of exits, 0 collisions, 0
+emergency stops, nobody standing on the exit lane. All twelve section 3 lines pass. The on-ramp
+matrix is unchanged line for line (it is compared against a clean worktree of `b62eefe`: the saved
+baseline is stale, from slice 4 P1).
 
 ## F-22 · Bottlenecks and jams
 - status: building

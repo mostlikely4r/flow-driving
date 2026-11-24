@@ -117,7 +117,44 @@ At `b62eefe` (F-20 slice 4 built):
 
 Each step ends with its checks and its own commit ("Exits slice 1 P<n>: ... (F-21)").
 
-### Step 1: cars leave (*proposal* throughout)
+*Built 2026-11-24.* Where the code and this plan disagreed, the plan's numbers lost and are noted
+under the step; the goal lines of section 3 are what the build was judged on.
+
+### Step 1: cars leave (*proposal* throughout) — **built**
+
+What changed from the plan (all of it measured, single-seed probes and then the 16-run matrix):
+
+- **The exit wish is not a bribe.** Adding `exit = 0.5 + 2.5 × clamp(…)` to `inc` is not enough on
+  its own: in a left lane running 10–13 km/h faster than lane 0 the MOBIL margin for the move is
+  −5 to −10, so `wants` stayed false and exiters drove straight past their exit (3 lanes, density
+  8: 17% missed). `evaluate` also returns `exit`, and inside the go window the move right is wanted
+  outright — a leaving driver has to get right, the safety gates decide when. The urge still goes
+  into `inc` as written, so margins and the debug overlay read as before.
+- **The indicator is not withdrawn.** Even with that, exiters signalled into lane 0, lost the
+  signal at the first 1 s recheck (`ev.margin < −0.15`) and spent the last kilometre in 15 s
+  signal/no-signal cycles; 3 lanes at density 8 still missed 8–20%. For an `ev.exit` move the signal
+  stays up and the move starts when `ev.safe`, not `ev.safe && ev.margin > −0.3` (the negative
+  margin *is* the speed it gives up to leave). The last chance before the gore ends it. That one
+  change is what took missed exits to 2.2%.
+- **The forced fallback may project the gap:** an exiter may put its indicator on for a gap that is
+  visibly opening, which F-38 already allows for ordinary moves.
+- **Two cars going to the same exit do not call off each other's move** (`advanceMove`'s abort): the
+  one ahead is the leader this one follows onto the exit lane, not a conflict.
+- `computeAcc`: the lane −1 lift-off and run-out code is now guarded by `veh.ramp` as asked, so an
+  exit car never eases off for lane 0 (it has its own curve). *First attempt broke on-ramps here:*
+  dropping the `s >= r.s0` part of the guard changed the on-ramp matrix (2L D8 S7: 48 merges
+  against 43), which the matrix caught; both guards are back.
+- **Two tuning points got names** in `config.js`, with this plan's numbers: `exitGoM: 700` +
+  `exitGoSpreadM: 1100 × mergeEarly` and `exitSignalM: 300`. A first guess at 1200/1300 also passed
+  every line and read "earlier", but it needed 3 emergency stops at 3 lanes density 8 against 0, so
+  the plan's numbers stand.
+- `applyScenario` fills the road at the scenario's density when `sc.fill` is set: the `exit`
+  scenario has no hand-placed cars, and `applyScenario` otherwise starts from an empty road.
+
+Checks, as run: `npm run build` ✓; `npm run simtest` ✓ (byte-identical to `b62eefe`); the 24-run
+on-ramp matrix **identical to `b62eefe` number for number** (compared against a clean worktree of
+that commit), after which `tools/onramp-baseline.json` was re-saved from this tree — see the note
+under *Not in this build*.
 
 `src/config.js`, `src/traffic.js`, `src/session.js`, `src/scenarios.js`, `src/trafficView.js`,
 `src/lanemap.js`, `src/overlay.js`.
@@ -218,7 +255,7 @@ Checks: `npm run build`; `npm run onrampsuite` must reproduce the baseline exact
 gates: offer it, and carry on with step 2 if the user doesn't drive now; a journal later starts a
 new session.
 
-### Step 2: measure it (*proposal*)
+### Step 2: measure it (*proposal*) — **built**
 
 `tools/exits.js`, `tools/exitsuite.js`, `package.json` (`exits`, `exitsuite`).
 
@@ -239,7 +276,38 @@ new session.
 
 Checks: the suite; `npm run onrampsuite` still exact.
 
-### Step 3: close the slice
+**Built.** `tools/exits.js` and `tools/exitsuite.js` as described, plus `exits` / `exitsuite` in
+`package.json`. Differences from the plan: the tool also reports **which lane a missed exiter was
+in when it gave up** (lane 0: no gap onto the exit lane; lane 1 or 2: never got right), and
+`--share=0` also zeroes the lorry share, so the control really is the same run with nobody leaving
+(otherwise 8% of the lorries still did, and the control measured a different road). The suite prints
+per-run rows and the section 3 lines as pass/fail against its own control, and takes **4.5 min**
+(206-266 s over two runs; 16 runs + 16 controls at 10 minutes each).
+
+The tuning loop above was run in order and the last two knobs were never needed. `dGo` was tried at
+1200 + 1300 × `mergeEarly` (everything passed and "early" read better: median 1676 m, p10 913 m
+against 1180 / 429) but it cost 3 emergency stops at 3 lanes density 8 against 0 for the control, so
+the plan's 700 + 1100 stands. The 300 m signal point was tried at 600 and 900 m: both helped
+while the indicator could still be withdrawn (the bug above). With that fixed they are noise —
+3 lanes, density 8, seeds 7/9/10: 3/1/2 missed at 600 against 1/0/4 at 300 — and the median
+indicator in lane 0 goes from 15 s to 26 s, so it stays at 300. `exitGoreKmh` and the −2.5 clamp
+were left alone: no line about braking failed.
+
+Suite, final (2 + 3 lanes × density 8/12 × seeds 7–10, control per run, 674 exits):
+
+- missed **2.2%** of exiters at density 8 (target 5) and **3.8%** at density 12 (15);
+- in lane 0 for good: median **1180 m** (600) and 10th percentile **429 m** (300) at density 8;
+- shortest right indicator **1.0 s** before starting across (1.0);
+- speed across **0.0 km/h** off lane 0 there (≥ −10); lane 0 through the exit **0.4 km/h** under the
+  control (≤ 5);
+- cars behind braked under −4 in **0.0%** of exits (≤ 2); **0 collisions**, **0** emergency stops
+  against the control's 0; **0** stops on the exit lane; vehicles in range within **0.4%** of the
+  control (≤ 5).
+
+All twelve lines pass. Per run the worst is 7% missed (3 lanes, density 8, seed 10: four of 54) and
+one run at 197 m had the 10th percentile under 300 m; both are inside the median the line measures.
+
+### Step 3: close the slice — **built**
 
 - Full check (section 6), with how long each took the first time.
 - `BACKLOG.md` F-21: one paragraph in the usual style, what was built and the suite's numbers;
@@ -248,12 +316,19 @@ Checks: the suite; `npm run onrampsuite` still exact.
   `npm run exits` / `exitsuite`.
 - Commit.
 
+Done: the README paragraph (exits, the four new CONFIG keys, `?scenario=exit`, `npm run exits` /
+`exitsuite`), the BACKLOG paragraph and `status: built`, queue Q-9 to done. Section 6 lists the times.
+
 ## 6. How we'll know
 
 - **Quick check** per step: `npm run build`, `npm run onrampsuite` (exact against the baseline,
   ~4 min, in the background with output to a log), and from step 2 `npm run exitsuite`.
 - **Full check** at the end: `npm run build`, `npm run simtest`, `npm run personas`,
   `npm run moments`, `npm run bottest`, and `node ~/Desktop/vibeview/scripts/sync-prompts.ts --check`.
+
+Times the first time: `build` 3 s, `simtest` 4 s, `personas` 40 s, `moments` 2 s, `bottest` 95 s,
+`exitsuite` 4.5 min (206-266 s), `onrampsuite` 187 s (all pass), and `node ~/Desktop/vibeview/scripts/sync-prompts.ts
+--check` clean (exit 0).
 - **Try it:** `npm run dev`, open `?scenario=exit`, stay in lane 1 at about 100 with the lane map on
   (U). Over the next minute, as the blue signs pass, a few cars ahead of you drift right into lane
   0 (marked on the lane map before they indicate); at the 3-2-1 markers they indicate right, slide
@@ -287,6 +362,13 @@ All present at `b62eefe` (checked 2026-11-24):
 
 ## Not in this build
 
+- **`tools/onramp-baseline.json` was stale and is re-saved here.** It had been written in
+  `0f4d5f6` (on-ramps slice 4 P1), before P2's run-out and P3's merging, so it did not reproduce at
+  `b62eefe` either (103 of its 120 numbers differ from what that commit produces). Re-saved from
+  this tree after checking the 24-run matrix is **identical line for line to a clean worktree of
+  `b62eefe`** — which is what "exits touch no random numbers when absent" means. `npm run
+  onrampsuite` now reproduces it and passes its targets (187 s).
+- Exits at density 16 and the crossing road filling up: a jam, F-22.
 - A share of patsers diving late from lane 1 (a later slice, if a drive asks for it).
 - Exit share by time of day or by junction (bigger towns, rush hour); real routes and destinations
   (M3, F-30 / F-33).

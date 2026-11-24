@@ -2,15 +2,6 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
-## Q-9 · Exits slice 1: cars move right early and leave · build
-- state: in progress
-- backlog: F-21
-- plan: docs/specs/F-21-exits.md
-- added: 2026-11-24
-
-Step 1 is the smallest version to drive (`?scenario=exit`); step 2 adds `npm run exits` /
-`exitsuite` with a no-exit control per run. On-ramp matrix must stay exact.
-
 ## Q-3 · Drive a junction and bring a journal · test
 - state: queued
 - backlog: F-20
@@ -53,6 +44,23 @@ Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; w
 reflections can be a second slice.
 
 ## Done
+
+## Q-9 · Exits slice 1: cars move right early and leave · build
+- state: done
+- backlog: F-21
+- plan: docs/specs/F-21-exits.md
+- done: 2026-11-24
+- added: 2026-11-24
+
+Step 1 is the smallest version to drive (`?scenario=exit`); step 2 adds `npm run exits` /
+`exitsuite` with a no-exit control per run. On-ramp matrix must stay exact. Done: cars leave at
+12% (lorries 8%), work right from 700–1800 m out by `mergeEarly`, indicate at the bakens, cross at
+motorway speed, brake on the exit lane and wait at the give-way at the top; a car in the wrong lane
+misses rather than dives. The exit wish had to become a wish of its own (not a MOBIL bribe) and its
+indicator must not be withdrawn — that pair took missed exits from 17% to 2.2%. `npm run exits` /
+`exitsuite` (16 runs + control, 266 s): all twelve section 3 lines pass, 0 collisions, 0 emergency
+stops. The on-ramp matrix is identical line for line to `b62eefe` (the saved baseline is stale from
+slice 4 P1).
 
 ## Q-4 · Exits: cars move right early and leave · spec
 - state: done
