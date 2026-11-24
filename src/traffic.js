@@ -510,6 +510,25 @@ export class Traffic {
       // most of the way out of a closing lane, the block ahead no longer concerns you
       a = veh.zipping && veh.lcT > 0.6 ? aT : Math.min(a, aT);
     }
+    // F-20: a merger faster than lane 0 lifts off toward lane-0 speed instead
+    // of overtaking it on the strip (not allowed in the Netherlands anyway), so
+    // it stays alongside a gap rather than running on to the end of the strip.
+    if (veh.lane === -1) {
+      const s = this.dir * veh.u;
+      const s0 = veh.ramp ? veh.ramp.s0 : -Infinity;
+      const nl = s >= s0 ? this.mergeLeader(veh) : null;
+      // (only where lane 0 is actually flowing: in a jam this belongs to F-22,
+      // and lifting off to a crawl on the strip only builds a queue)
+      if (nl && nl.v > CONFIG.mergeLiftMinKmh * KMH && veh.v > nl.v + this.mergeBand(veh, this.closedAhead(-1, s)) * KMH) {
+        // a virtual leader at lane-0 speed, a normal following distance ahead:
+        // the merger eases off toward that speed. (Reading the real gap would
+        // treat the car alongside as if it were 5 m in front and brake.)
+        const vl = veh.mergeVirt || (veh.mergeVirt = { u: 0, len: 0, v: 0, acc: 0 });
+        vl.v = nl.v;
+        vl.acc = 0;
+        a = Math.min(a, Math.max(idm(veh, vl, 1, veh.s0 + veh.v * veh.T), -1.5));
+      }
+    }
     veh.accPure = a;
     a = this.anticipate(veh, a);
     // cooperation: ease off to let a signalling vehicle ahead in the next lane merge in front
@@ -1073,18 +1092,41 @@ export class Traffic {
 
   /** The speed a strip car compares itself with for the merge gate (F-20). */
   mergeSpeed(veh) {
+    const nl = this.mergeLeader(veh);
+    return nl ? nl.v : veh.v0;
+  }
+
+  /** The genuine lane-0 leader a strip car would follow (F-20), or null. */
+  mergeLeader(veh) {
     // the car it would follow is the next one genuinely ahead: a car alongside
     // in lane 0 says nothing about the traffic this driver is joining
     let nl = leaderIn(this.lanes[0], veh);
     while (nl && gapBetween(nl, veh) <= 0) nl = leaderIn(this.lanes[0], nl);
-    return nl && gapBetween(nl, veh) < 150 ? nl.v : veh.v0;
+    return nl && gapBetween(nl, veh) < 150 ? nl : null;
+  }
+
+  /**
+   * The speed difference a strip car accepts (F-20). Over the first half of
+   * the strip it is the driver's own mergeKmh; from the middle to
+   * CONFIG.mergeLastM before the end it widens linearly by mergeRelaxKmh, so a
+   * merger that is out of its band early tries the same gap later instead of
+   * stopping at the end of the strip.
+   */
+  mergeBand(veh, dEnd) {
+    const base = veh.mergeKmh ?? CONFIG.mergeKmhDefault;
+    const stripM = veh.ramp ? veh.ramp.s1 - veh.ramp.s0 : CONFIG.rampStripM;
+    const half = stripM / 2;
+    const extra = CONFIG.mergeRelaxKmh ?? 0;
+    if (dEnd >= half || extra <= 0) return base;
+    const t = clamp((half - dEnd) / Math.max(1, half - CONFIG.mergeLastM), 0, 1);
+    return base + extra * t;
   }
 
   /** Close enough to lane-0 speed to merge, or out of strip? */
   mergeReady(veh, dEnd) {
     if (dEnd < CONFIG.mergeLastM) return true;
     const vs = this.mergeSpeed(veh);
-    return Math.abs(vs - veh.v) <= (veh.mergeKmh ?? CONFIG.mergeKmhDefault) * KMH;
+    return Math.abs(vs - veh.v) <= this.mergeBand(veh, dEnd) * KMH;
   }
 
   cancelChange(veh) {

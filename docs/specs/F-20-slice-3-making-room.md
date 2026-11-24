@@ -147,6 +147,17 @@ probe gave a 0.30 median and 219 stops against 716); the follower-braking column
 worse by more than a few percent of merges below −2 m/s². `npm run personas` unchanged outside the
 strip.
 
+*Built 2026-11-24, with three changes the measurements forced.* `mergeRelaxKmh` is **30**, not the
+proposed 20: 20 left the density-8 median at 0.32 and won less at 12, while 30 plus the lift-off is
+the best matrix of 10/20/30/45. The lift-off reads a **virtual** leader at lane-0 speed a normal
+following distance ahead, not the real lane-0 car: with the real gap a merger alongside a car is
+"5 m behind" it, brakes, drops back and then cannot merge at all (2L D12 S7 went from 0.72 to 8.17
+stops per merge that way). And it only runs where lane 0 is above `mergeLiftMinKmh` 50 km/h: in a
+jam, easing a merger down to the crawl speed just queues the strip, which is F-22's problem. Matrix
+after step 2: density 8 median 0.28 (was 0.24), density 12 0.74 against 4.53 and better on 3 of 4
+runs, lane-0 near 66 km/h at 8 (was 65) and 46 at 12 (was 41), 0 collisions, 3 emergency stops
+against the baseline's 2 (both new ones at density 16).
+
 ### Step 3: lane 0 makes room, on purpose (*decided*: who and the order; numbers are *proposals*)
 
 `src/traffic.js` (`computeAcc`, `evaluate`), `src/config.js`, possibly `src/archetypes.js` only if

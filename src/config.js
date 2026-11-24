@@ -57,6 +57,8 @@ export const DEFAULTS = {
   rampPerMin: 6, // mean cars per minute entering from a ramp (Poisson)
   rampEntryKmh: 80, // mean speed entering the strip for cars (sd 6); trucks 60 (sd 5). Only used with rampRoadM 0
   mergeKmhDefault: 12, // merge once within this many km/h of lane-0 traffic, if the gap is safe
+  mergeRelaxKmh: 30, // ...and this much more over the second half of the strip (F-20)
+  mergeLiftMinKmh: 50, // only ease a too-fast merger toward lane 0 above this lane-0 speed (F-20)
   mergeLastM: 120, // in the last this many metres of the strip any safe gap will do
 
   // --- player car ---
