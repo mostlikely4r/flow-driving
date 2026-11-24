@@ -114,6 +114,15 @@ baseline table number for number (stops, merges, positions, speeds). Only throug
 and only for strips over 600 m. If anything else moves, the tool change touched the sim; fix that
 first.
 
+*Built 2026-11-24.* The throughput fix took the second branch: `ahead: Math.max(1500, s1 + 400)`
+changes the whole run (2L D8 S7 went from 50 merges and 12 stops to 51 and 22), because where cars
+ahead are spawned moves with the span, so the check above can never pass with it. The tool counts at
+`s1 + 200` while that line is inside the span and at the last line inside it otherwise, and prints a
+warning when the strip end lies outside. `--save` reproduced the inputs table number for number
+(452 merges, 1438 stops, 3.18 per merge, 407 moved left, 2 emergency stops, throughput 34–70 veh/min);
+the inference courtesy reading over the 12 runs is 6741 made room and 411 used, the gate reading is in
+every run's output, and the matrix takes 117 s.
+
 ### Step 2: relax the speed-match gate late on the strip (*decided*; shape is a *proposal*)
 
 `src/traffic.js` (`mergeReady`, `stripLogic`, the strip car's acceleration), `src/config.js`.

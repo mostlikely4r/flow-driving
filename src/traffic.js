@@ -1071,14 +1071,19 @@ export class Traffic {
     if (!tl0.includes(veh)) tl0.splice(firstAbove(tl0, veh.u), 0, veh);
   }
 
-  /** Close enough to lane-0 speed to merge, or out of strip? */
-  mergeReady(veh, dEnd) {
-    if (dEnd < CONFIG.mergeLastM) return true;
+  /** The speed a strip car compares itself with for the merge gate (F-20). */
+  mergeSpeed(veh) {
     // the car it would follow is the next one genuinely ahead: a car alongside
     // in lane 0 says nothing about the traffic this driver is joining
     let nl = leaderIn(this.lanes[0], veh);
     while (nl && gapBetween(nl, veh) <= 0) nl = leaderIn(this.lanes[0], nl);
-    const vs = nl && gapBetween(nl, veh) < 150 ? nl.v : veh.v0;
+    return nl && gapBetween(nl, veh) < 150 ? nl.v : veh.v0;
+  }
+
+  /** Close enough to lane-0 speed to merge, or out of strip? */
+  mergeReady(veh, dEnd) {
+    if (dEnd < CONFIG.mergeLastM) return true;
+    const vs = this.mergeSpeed(veh);
     return Math.abs(vs - veh.v) <= (veh.mergeKmh ?? CONFIG.mergeKmhDefault) * KMH;
   }
 

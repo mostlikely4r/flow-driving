@@ -11,6 +11,7 @@
     "simtest": "node tools/simtest.js",
     "headway": "node tools/headway.js",
     "onramp": "node tools/onramp.js",
+    "onrampsuite": "node tools/onrampsuite.js",
     "personas": "node tools/personas.js",
     "scenario": "node tools/scenario.js",
     "abtest": "node tools/abtest.js",

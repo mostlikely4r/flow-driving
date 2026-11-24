@@ -3,7 +3,7 @@
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
 ## Q-2 · On-ramps slice 3 · build
-- state: queued
+- state: in progress
 - backlog: F-20
 - plan: docs/specs/F-20-slice-3-making-room.md
 - added: 2026-11-23

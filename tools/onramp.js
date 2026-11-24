@@ -1,28 +1,46 @@
 // On-ramp check (F-20): traffic on an acceleration strip merging into lane 0,
 // measured headless. Reports where and how fast cars merge, the gaps they
 // accept, what it costs the new follower in lane 0, stops at the end of the
-// strip, throughput past the ramp, and any collisions. With `road` > 0 the cars
-// come down a ramp road first (the junction of slice 2); `road=0` is slice 1.
-// Usage: node tools/onramp.js [lanes=3] [density=12] [perMin=6] [minutes=10] [seed=7] [road=300]
+// strip, throughput past the ramp, any collisions, and the slice-3 courtesy
+// reading (does lane 0 make room for a committing merger, and does the merger
+// use it). With `road` > 0 the cars come down a ramp road first (the junction
+// of slice 2); `road=0` is slice 1.
+// Usage: node tools/onramp.js [lanes=3] [density=12] [perMin] [minutes=10] [seed=7] [road]
+//   perMin only wins over CONFIG.rampPerMin when it is on the command line.
+//   `--json` adds one machine-readable line (used by tools/onrampsuite.js).
 // CFG_<key>=<value> env overrides, as in tools/closure.js.
-import { Traffic, followerIn, gapBetween, leaderIn } from '../src/traffic.js';
+import { Traffic, followerIn, gapBetween, idm, leaderIn } from '../src/traffic.js';
 import { CONFIG } from '../src/config.js';
 import { ARCHETYPES } from '../src/archetypes.js';
 import { KMH } from '../src/util.js';
 
-const [lanes = 3, density = 12, perMin = 6, minutes = 10, seed = 7, roadArg] = process.argv.slice(2).map(Number);
+const argv = process.argv.slice(2);
+const asJson = argv.includes('--json');
+const [lanes = 3, density = 12, perMinArg, minutes = 10, seed = 7, roadArg] = argv.filter((a) => a !== '--json').map(Number);
 CONFIG.lanes = lanes;
 for (const [k, v] of Object.entries(process.env)) if (k.startsWith('CFG_')) CONFIG[k.slice(4)] = +v;
 const roadM = Number.isFinite(roadArg) ? roadArg : CONFIG.rampRoadM;
+const perMin = Number.isFinite(perMinArg) ? perMinArg : CONFIG.rampPerMin;
 
 const started = Date.now();
 const RAMP_S = 700; // the ramp top (where cars appear), relative to the (fixed) player position
 const tr = new Traffic({ dir: 1, density, ahead: 1500, behind: 1500, seed, limitKmh: 100 });
 tr.initialFill(0, null);
-const ramp = tr.addRamp(RAMP_S, { perMin, roadM });
+// A command-line perMin is the only one that wins; otherwise CONFIG decides
+// (so CFG_rampPerMin works — before slice 3 it silently did nothing).
+const ramp = tr.addRamp(RAMP_S, { ...(Number.isFinite(perMinArg) ? { perMin: perMinArg } : {}), roadM });
 const s0 = ramp.s0;
 const s1 = ramp.s1;
-const THROUGH_S = s1 + 200;
+// The sim spans 1500 m ahead of s 0 and despawns cars 250 m past that, so a
+// throughput line at s1+200 reads 0 for a strip over ~600 m. Count at the
+// latest line that is inside the span instead and say so, rather than
+// reporting a false collapse. (Raising `ahead` to fix it changes the whole
+// run: it moves where cars ahead are spawned, so the numbers stop being the
+// same experiment.)
+const SPAN_END = tr.ahead + 250;
+const THROUGH_WANT = s1 + 200;
+const THROUGH_S = Math.min(THROUGH_WANT, SPAN_END - 100);
+const throughBlind = THROUGH_S < THROUGH_WANT || THROUGH_S < s1;
 
 // how the ramp top behaves: inserted, blocked (no gap), or held (you were close)
 const spawns = { ok: 0, blocked: 0, held: 0 };
@@ -62,6 +80,22 @@ const lastLane = new Map();
 const lastS = new Map();
 const stopT = new Map();
 
+// ---- courtesy reading (slice 3 step 1). For a signalling strip car past s0
+// the lane-0 car alongside or up to 30 m behind it is the one that can make
+// room. madeRoom: that car moved 0→1, or lifted off below its free-road IDM
+// while the merger was alongside or ahead of it (after step 3 the explicit
+// veh.roomFor is read instead of inferring the lift). usedRoom: the merger
+// merged within 8 s of that, in front of where the car was.
+let madeRoom = 0;
+let usedRoom = 0;
+const roomMade = new Map(); // merger id -> { carId, t, s } when room was made
+const roomHeld = new Map(); // "merger:car" -> last time this pair made room
+
+// ---- gate reading (slice 3 step 1): seconds a strip car spends past s0 with
+// mergeReady false, split by whether it is faster or slower than the speed it
+// compares itself with.
+const gate = { faster: 0, slower: 0 };
+
 const speedA = { sum: 0, t: 0 }; // lane 0, the 200 m before the strip end
 const speedB = { sum: 0, t: 0 }; // lane 0, 1 km upstream
 
@@ -85,6 +119,33 @@ for (let i = 0; i < steps; i++) {
     }
   }
 
+  // ---- courtesy: who could make room for a committing merger, and who did
+  for (const m of tr.vehicles) {
+    if (m.lane !== -1 || m.state === 'none' || m.isPlayer) continue;
+    const sm = tr.dir * m.u;
+    if (sm < s0) continue;
+    let car = null;
+    let carS = -Infinity;
+    for (const c of tr.lanes[0]) {
+      if (c.isPlayer || c.isObstacle) continue;
+      const sc = tr.dir * c.u;
+      if (sc >= sm - m.len - 30 && sc <= sm + 2 && sc > carS) {
+        car = c;
+        carS = sc;
+      }
+    }
+    if (!car) continue;
+    const moved = lastLane.get(car.id) === 0 && car.lane === 1;
+    const lifted = car.acc < idm(car, null) - 0.3 && sm >= carS - car.len;
+    const explicit = car.roomFor === m.id;
+    if (!moved && !lifted && !explicit) continue;
+    const key = m.id + ':' + car.id;
+    const last = roomHeld.get(key);
+    if (last == null || tr.time - last > 3) madeRoom++;
+    roomHeld.set(key, tr.time);
+    roomMade.set(m.id, { carId: car.id, t: tr.time, s: carS });
+  }
+
   const stripSignalling = tr.vehicles.some((v) => v.lane === -1 && v.state !== 'none');
 
   for (const veh of tr.vehicles) {
@@ -96,6 +157,12 @@ for (let i = 0; i < steps; i++) {
 
     const prev = lastLane.get(veh.id);
     const wasS = lastS.get(veh.id);
+
+    // ---- the merge gate: which side binds, faster or slower than lane 0
+    if (veh.lane === -1 && s >= s0 && !tr.mergeReady(veh, tr.closedAhead(-1, s))) {
+      if (veh.v > tr.mergeSpeed(veh)) gate.faster += dt;
+      else gate.slower += dt;
+    }
 
     // ---- how long the ramp road takes, and the speed at the end of it
     if (veh.lane === -1 && roadM > 0 && !rampRoad.has(veh.id) && s <= ramp.sTop + 5) rampRoad.set(veh.id, { t: tr.time, s });
@@ -124,6 +191,8 @@ for (let i = 0; i < steps; i++) {
       w.kmh.push(m.kmh);
       byWho.set(who, w);
       if (nf && nf !== veh) watches.push({ veh: nf, until: tr.time + 5, min: 0 });
+      const rm = roomMade.get(veh.id);
+      if (rm && tr.time - rm.t <= 8 && s > rm.s) usedRoom++;
     }
 
     // ---- no car may move INTO the strip, and none may be on it outside a span
@@ -189,10 +258,14 @@ const back = merges.map((m) => m.backS).filter((x) => x != null);
 const under2 = braking.filter((a) => a < -2).length;
 const under4 = braking.filter((a) => a < -4).length;
 const med = (a) => pct(a, 0.5);
+const stopsPerMerge = merges.length ? stops.n / merges.length : null;
+const meanA = speedA.t ? speedA.sum / speedA.t / KMH : null;
+const meanB = speedB.t ? speedB.sum / speedB.t / KMH : null;
+const throughPerMin = through / minutes;
 
 console.log(`on-ramp check · ${lanes} lanes · density ${density} · ${perMin}/min · seed ${seed} · ${minutes} min · ramp road ${roadM} m\n`);
 console.log(`merges ${merges.length} · stops at the end ${stops.n} (longest ${stops.longest.toFixed(0)} s) · collisions ${crashes.size} · emergency stops ${emerg.size}`);
-console.log(`stops per merge         ${merges.length ? (stops.n / merges.length).toFixed(2) : '–'} (1 in ${stops.n ? (merges.length / stops.n).toFixed(1) : '–'})`);
+console.log(`stops per merge         ${stopsPerMerge == null ? '–' : stopsPerMerge.toFixed(2)} (1 in ${stops.n ? (merges.length / stops.n).toFixed(1) : '–'})`);
 console.log(`ramp road               time top → s0 p10 ${fmt(pct(rampTimes, 0.1), 1)} · p50 ${fmt(pct(rampTimes, 0.5), 1)} · p90 ${fmt(pct(rampTimes, 0.9), 1)} s`);
 console.log(`speed at s0             p10 ${fmt(pct(s0kmh, 0.1))} · p50 ${fmt(pct(s0kmh, 0.5))} · p90 ${fmt(pct(s0kmh, 0.9))} km/h`);
 console.log(`spawns at the top       ${spawns.ok} in · ${spawns.blocked} blocked · ${spawns.held} held for you`);
@@ -201,6 +274,7 @@ console.log(`speed at the merge      p10 ${fmt(pct(kmh, 0.1))} · p50 ${fmt(pct(
 console.log(`speed difference        p10 ${fmt(pct(dvs, 0.1))} · p50 ${fmt(pct(dvs, 0.5))} · p90 ${fmt(pct(dvs, 0.9))} km/h   (to lane 0 there)`);
 console.log(`front gap accepted      p10 ${fmt(pct(front, 0.1), 1)} · p50 ${fmt(pct(front, 0.5), 1)} · p90 ${fmt(pct(front, 0.9), 1)} s`);
 console.log(`back gap accepted       p10 ${fmt(pct(back, 0.1), 1)} · p50 ${fmt(pct(back, 0.5), 1)} · p90 ${fmt(pct(back, 0.9), 1)} s`);
+console.log(`gate (s not ready)      ${fmt(gate.faster, 0)} s faster than lane 0 · ${fmt(gate.slower, 0)} s slower`);
 
 console.log('\nby persona');
 const rows = [...byWho.entries()].sort((a, b) => b[1].n - a[1].n);
@@ -211,12 +285,37 @@ if (!rows.length) console.log('  (no merges)');
 
 console.log('\neffect on lane 0');
 console.log(`  new follower braking   median ${fmt(med(braking), 1)} m/s² · ${under2} under −2 (${braking.length ? Math.round((100 * under2) / braking.length) : 0}%) · ${under4} under −4`);
-console.log(`  lane-0 cars that moved left before the strip end  ${movedLeft}`);
-const meanA = speedA.t ? speedA.sum / speedA.t / KMH : null;
-const meanB = speedB.t ? speedB.sum / speedB.t / KMH : null;
+console.log(`  courtesy               made room ${madeRoom} · merger used it ${usedRoom}${madeRoom ? ` (${Math.round((100 * usedRoom) / madeRoom)}%)` : ''}`);
+console.log(`  all 0→1 moves near the strip end  ${movedLeft}`);
 console.log(`  lane-0 mean speed      200 m before the end ${fmt(meanA)} km/h · 1 km upstream ${fmt(meanB)} km/h${meanA != null && meanB != null ? ` (${fmt(meanA - meanB, 1)})` : ''}`);
-console.log(`throughput past s1+200   ${(through / minutes).toFixed(0)} veh/min`);
+console.log(`throughput past s ${THROUGH_S}   ${throughPerMin.toFixed(0)} veh/min${throughBlind ? `   (warning: the strip ends at s ${s1}, outside the ${SPAN_END} m span — a floor, not the real flow)` : ''}`);
 
 console.log(`\nchecks: lane −1 outside a ramp span ${outsideSpan} · cars moving into lane −1 ${intoStrip}`);
 for (const l of crashLog) console.log('  ' + l);
 console.log(`run time ${Math.round((Date.now() - started) / 1000)} s`);
+
+if (asJson) {
+  console.log('JSON ' + JSON.stringify({
+    params: { lanes, density, perMin, minutes, seed, roadM },
+    merges: merges.length,
+    stops: stops.n,
+    stopsPerMerge,
+    collisions: crashes.size,
+    emergency: emerg.size,
+    positionP50: med(pos),
+    speedP50: med(kmh),
+    lane0Near: meanA,
+    lane0Up: meanB,
+    movedLeft,
+    madeRoom,
+    usedRoom,
+    brakingUnder2: under2,
+    brakingN: braking.length,
+    throughput: throughPerMin,
+    throughputS: THROUGH_S,
+    gateFaster: gate.faster,
+    gateSlower: gate.slower,
+    outsideSpan,
+    intoStrip,
+  }));
+}
