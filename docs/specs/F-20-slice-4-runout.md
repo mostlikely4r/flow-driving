@@ -119,6 +119,23 @@ change) and asked for 4 seeds first.
    `tools/onramp-baseline.json` number for number (merges, stops, positions, speeds, braking).
    If not, the tool change touched the sim; fix that first.
 
+*Built 2026-11-24.* The tool prints stops split by place, merges in the run-out with their share,
+and `brakingUnder4`; the suite runs 4 seeds (24 runs), prints the section 3 lines as pass/fail, and
+compares against the baseline only on the runs both have (seeds 9 and 10 have no baseline row when
+the saved baseline is a 2-seed one).
+
+The check above could not pass as written, and the reason is in the tree, not the tool: the saved
+`tools/onramp-baseline.json` was written in slice 3 **P1** (`5b2a4db`), before P2's relax gate
+(`ebc9e21`) changed the merge behaviour. Today's 2L D8 S7 reads 14 stops and gate readings 39 s /
+191 s against the file's 12 and 68 s / 165 s. The tool change itself touched nothing: the original
+tool on today's sim gives the same position, speed and lane-0 speed as the new one, run for run
+(2L D8 S7 pos 200.26 m, 61.37 km/h, lane-0 near 56.52 km/h; 3L D8 S8 173.48, 69.71, 66.40), and
+the stop totals are unchanged at 14 and 9.
+
+The new 24-run baseline (235 s): density 8 median **0.24** stops per merge, density 12 median
+**1.98**, 0 collisions, 6 emergency stops, every stop on the strip (the run-out does not exist yet)
+and all but 162 of 2168 of them at what will become the hard end.
+
 ### Step 2: the run-out, and no invisible wall (*decided*: keep rolling, no trap; shape is a *proposal*)
 
 `src/traffic.js`, `src/config.js`, `src/player.js`, `src/session.js`, `src/overlay.js`,

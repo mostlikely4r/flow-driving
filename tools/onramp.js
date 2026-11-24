@@ -64,9 +64,22 @@ const pct = (a, p) => {
 const fmt = (x, d = 0) => (x == null ? '–' : x.toFixed(d));
 
 // ---- collected results
-const merges = []; // {pos, kmh, dv, frontS, backS, who}
+const merges = []; // {pos, kmh, dv, frontS, backS, who, runout}
 const byWho = new Map(); // label -> {n, pos: [], dv: [], kmh: []}
-const stops = { n: 0, longest: 0 };
+// A stop is a car on lane -1 past s0 under 1 m/s for over a second. Where it
+// stood matters (slice 4): on the strip, on the run-out, or right at the hard
+// end of lane -1, where a queue that only moved 150 m would show up.
+const stops = { n: 0, longest: 0, strip: 0, runout: 0, hardEnd: 0 };
+const countStop = (st) => {
+  stops.n++;
+  stops.longest = Math.max(stops.longest, st.t);
+  const r = st.ramp;
+  if (!r) return;
+  if (st.s <= r.s1) stops.strip++;
+  else stops.runout++;
+  if (st.s >= (r.sEnd ?? r.s1) - 30) stops.hardEnd++;
+};
+let mergesRunout = 0;
 const braking = []; // min acc of the new follower in the 5 s after a merge
 const watches = []; // {veh, until, min}
 let movedLeft = 0;
@@ -78,7 +91,7 @@ let outsideSpan = 0;
 let intoStrip = 0;
 const lastLane = new Map();
 const lastS = new Map();
-const stopT = new Map();
+const stopState = new Map(); // id -> { t, s, ramp } while it stands still
 
 // ---- courtesy reading (slice 3 step 1). For a signalling strip car past s0
 // the lane-0 car alongside or up to 30 m behind it is the one that can make
@@ -182,7 +195,10 @@ for (let i = 0; i < steps; i++) {
       const frontS = nl ? gapBetween(nl, veh) / Math.max(veh.v, 1) : null;
       const backS = nf ? gapBetween(veh, nf) / Math.max(nf.v, 1) : null;
       const who = veh.drives ? ARCHETYPES[veh.drives].name : veh.type;
-      const m = { pos: s - ramp.s0, kmh: veh.v / KMH, dv, frontS, backS, who };
+      const r = veh.ramp || ramp;
+      const runout = s > r.s1;
+      if (runout) mergesRunout++;
+      const m = { pos: s - r.s0, kmh: veh.v / KMH, dv, frontS, backS, who, runout };
       merges.push(m);
       const w = byWho.get(who) || { n: 0, pos: [], dv: [], kmh: [] };
       w.n++;
@@ -198,18 +214,19 @@ for (let i = 0; i < steps; i++) {
     // ---- no car may move INTO the strip, and none may be on it outside a span
     if (veh.lane === -1) {
       if (prev != null && prev !== -1) intoStrip++;
-      if (!tr.ramps.some((r) => s >= r.sTop - 60 && s <= r.s1 + 60)) outsideSpan++;
+      if (!tr.ramps.some((r) => s >= r.sTop - 60 && s <= (r.sEnd ?? r.s1) + 60)) outsideSpan++;
     }
 
-    // ---- a car stopped at the end of the strip, waiting for a gap
-    if (veh.lane === -1 && veh.v < 1) stopT.set(veh.id, (stopT.get(veh.id) || 0) + dt);
-    else if (stopT.has(veh.id)) {
-      const d = stopT.get(veh.id);
-      stopT.delete(veh.id);
-      if (d > 1) {
-        stops.n++;
-        stops.longest = Math.max(stops.longest, d);
-      }
+    // ---- a car stopped on lane -1, waiting for a gap: where, and for how long
+    if (veh.lane === -1 && veh.v < 1) {
+      const st = stopState.get(veh.id) || { t: 0, s, ramp: veh.ramp };
+      st.t += dt;
+      st.s = s;
+      stopState.set(veh.id, st);
+    } else if (stopState.has(veh.id)) {
+      const st = stopState.get(veh.id);
+      stopState.delete(veh.id);
+      if (st.t > 1) countStop(st);
     }
 
     // ---- lane-0 cars moving left before the strip end while a merger signals
@@ -244,10 +261,7 @@ for (let i = 0; i < steps; i++) {
     }
   }
 }
-for (const d of stopT.values()) if (d > 1) {
-  stops.n++;
-  stops.longest = Math.max(stops.longest, d);
-}
+for (const st of stopState.values()) if (st.t > 1) countStop(st);
 
 // ---- report
 const pos = merges.map((m) => m.pos);
@@ -264,7 +278,8 @@ const meanB = speedB.t ? speedB.sum / speedB.t / KMH : null;
 const throughPerMin = through / minutes;
 
 console.log(`on-ramp check · ${lanes} lanes · density ${density} · ${perMin}/min · seed ${seed} · ${minutes} min · ramp road ${roadM} m\n`);
-console.log(`merges ${merges.length} · stops at the end ${stops.n} (longest ${stops.longest.toFixed(0)} s) · collisions ${crashes.size} · emergency stops ${emerg.size}`);
+console.log(`merges ${merges.length} (${mergesRunout} on the run-out) · stops ${stops.n} (longest ${stops.longest.toFixed(0)} s) · collisions ${crashes.size} · emergency stops ${emerg.size}`);
+console.log(`stops by place        strip ${stops.strip} · run-out ${stops.runout} · hard end ${stops.hardEnd}`);
 console.log(`stops per merge         ${stopsPerMerge == null ? '–' : stopsPerMerge.toFixed(2)} (1 in ${stops.n ? (merges.length / stops.n).toFixed(1) : '–'})`);
 console.log(`ramp road               time top → s0 p10 ${fmt(pct(rampTimes, 0.1), 1)} · p50 ${fmt(pct(rampTimes, 0.5), 1)} · p90 ${fmt(pct(rampTimes, 0.9), 1)} s`);
 console.log(`speed at s0             p10 ${fmt(pct(s0kmh, 0.1))} · p50 ${fmt(pct(s0kmh, 0.5))} · p90 ${fmt(pct(s0kmh, 0.9))} km/h`);
@@ -284,7 +299,7 @@ for (const [who, w] of rows) {
 if (!rows.length) console.log('  (no merges)');
 
 console.log('\neffect on lane 0');
-console.log(`  new follower braking   median ${fmt(med(braking), 1)} m/s² · ${under2} under −2 (${braking.length ? Math.round((100 * under2) / braking.length) : 0}%) · ${under4} under −4`);
+console.log(`  new follower braking   median ${fmt(med(braking), 1)} m/s² · ${under2} under −2 (${braking.length ? Math.round((100 * under2) / braking.length) : 0}%) · ${under4} under −4 (${braking.length ? Math.round((100 * under4) / braking.length) : 0}%)`);
 console.log(`  courtesy               made room ${madeRoom} · merger used it ${usedRoom}${madeRoom ? ` (${Math.round((100 * usedRoom) / madeRoom)}%)` : ''}`);
 console.log(`  all 0→1 moves near the strip end  ${movedLeft}`);
 console.log(`  lane-0 mean speed      200 m before the end ${fmt(meanA)} km/h · 1 km upstream ${fmt(meanB)} km/h${meanA != null && meanB != null ? ` (${fmt(meanA - meanB, 1)})` : ''}`);
@@ -298,7 +313,12 @@ if (asJson) {
   console.log('JSON ' + JSON.stringify({
     params: { lanes, density, perMin, minutes, seed, roadM },
     merges: merges.length,
+    mergesRunout,
+    mergesRunoutShare: merges.length ? mergesRunout / merges.length : 0,
     stops: stops.n,
+    stopsStrip: stops.strip,
+    stopsRunout: stops.runout,
+    stopsHardEnd: stops.hardEnd,
     stopsPerMerge,
     collisions: crashes.size,
     emergency: emerg.size,
@@ -310,6 +330,7 @@ if (asJson) {
     madeRoom,
     usedRoom,
     brakingUnder2: under2,
+    brakingUnder4: under4,
     brakingN: braking.length,
     throughput: throughPerMin,
     throughputS: THROUGH_S,
