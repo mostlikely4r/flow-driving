@@ -19,6 +19,12 @@ Step 1 is the smallest version to drive (`?scenario=exit`); step 2 adds `npm run
 Free play with `rampsFreePlay` on, F8 at merges that look right or wrong. The journal starts a new
 session; it guides, it doesn't gate.
 
+## Q-10 · Toekomstflitsen: the promised now · spec
+- state: queued
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- added: 2026-11-24
+
 ## Q-6 · Proefrit: fix the stage-test probes · build
 - state: queued
 - backlog: F-37
@@ -45,12 +51,6 @@ Slice 4 (`compare.js`, `jij`) waits for at least 3 of your journals.
 
 Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; wet-road
 reflections can be a second slice.
-
-## Q-10 · Toekomstflitsen: the promised now · spec
-- state: queued
-- backlog: F-48
-- plan: docs/specs/F-48-toekomstflitsen.md
-- added: 2026-11-24
 
 ## Done
 
