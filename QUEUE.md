@@ -2,14 +2,6 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
-## Q-3 · Drive a junction and bring a journal · test
-- state: queued
-- backlog: F-20
-- added: 2026-11-23
-
-Free play with `rampsFreePlay` on, F8 at merges that look right or wrong. The journal starts a new
-session; it guides, it doesn't gate.
-
 ## Q-10 · Toekomstflitsen: the promised now · spec
 - state: queued
 - backlog: F-48
@@ -44,6 +36,16 @@ Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; w
 reflections can be a second slice.
 
 ## Done
+
+## Q-3 · Drive a junction and bring a journal · test
+- state: done
+- backlog: F-20
+- done: 2026-11-25
+- added: 2026-11-23
+
+Free play with `rampsFreePlay` on, F8 at merges that look right or wrong. The journal starts a new
+session; it guides, it doesn't gate. Done: driven 2026-11-25, "not much to add — it just looks fine";
+no marks, so no journal rows to read. Nothing queued from it.
 
 ## Q-9 · Exits slice 1: cars move right early and leave · build
 - state: done

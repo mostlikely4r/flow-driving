@@ -349,6 +349,9 @@ and diving); 0 collisions, 5 emergency stops against 6; lane 0 200 m before the 
 density 8 and 72 at 12 (67 and 45). Both slice-3 targets met with room; density 16 is still a jam
 (F-22).
 
+Driven 2026-11-25 (Q-3): free play with `rampsFreePlay` on, "not much to add — it just looks fine",
+no F8 marks. Nothing queued from it; slice 5 is jams (F-22).
+
 ## F-21 · Exits (AI only)
 - status: built
 - priority: P1
