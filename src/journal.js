@@ -8,19 +8,28 @@
 //
 // Format: one JSON object. Time series are columns (one array per field, so a
 // sample is an index into each array), not one object per sample. Vehicles are
-// stored per sample as compact rows [id, dl, off, kmh, indicator, lane] plus a
-// `meta` table by id; `dl` is the distance ahead of you in metres (negative =
-// behind), `off` is the lateral offset from the centre of the vehicle's lane.
+// stored per sample as compact rows [id, dl, off, kmh, indicator, lane, brake]
+// plus a `meta` table by id; `dl` is the distance ahead of you in metres
+// (negative = behind), `off` is the lateral offset from the centre of the
+// vehicle's lane. A row with a negative id is a lane closure's obstacle, not a
+// vehicle: `dl` is its near end, `brake` stays 0, and its `len` is the nose you
+// see, not the closed stretch.
+//
+// Brake lights are recorded twice: the column is 1 when the light was on at the
+// sample or at any moment since the previous one, and the exact on/off moments
+// are `brake-on` / `brake-off` events. A tap shorter than 1/hz s would otherwise
+// fall between two samples and leave no trace.
 import { CONFIG, DEFAULTS } from './config.js';
 import { KMH } from './util.js';
 import { laneLat } from './layout.js';
 
-export const JOURNAL_VERSION = 1;
+export const JOURNAL_VERSION = 2;
 export const JOURNAL_HZ = 2; // samples per second of driving time
 const BACK_M = 200; // record vehicles this far behind you (wider than pop-in's 150 m)
 const AHEAD_M = 320; // ...and this far ahead
 const MAX_VEH = 20; // nearest vehicles per sample; everything within 170 m is kept
 const NEAR_M = 170; // ...so the pop-in detector never mistakes the cap for a spawn
+const CLOSURE_M = 800; // a closure is a road fact you see coming (matrix cross, cones), not traffic
 
 const COMMIT = typeof __GIT_COMMIT__ === 'string' ? __GIT_COMMIT__ : null;
 
@@ -130,6 +139,8 @@ export class Journal {
     this.plLane = player ? player.lane : 0;
     this.plInd = player ? player.ind : 0;
     this.lc = null; // the lane change currently being made, if any
+    this.brakeState = new Map(); // id -> brake light was on at the last frame
+    this.brakeLit = new Set(); // ...lit at some point since the last sample
     this.fpsN = 0;
     this.fpsSum = 0;
     return this;
@@ -175,10 +186,40 @@ export class Journal {
       this.plLane = player.lane;
     }
 
+    this.trackBrakes(traffic);
+
     if (this.t >= this.lastSampleT + 1 / JOURNAL_HZ || this.data.t.length === 0) {
       this.lastSampleT = this.t;
       this.sampleAt(this.t, player, traffic, limitKmh);
     }
+  }
+
+  /**
+   * Brake lights of nearby traffic, as events. The light itself is already in
+   * each sample row, but a tap shorter than a sample (1/hz s) can start and end
+   * between two of them; this keeps its exact moments, and the sample latch
+   * (`brakeLit`) keeps it in the column.
+   */
+  trackBrakes(traffic) {
+    const seen = new Set();
+    const scan = (veh) => {
+      if (veh.isObstacle) return; // a closure has no lights; its row carries brake 0
+      const dl = veh.u - this.lastS;
+      if (dl < -BACK_M || dl > AHEAD_M) return;
+      seen.add(veh.id);
+      const on = !!veh.brake;
+      const was = this.brakeState.get(veh.id);
+      if (on === was) return;
+      this.brakeState.set(veh.id, on);
+      if (on) this.brakeLit.add(veh.id);
+      // a light already on when it first comes into view is not an event: we
+      // simply did not see it before (the column has it either way)
+      if (was === undefined) return;
+      this.event(on ? 'brake-on' : 'brake-off', { id: veh.id, dl: Math.round(dl) });
+    };
+    for (const veh of traffic.vehicles || []) scan(veh);
+    for (const c of traffic.closures || []) scan(c.obs);
+    for (const id of this.brakeState.keys()) if (!seen.has(id)) this.brakeState.delete(id);
   }
 
   /** Copy this frame's Player.emit events into the journal. */
@@ -221,8 +262,21 @@ export class Journal {
       if (!m) {
         m = d.meta[veh.id] = { type: veh.type, variant: veh.variant || veh.type, len: r1(veh.len), width: r1(veh.width) };
       }
-      rows.push([veh.id, Math.round(dl), r2(veh.latLocal - laneLat(veh.lane)), Math.round(veh.v / KMH), veh.indicator | 0, veh.lane, veh.brake ? 1 : 0]);
+      const lit = veh.brake || this.brakeLit.has(veh.id);
+      rows.push([veh.id, Math.round(dl), r2(veh.latLocal - laneLat(veh.lane)), Math.round(veh.v / KMH), veh.indicator | 0, veh.lane, lit ? 1 : 0]);
     }
+    // Lane closures live in the lane lists as obstacles, not in `vehicles`: a car
+    // leaving the lane or braking for the arrow board would otherwise look like
+    // it brakes for nothing. Its row is the near end, which is what you see.
+    const obstacles = [];
+    for (const c of traffic.closures || []) {
+      const o = c.obs;
+      const dl = o.u - o.len / 2 - player.s;
+      if (dl < -BACK_M || dl > CLOSURE_M) continue;
+      if (!d.meta[o.id]) d.meta[o.id] = { type: 'obstacle', variant: 'obstacle', len: 2, width: r1(o.width) };
+      obstacles.push([o.id, Math.round(dl), 0, 0, 0, o.lane, 0]);
+    }
+    this.brakeLit.clear();
     rows.sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
     // Keep every vehicle inside the near field, then the nearest extras. The
     // pop-in detector promises 150 m, so the cap must never hide a car there.
@@ -230,6 +284,9 @@ export class Journal {
     while (keep < rows.length && Math.abs(rows[keep][1]) <= NEAR_M) keep++;
     keep = Math.max(MAX_VEH, keep);
     if (rows.length > keep) rows.length = keep;
+    // ...but a closure row is the reason for what the traffic does, so the
+    // vehicle cap must never drop it (one row per closure, so it stays small).
+    for (const row of obstacles) rows.push(row);
     d.veh.push(rows);
   }
 

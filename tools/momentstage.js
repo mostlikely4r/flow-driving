@@ -459,7 +459,7 @@ const FIXTURES = [
   // Report-only: they print what the detectors said and never fail the run.
   {
     id: 'probe-closure',
-    title: 'closure obstacles never reach the journal (report only)',
+    title: 'a closure is in the journal as an obstacle (report only)',
     seed: 401,
     sec: 20,
     probe: true,
@@ -474,20 +474,43 @@ const FIXTURES = [
       // which is the situation the probe is about.
       vehicles: [car('C', { lane: 0, ds: 60, kmh: 100, want: 100 })],
     },
-    probeLines: ({ actors, moments }) => {
+    probeLines: ({ j, actors, moments }) => {
       const c = byTag(actors, 'C');
       const mine = moments.filter((m) => m.vehicles.includes(c.id));
       const kinds = ['pointless-lane', 'phantom-brake'];
       const said = kinds.map((k) => `${k} ${mine.some((m) => m.kind === k) ? 'fired' : 'quiet'}`);
+      // the closure's own row (negative id), and where it stood when C moved out
+      const obsAt = (i) => {
+        for (const r of j.veh[i] || []) if (r[0] < 0) return { dl: r[1], lane: r[5], meta: j.meta[r[0]] };
+        return null;
+      };
+      const first = obsAt(0);
+      const rows = rowsOf(j, c.id);
+      const effs = rows.map((r) => effOf(j, r));
+      let move = null;
+      for (let k = 1; k < effs.length; k++) {
+        if (effs[k] !== effs[k - 1]) {
+          move = { i: rows[k].i, t: rows[k].t, from: effs[k - 1], to: effs[k] };
+          break;
+        }
+      }
+      const atMove = move ? obsAt(move.i) : null;
+      const cDl = move ? rows.find((r) => r.i === move.i).dl : null;
+      const look = (j.header && j.header.moments && j.header.moments.pointlessLookM) ?? '-';
       return [
-        `C drove at a lane closure that only exists as an obstacle in the lane lists, so the journal never shows what it braked for`,
-        `${said.join(', ')} for C (${mine.length} moment(s): ${mine.map((m) => `${m.t.toFixed(1)} s ${m.kind}`).join(', ') || 'none'})`,
+        first
+          ? `the closed lane is in the journal from ${j.t[0].toFixed(1)} s (${first.dl} m ahead, lane ${first.lane}, ${first.meta && first.meta.type})`
+          : 'no closure obstacle row in the journal',
+        move
+          ? `C moved ${move.from}->${move.to} at ${move.t.toFixed(1)} s with the closed lane ${atMove ? `${atMove.dl - cDl} m` : '?'} ahead of it (pointlessLookM ${look} m)`
+          : 'C never moved',
+        `${said.join(', ')} for C (${mine.length} moment(s): ${mine.map((m) => `${m.t.toFixed(1)} s ${m.kind} "${m.text}"`).join(', ') || 'none'})`,
       ];
     },
   },
   {
     id: 'probe-far',
-    title: 'a slow leader outside the hard-coded 120 m window (report only)',
+    title: 'a slow leader outside cfg.pointlessLookM (report only)',
     seed: 402,
     sec: 20,
     probe: true,
@@ -514,6 +537,34 @@ const FIXTURES = [
       ];
     },
   },
+  {
+    id: 'probe-tap',
+    title: 'a brake tap shorter than a sample (report only)',
+    seed: 403,
+    sec: 8,
+    probe: true,
+    player: { lane: 1, kmh: 100 },
+    scenario: {
+      seed: 403,
+      vehicles: [
+        // 0.15 s of light, timed to start and end between the 4.0 and 4.5 s
+        // samples: the row alone can miss it, the brake events cannot.
+        car('T', { lane: 1, ds: 50, kmh: 100, want: 100, params: { brakeEvent: { at: 4.1, kmh: 98, decel: 6, hold: 0.1 }, cooldown: 1e9 } }),
+      ],
+    },
+    probeLines: ({ j, actors, moments }) => {
+      const t = byTag(actors, 'T');
+      const rows = rowsOf(j, t.id).filter((r) => r.t >= 4 && r.t <= 5);
+      const ev = (j.events || []).filter((e) => e.id === t.id && (e.type === 'brake-on' || e.type === 'brake-off'));
+      const lit = rows.filter((r) => r.brake);
+      const phantom = moments.filter((m) => m.kind === 'phantom-brake' && m.vehicles.includes(t.id));
+      return [
+        `samples 4.0-5.0 s: ${rows.map((r) => `${r.t.toFixed(1)}${r.brake ? ' lit' : ''}`).join(', ') || 'none'} (${lit.length} lit)`,
+        `brake events for T: ${ev.map((e) => `${e.t} ${e.type}`).join(', ') || 'none'}`,
+        `phantom-brake ${phantom.length ? `fired at ${phantom[0].t.toFixed(1)} s` : 'quiet'} for T`,
+      ];
+    },
+  },
 ];
 
 // ------------------------------------------------------------- determinism
@@ -532,7 +583,8 @@ function runKey({ j, moments, tagOf }) {
     meta: Object.keys(j.meta)
       .map((id) => [tagOf(Number(id)), j.meta[id]])
       .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
-    events: j.events,
+    // brake events carry a vehicle id like the rows do, so map it too
+    events: (j.events || []).map((e) => (e.id == null ? e : { ...e, id: tagOf(e.id) })),
     header,
     end,
     moments: moments.map((m) => ({ ...m, vehicles: (m.vehicles || []).map(tagOf) })),

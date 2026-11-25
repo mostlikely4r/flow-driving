@@ -49,6 +49,8 @@ export function readSamples(j) {
         lane: row[5],
         brake: row.length > 6 ? row[6] === 1 : null,
         len: m.len,
+        // a lane closure's obstacle: a reason ahead, never a subject
+        obstacle: m.type === 'obstacle',
       });
     }
     out[i] = {
@@ -109,6 +111,7 @@ export function detectMoments(j, thresholds = null) {
 
   const label = (id) => {
     const m = meta[id];
+    if (m && m.type === 'obstacle') return 'the closed lane';
     return m ? `the ${typeWord(m)}` : 'a car';
   };
   const half = (id) => ((meta[id] && meta[id].len) || 4.5) / 2;
@@ -181,6 +184,7 @@ export function detectMoments(j, thresholds = null) {
 
     // ------------------------------------------------------------ vehicles
     for (const v of P.veh.values()) {
+      if (v.obstacle) continue; // a closure is the reason, not a subject (below)
       const st = stateOf(v, P.t);
       const ahead = v.dl > 0;
       const gap = ahead ? v.dl - half(v.id) - plen / 2 : -v.dl - half(v.id) - plen / 2;
@@ -234,7 +238,7 @@ export function detectMoments(j, thresholds = null) {
           for (const o of P.veh.values()) {
             if (o.id === v.id || o.dl <= v.dl) continue;
             if (effLaneAt(o) !== wasEff) continue;
-            if (o.dl - v.dl > 120) continue;
+            if (!o.obstacle && o.dl - v.dl > cfg.pointlessLookM) continue; // a closure you can see coming explains it at any distance
             if (!ld || o.dl < ld.dl) ld = o;
           }
           // A car following a slower (or equally fast) car may pull out to
@@ -327,7 +331,10 @@ export function detectMoments(j, thresholds = null) {
               if (o.dl <= v.dl) continue;
               const oe = effLaneAt(o);
               if (oe !== v.lane && oe !== eff) continue;
-              if (o.dl - v.dl - half(o.id) - half(v.id) < cfg.phantomLook) {
+              // A closure is visible from way back (red cross, the arrow board on
+              // the matrix signs), so braking early for it has a reason; the 40 m
+              // window is about a car in front, which you only see up close.
+              if (o.obstacle || o.dl - v.dl - half(o.id) - half(v.id) < cfg.phantomLook) {
                 explained = true;
                 break;
               }
@@ -397,11 +404,13 @@ export function detectMoments(j, thresholds = null) {
     // --- pop-in: a vehicle appears or vanishes inside the near field
     // (the recorder keeps a wider window, so crossing its edge is not a pop)
     for (const [id, v] of P.veh) {
+      if (v.obstacle) continue;
       if (!Q.veh.has(id) && Math.abs(v.dl) < cfg.popInM) {
         add('pop-in', Math.abs(v.dl) < 80 ? 2 : 1, P, id, `${label(id)} appeared ${Math.round(Math.abs(v.dl))} m ${v.dl > 0 ? 'ahead' : 'behind'} you`);
       }
     }
     for (const [id, v] of Q.veh) {
+      if (v.obstacle) continue;
       if (!P.veh.has(id) && Math.abs(v.dl) < cfg.popInM) {
         add('pop-in', Math.abs(v.dl) < 80 ? 2 : 1, P, id, `${label(id)} vanished ${Math.round(Math.abs(v.dl))} m ${v.dl > 0 ? 'ahead' : 'behind'} you`);
       }
@@ -524,6 +533,7 @@ export function detectMoments(j, thresholds = null) {
       if (P.ind < 0 && Q.ind >= 0) {
         let target = null;
         for (const v of P.veh.values()) {
+          if (v.obstacle) continue;
           if (v.dl > 0 && effLaneAt(v) === pl && v.dl < 150) {
             if (!target || v.dl < target.dl) target = { id: v.id, dl: v.dl };
           }

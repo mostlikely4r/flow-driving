@@ -595,6 +595,13 @@ thresholds in `CONFIG.moments`), F8 marks + notes + end-of-drive questions, `POS
 Slice 2 built (bot driver + runner, [docs/F-37-slice-2.md](docs/F-37-slice-2.md)): see "Built" under
 slice 2 in the design doc. Slices 3–4 (frames, compare/`jij`) next.
 
+Q-6 (2026-11-25): the stage test's open probes are fixed. A lane closure is a journal row of its own
+(type `obstacle`), so a car braking for the cones or leaving the closed lane has a visible reason;
+`pointless-lane`'s leader window is `CONFIG.moments.pointlessLookM`; brake lights of nearby cars are
+on/off events and the 2 Hz column is latched from them (journal v2). `tools/momentstage.js` keeps
+three probes: closure, far leader, short tap. Left open: whether a slow leader 130-200 m ahead
+should count as pointless -- your marks decide.
+
 ## F-38 · A signal means the car will move
 - status: built
 - priority: P0

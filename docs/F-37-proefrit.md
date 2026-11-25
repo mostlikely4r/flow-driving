@@ -34,12 +34,13 @@ headless.
   and relative speed to the car ahead and behind in your lane and both neighbouring lanes, the
   speed limit, and fps (browser only; the bot can't feel a stutter, so your journal records it).
 - Events: everything `Player.emit` already sends (`cc`, `indicator`, `crash`, `scrape`), plus
-  flash, horn, lane-change start and end, red cross passed, and MSI changes. Each event is
-  stamped with `t` and `s`.
+  flash, horn, lane-change start and end, red cross passed, MSI changes, and the brake-light
+  on/off of nearby cars. Each event is stamped with `t` and `s`.
 - Header: who drove (human or bot plus driver profile), git commit, seed, scenario, time of day,
   and the config diff from `DEFAULTS`. A journal without its commit cannot be compared to anything.
 - Format: one JSON file, about 300 KB for 20 minutes. Samples are kept as columns, not as one
-  object per sample.
+  object per sample. A lane closure's obstacle gets a row of its own (negative id, type
+  `obstacle`) so a car braking for the cones has a visible reason.
 
 **2. Moment detectors (`src/moments.js`).** Rules over the journal stream. Each moment has a
 `kind`, a pillar, a severity from 1 to 3, `t`/`s`, the vehicles involved (id + archetype), and a
@@ -190,21 +191,28 @@ is deterministic, `node tools/playtest.js seed=3 until=412 clip` reproduces it.
 ## Open: what the stage test cannot see yet
 
 Found while building `tools/momentstage.js`. Each one is a probe there rather than a fixed
-fixture, so the number stays visible:
+fixture, so the number stays visible. Three of them were closed by Q-6 (2026-11-25, journal v2):
 
-- **Closure obstacles never reach the journal.** `addClosure` puts `c.obs` in the lane lists, not in
-  `traffic.vehicles`, and `Journal.sampleAt` reads only `traffic.vehicles`. A car leaving a closed
-  lane, or braking for the arrow board, is likely to be called pointless or a phantom brake.
-  `probe-closure` records it: the car is reported as braking with nothing visible ahead. Fix:
-  record closure obstacles as journal rows.
-- **`pointless-lane`'s leader window is a hard-coded 120 m** (`o.dl - v.dl > 120`), not
-  `cfg.pointlessM`. `probe-far` shows what it means: pulling out for a 70 km/h car 130 m ahead
-  counts as pointless. Fix: make it a CONFIG key with the same value, then calibrate.
+- **Closure obstacles never reach the journal.** *Fixed.* `Journal.sampleAt` now also writes a row
+  for each closure's `c.obs` (negative id, `meta.type: 'obstacle'`), placed at its near end so `dl`
+  is what you brake for, kept to 800 m ahead because a closure is a road fact you see coming, not
+  traffic that can pop in. Its row carries `brake: 0` (a closure has no lights) and is never a
+  detector subject, only a reason. `phantom-brake` lets a closure explain a car braking at any
+  distance; `pointless-lane` and the escape logic read it like any leader. `probe-closure`: the
+  closed lane is in the journal from 0.0 s, and C merging out of it at 7.0 s with the closure
+  165 m ahead is now quiet on both detectors.
+- **`pointless-lane`'s leader window is a hard-coded 120 m.** *Fixed.* It is `cfg.pointlessLookM`
+  (120) in `CONFIG.moments`; a closure explains a move at any distance. `probe-far` still shows
+  what the number means, now named: pulling out for a 70 km/h car 130 m ahead counts as pointless.
 - **Decide whether pulling out for a slow car 130-200 m ahead counts as pointless from the seat.**
-  That is a calibration question, not a code one: your marks decide.
-- **Brake-light on/off events for nearby cars.** The journal samples at 2 Hz, so a tap shorter than
-  0.5 s can fall between samples and be invisible. Recording the on/off events (like the player's
-  own control changes) would make the brake column trustworthy.
+  Still open: a calibration question, not a code one. Turn `pointlessLookM` once your marks say
+  which way, and the stage test follows.
+- **Brake-light on/off events for nearby cars.** *Fixed.* `Journal.trackBrakes` records
+  `brake-on` / `brake-off` with `id` and `dl`, and the sample column is latched from them: a row is
+  `1` when the light was on at the sample *or* at any moment since the previous one. A light
+  already on when a car comes into view is not an event. `probe-tap`: a 0.09 s tap between the 4.0
+  and 4.5 s samples leaves no lit sample of its own, but shows as two events and makes
+  `phantom-brake` fire at 4.5 s.
 
 ## Truth rules
 

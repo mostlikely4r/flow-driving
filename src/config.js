@@ -142,6 +142,7 @@ export const DEFAULTS = {
     nearMissTTC: 1.5, // time to collision, s
     signalPatienceS: 8, // an indicator on this long without a move is a promise not kept
     pointlessM: 120, // a left lane change this close with nothing slower to overtake
+    pointlessLookM: 120, // how far ahead in the lane it left a leader would explain the move
     letInGainM: 8, // a car behind opening this much room counts as letting you in
     movedOverS: 10, // a car ahead moving right within this long after your flash
     movedOverM: 25, // or after you closed to this distance

@@ -16,16 +16,6 @@ Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette a
 (sim output identical) and the review are done. Left `in progress` until you have driven under the
 deck: does it feel like a place, or a tunnel?
 
-## Q-6 · Proefrit: fix the stage-test probes · build
-- state: queued
-- backlog: F-37
-- plan: docs/F-37-proefrit.md
-- added: 2026-11-23
-
-The "Open: what the stage test cannot see yet" list: closure obstacles as journal rows,
-`pointless-lane`'s hard-coded 120 m as `cfg.pointlessM`, brake-light on/off events. Before Q-5 so
-frames aren't shot of mislabelled closure moments.
-
 ## Q-5 · Proefrit slice 3: frames and clips · spec
 - state: queued
 - backlog: F-37
@@ -54,6 +44,24 @@ clearance we already have (our on/off ramps), the deck sits 2 m above the road a
 under it — and the pods are ordinary cars with an electric rail down the lane centre, not bespoke
 cabins. So no stopping at junctions, no 7.8 m deck and no edge-track cabins. Open questions and the
 interim build are listed at the end of slice 1 in the plan. Nothing is built for this yet.
+
+## Q-6 · Proefrit: fix the stage-test probes · build
+- state: done
+- backlog: F-37
+- plan: docs/F-37-proefrit.md
+- done: 2026-11-25
+- added: 2026-11-23
+
+The "Open: what the stage test cannot see yet" list: closure obstacles as journal rows,
+`pointless-lane`'s hard-coded 120 m as `cfg.pointlessM`, brake-light on/off events. Before Q-5 so
+frames aren't shot of mislabelled closure moments.
+
+Done: closure obstacles are journal rows (negative id, `obstacle`, near end, 800 m ahead, never a
+subject, never dropped by the vehicle cap); `pointless-lane`'s leader window is
+`cfg.pointlessLookM`, and a closure explains a move at any distance; brake lights are
+`brake-on`/`brake-off` events with the sample column latched from them (journal v2). The stage
+probes show the closed lane in the journal, C quiet on both detectors, and a 0.09 s tap in the
+events that the column alone missed. `npm run moments` 5/5 + 3 probes.
 
 ## Done
 
