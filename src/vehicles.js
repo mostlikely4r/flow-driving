@@ -257,7 +257,9 @@ function buildCarBody(P, sp, em, extraRear = 0, sig = 'std') {
     P.box('paint', 0.05, H - belt, 0.12, sx * (W / 2 - 0.08), (H + belt) / 2, mid); // B
     // side mirrors
     P.box('paint', 0.2, 0.11, 0.12, sx * (W / 2 + 0.07), belt + 0.06, ax - 0.12);
-    P.box('glass', 0.15, 0.08, 0.01, sx * (W / 2 + 0.08), belt + 0.06, ax - 0.185);
+    // 4 mm into its housing instead of a hair off it: a shared face is a depth
+    // fight at any range, and the glass is biased forward too (see DECAL)
+    P.box('glass', 0.15, 0.08, 0.014, sx * (W / 2 + 0.08), belt + 0.06, ax - 0.183);
   }
   // wheels
   for (const sx of [1, -1]) {
@@ -308,7 +310,7 @@ function buildVan(P, em, rack = false) {
   for (const sx of [1, -1]) {
     P.box('glass', 0.02, 0.62, 0.95, sx * (W / 2 + 0.003), 1.72, f - 1.55);
     P.box('paint', 0.2, 0.22, 0.12, sx * (W / 2 + 0.08), 1.45, f - 1.0);
-    P.box('glass', 0.14, 0.18, 0.01, sx * (W / 2 + 0.09), 1.45, f - 1.065);
+    P.box('glass', 0.14, 0.18, 0.014, sx * (W / 2 + 0.09), 1.45, f - 1.063); // 4 mm into the housing, see the car mirror
     P.wheel(sx * (W / 2 - 0.15), 0.34, f - 0.85, 0.34, 0.24);
     P.wheel(sx * (W / 2 - 0.15), 0.34, r + 1.15, 0.34, 0.24);
   }
@@ -571,9 +573,16 @@ export function getVariantGeo(variant, low = false, sig = 'std') {
 // ---------------- materials ----------------
 export const SHARED = {};
 let envIntensity = 1;
+// Glass and lenses sit millimetres proud of the paint. At 200 m the depth buffer
+// only resolves about a centimetre (near 0.3 / far 6000), so those faces lose
+// the depth test to the paint behind them in patches, and the patches crawl as
+// the distance changes (inbox I-1: flickering van windows and truck fronts).
+// polygonOffset biases them in depth-buffer units, so the bias grows exactly
+// where the precision runs out, and nothing moves up close.
+const DECAL = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 };
 export function initVehicleMaterials() {
-  SHARED.glass = new THREE.MeshStandardMaterial({ color: 0x0e1418, metalness: 0.1, roughness: 0.06, envMapIntensity: 1.4 });
-  SHARED.glassTint = new THREE.MeshStandardMaterial({ color: 0x010102, metalness: 0.5, roughness: 0.03, envMapIntensity: 1.8 });
+  SHARED.glass = new THREE.MeshStandardMaterial({ color: 0x0e1418, metalness: 0.1, roughness: 0.06, envMapIntensity: 1.4, ...DECAL });
+  SHARED.glassTint = new THREE.MeshStandardMaterial({ color: 0x010102, metalness: 0.5, roughness: 0.03, envMapIntensity: 1.8, ...DECAL });
   SHARED.trim = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: 0.75, metalness: 0.0 });
   SHARED.chrome = new THREE.MeshStandardMaterial({ color: 0xb9bec2, roughness: 0.3, metalness: 1.0 });
   SHARED.plate = new THREE.MeshStandardMaterial({ color: 0xf0bd00, roughness: 0.45, emissive: 0xf0bd00, emissiveIntensity: 0 });
@@ -619,7 +628,7 @@ const CARAVAN = [[0xf2efe6, 6], [0xe8e4d8, 3], [0xdcd8cc, 2]];
 
 // ---------------- instance ----------------
 function lightMat(color, emissive) {
-  return new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 0, roughness: 0.3 });
+  return new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 0, roughness: 0.3, ...DECAL });
 }
 
 /**

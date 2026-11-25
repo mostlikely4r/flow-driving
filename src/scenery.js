@@ -1158,7 +1158,19 @@ export class Scenery {
   }
 
   signMesh(group, ch, tex, w, h, x, y, z, yaw, nightE = 0.35, emissiveColor = 0xffffff) {
-    const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, emissive: emissiveColor, emissiveMap: tex, emissiveIntensity: 0 });
+    // The face hangs a few centimetres in front of its board or posts. Far away
+    // the depth buffer can't tell them apart and the board flickers through the
+    // blue (inbox I-1), so bias the face forward in depth-buffer units.
+    const m = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.55,
+      emissive: emissiveColor,
+      emissiveMap: tex,
+      emissiveIntensity: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+    });
     m.userData.nightE = nightE;
     ch.ownMats.push(m);
     ch.signMats.push(m);
@@ -1200,7 +1212,7 @@ export class Scenery {
     const x = p.x - ox + p.nx * lat, z = p.z - oz + p.nz * lat;
     const t = TX.anwbTexture(places, route, w, h);
     bucket('signBack').addGeo(new THREE.BoxGeometry(w, h, 0.15), mat(x, 7.0, z, p.h));
-    this.signMesh(group, ch, t, w, h, x - p.tx * 0.09, 7.0, z - p.tz * 0.09, p.h + Math.PI, 0.3);
+    this.signMesh(group, ch, t, w, h, x - p.tx * 0.12, 7.0, z - p.tz * 0.12, p.h + Math.PI, 0.3);
   }
 
   speedSigns(s, group, ch, ox, oz, bucket) {
