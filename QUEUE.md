@@ -2,6 +2,18 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-12 · Toekomstflitsen cross-section: the 2 m guideway · spec
+- state: queued
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- added: 2026-11-25
+
+The user specs this next, with Opus. The drawings' real cross-section: the 4.20 m is the junction
+clearance we already have (our on/off ramps), the deck sits 2 m above the road and the pods ride
+under it — and the pods are ordinary cars with an electric rail down the lane centre, not bespoke
+cabins. So no stopping at junctions, no 7.8 m deck and no edge-track cabins. Open questions and the
+interim build are listed at the end of slice 1 in the plan. Nothing is built for this yet.
+
 ## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
 - state: in progress
 - backlog: F-48

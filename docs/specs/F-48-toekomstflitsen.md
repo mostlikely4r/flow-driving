@@ -175,6 +175,41 @@ this machine, so the list stays as it is. Frame time in headless Edge, same spot
 +7%, +15% and +22%, the last near a junction — noisier than the plan's 10% but in the same range;
 the scene adds ~45k triangles per ~1.5 km.
 
+#### Open: the real cross-section, **to be specced** (2026-11-25, **[user]**)
+
+The build above is an interim shape, and the user has since read the drawings back and corrected
+the numbers. Recorded here so the next spec starts from the drawing and not from this build:
+
+- **The 4.20 m is the junction clearance we already have**, the one our on/off ramps bring.
+- **The guideway passes under it**: the deck sits **2 m above the road**, the pods ride on it.
+- **The pods are ordinary cars**, not bespoke cabins — only with an electric rail down the middle
+  of the lane.
+
+So nothing in the design needs the spine to stop at junctions, and slice 1's 7.8 m deck, its
+150 m gaps and its end blocks are all consequences of the interim choice (a 7.8 m deck was the
+height that cleared the present-day matrix faces at 6.1 m and gantry beams at 7.2 m; the pods had
+to stand on the deck's edge because nothing on a deck top is visible from the road). At 2 m none
+of that furniture is in the way — it is all above the pods.
+
+What the spec has to settle, in order:
+
+1. **A 2 m deck and the left lane.** A deck 2 m up cannot cover a lane a truck (≈4.0 m) drives
+   in, and rule 4 in this plan (nothing below 4.6 m outside the barrier) forbids it. So either the
+   guideway stays **median-only** (our `CONFIG.future.deckReachLanes: 0`, ±2.5 m today) — which
+   would remove slice 1's "does the covered left lane feel good" question — or the promised left
+   lane is cars-only, or the deck reaches over it and lorries keep right. This one decides the
+   whole cross-section.
+2. **The pods.** Reuse the wedge bodies (slice 2) as the deck's traffic, with the rail down the
+   lane centre; view-only and clock-driven like today's cabins, or sim-driven when the guideway
+   hand-over slice arrives. "Small automated cabins" in slice 1's text is superseded by this.
+3. **The interim build.** Whether slice 1's 7.8 m spine stays behind `CONFIG.future` until the
+   new spec lands, or is pulled straight to the median-only fallback in the meantime.
+4. **Junctions.** At 2 m the gaps at bridges and viaducts can go, and the end blocks with them (or
+   they become the station stop the drawing shows at a deck's end).
+
+*Right now nothing has changed in the code*: the world switch, the palette, the cabins and
+`worldtest` stand as built; only the heights, the gaps, the cabin bodies and the reach would move.
+
 #### The steps as written
 
 **1.1 The setting and the toggle.** *Built.* *Decided:* live swap mid-drive **[user]**.
@@ -375,6 +410,9 @@ night. That one question, whether the covered left lane feels good, decides slic
 
 ## Not in this build
 
+- **The drawing's real cross-section** (deck 2 m up, pods are cars on a centre rail, passing under
+  the 4.20 m junctions): **to be specced** — see the note at the end of slice 1. Until that spec
+  lands, the 7.8 m deck and the edge-track cabins are the interim shape.
 - **Left over from slice 1:** the dev overlay toggle that draws the clearance box (the headless
   `worldtest` asserts the numbers instead); a down ramp at the spine ends (they run into an end
   block); cabins are on the deck's edge track rather than its top, for the reason in slice 1.

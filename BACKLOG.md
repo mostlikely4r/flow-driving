@@ -745,6 +745,11 @@ spine stops 150 m either side of every bridge and viaduct with an end block. Pal
 blue, greener grass, cooler street lamps at night. New `npm run worldtest` guards the sim's import
 graph and the 4.6 m clearance rule. Waiting for the drive under the deck before slices 2 to 4.
 
+2026-11-25, from the drawings: the cross-section is being re-specced (queued as Q-12, the user
+specs it). The 4.20 m is the junction clearance we already have, the deck is 2 m above the road and
+the pods are ordinary cars on a centre rail — so the built 7.8 m deck, its junction gaps and its
+edge-track cabins are interim until that spec lands.
+
 ## F-49 · Rail line beside the motorway
 - status: parked
 - pillar: Authentic
