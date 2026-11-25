@@ -2,11 +2,15 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
-## Q-10 · Toekomstflitsen: the promised now · spec
+## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
 - state: queued
 - backlog: F-48
 - plan: docs/specs/F-48-toekomstflitsen.md
-- added: 2026-11-24
+- added: 2026-11-25
+
+Slice 1 only (section 7): F9 live toggle with the flits, the median spine with decks over the left
+lane and cabin platoons, the brochure palette. Sim output must match `main` exactly; stop for the
+user to drive under the deck. Slices 2 to 4 still wait for M2/M3.
 
 ## Q-6 · Proefrit: fix the stage-test probes · build
 - state: queued
@@ -36,6 +40,16 @@ Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; w
 reflections can be a second slice.
 
 ## Done
+
+## Q-10 · Toekomstflitsen: the promised now · spec
+- state: done
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- done: 2026-11-25
+- added: 2026-11-24
+
+Done: the spec from 2026-11-24 stands; decided to build slice 1 early as a cheap test of the
+covered left lane, the rest after M3. Queued as Q-11.
 
 ## Q-3 · Drive a junction and bring a journal · test
 - state: done

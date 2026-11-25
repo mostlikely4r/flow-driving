@@ -732,6 +732,9 @@ every archetype tell; glass terraced buildings, freight-tube portals at overpass
 gantries with unchanged sign content; electric sounds and a "Radio Toekomst". Every future piece
 stands in for a present-day one; sky, sea and rail wait for F-49, F-50 and F-51.
 
+Decided 2026-11-25: slice 1 (toggle, spine, palette) is built early as a test of the covered left
+lane; slices 2 to 4 still wait for M2/M3.
+
 ## F-49 · Rail line beside the motorway
 - status: parked
 - pillar: Authentic

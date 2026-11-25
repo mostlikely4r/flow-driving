@@ -1,8 +1,9 @@
 # F-48 Toekomstflitsen: the promised now (spec)
 
-Status: specced, parked. Written 2026-11-24. BACKLOG item **F-48**. *Decided:* this item waits
-until the real world (M2, M3) is done, so there is no QUEUE entry. Build it slice by slice, each
-in its own thread (`/build docs/specs/F-48-toekomstflitsen.md`, naming the slice).
+Status: specced. Written 2026-11-24. BACKLOG item **F-48**. *Decided* (2026-11-25): slice 1 is
+built early, as a cheap test of the covered left lane (QUEUE Q-11); slices 2 to 4 wait until the
+real world (M2, M3) is done. Build it slice by slice, each in its own thread
+(`/build docs/specs/F-48-toekomstflitsen.md`, naming the slice).
 
 *Decided* marks the user's own calls. *Proposal* marks the planner's; the builder may change a
 proposal's numbers or names if a look or a measurement says so, and notes why in the BACKLOG line.
@@ -325,7 +326,7 @@ night. That one question, whether the covered left lane feels good, decides slic
   `distributionCentre`, `matrixGantry`, `matrixTexture`, `TrafficView.add`/`remove`,
   `createVehicleVisual`, `applyLook`, `Environment` `MODES`, `AudioEngine.update`, `Radio`).
   Check that they still exist before building; M2/M3 work may have moved them.
-- *Decided:* build only after the real world (M2, M3) is done **[user]**. By then, exits (F-21),
+- *Decided:* slice 1 now; slices 2 to 4 only after the real world (M2, M3) is done **[user]**. By then, exits (F-21),
   rain (F-24), roadworks (F-26) and the klaverblad (F-41) may add scenery. Each new present-day
   piece needs a promised counterpart or stays as it is; list them at build time.
 
