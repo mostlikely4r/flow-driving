@@ -4,9 +4,9 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-import { CONFIG, speedLimitKmh, saveSetting } from './config.js';
+import { CONFIG, DEFAULTS, speedLimitKmh, saveSetting } from './config.js';
 import { DEV } from './dev.js';
-import { clamp, approach, mulberry32 } from './util.js';
+import { clamp, approach, mulberry32, KMH } from './util.js';
 import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Player } from './player.js';
@@ -29,8 +29,8 @@ import { Overlay, OVERLAY_MODES, OVERLAY_NAMES } from './overlay.js';
 import { SCENARIOS, applyScenario } from './scenarios.js';
 import { CastStage } from './castStage.js';
 import { CastViewer } from './castViewer.js';
-import { Journal, clock as clockText, sendJournal } from './journal.js';
-import { bindSim, applyTimeSim, stepSim, applyDrivePress, holdFlash, drainEvents, playerLimit } from './session.js';
+import { Journal, clock as clockText, sendJournal, journalHash } from './journal.js';
+import { bindSim, applyTimeSim, stepSim, advanceDrive, applyDrivePress, holdFlash, drainEvents, playerLimit } from './session.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -51,12 +51,43 @@ initVehicleMaterials();
 
 // ?scenario=<name> sets up a repeatable situation (see src/scenarios.js).
 // Overrides are not saved to your settings. Dev only: the hosted build is the game.
-const SCENARIO_NAME = DEV ? new URLSearchParams(location.search).get('scenario') : null;
+const PARAMS = DEV ? new URLSearchParams(location.search) : new URLSearchParams();
+const SCENARIO_NAME = DEV ? PARAMS.get('scenario') : null;
 const SCENARIO = SCENARIOS[SCENARIO_NAME] || null;
 if (SCENARIO) {
   CONFIG.lanes = SCENARIO.lanes;
   if (SCENARIO.timeOfDay) CONFIG.timeOfDay = SCENARIO.timeOfDay;
 }
+
+// Proefrit (F-37) slice 3: ?dev&replay=1&seed=3&until=412&driver=forens&tod=day
+// Re-simulates a bot drive here, then freezes on the moment so a frame can be
+// shot of it (tools/frame.js). Dev only, like ?scenario=.
+const REPLAY = DEV && PARAMS.has('replay')
+  ? {
+      seed: Number(PARAMS.get('seed') ?? CONFIG.seed),
+      until: Number(PARAMS.get('until') ?? 0),
+      driver: PARAMS.get('driver') || 'forens',
+      tod: PARAMS.get('tod') || CONFIG.timeOfDay,
+      cfg: (() => {
+        try {
+          return JSON.parse(PARAMS.get('cfg') || '{}');
+        } catch {
+          return {};
+        }
+      })(),
+    }
+  : null;
+if (REPLAY) {
+  // Start from the shipped defaults, not from your saved settings: the headless
+  // runner does too, and a journal is only comparable when the config is.
+  for (const [k, v] of Object.entries(DEFAULTS)) CONFIG[k] = typeof v === 'object' && v !== null ? structuredClone(v) : v;
+  CONFIG.seed = REPLAY.seed;
+  CONFIG.timeOfDay = REPLAY.tod;
+  Object.assign(CONFIG, REPLAY.cfg);
+}
+// The closure rolls are Math.random in free play, but a replay must reproduce:
+// the runner seeds them from the same number.
+const SIM_RNG = REPLAY ? mulberry32(REPLAY.seed + 3) : Math.random;
 
 const road = new Road(CONFIG.seed);
 const env = new Environment(scene, renderer);
@@ -384,7 +415,10 @@ function makeTraffic() {
   player.update(0.001, { steer: 0, throttle: 0, brake: 0, analog: false }, { vehicles: [], lanes: [] });
   if (SCENARIO) startScenario();
   else traffic.initialFill(player.s, player.proxy);
-  oncoming.initialFill(player.s, null);
+  // A replay must not spend vehicle ids on the other carriageway before our own
+  // fill: the ids are one global counter, and the journal records them. The
+  // oncoming traffic is visuals only, so it is filled after the replay instead.
+  if (!REPLAY) oncoming.initialFill(player.s, null);
 }
 function startScenario() {
   if (SCENARIO.player.s != null) player.s = SCENARIO.player.s; // start at the junction's own place
@@ -405,7 +439,7 @@ const stats = new Stats();
 // journal to the dev server (playtests/human/).
 const journal = new Journal();
 // From here on the frame goes through session.js: the same sim the bot drives.
-sim = bindSim({ road, player, traffic, msi, rng: Math.random, journal, scenario: SCENARIO });
+sim = bindSim({ road, player, traffic, msi, rng: SIM_RNG, journal, scenario: SCENARIO });
 let debriefOpen = false;
 let calmPick = 0;
 const overlay = new Overlay(document.getElementById('overlay'));
@@ -1165,13 +1199,89 @@ function frame(now) {
     renderer.autoClear = true;
   }
 }
-requestAnimationFrame(frame);
+// ---------------------------------------------------------------- Proefrit: replay
+// Re-drive a bot run up to `until` here, then freeze. The bot and the sim are the
+// same modules the headless runner uses, so the journal hash it reports can be
+// checked against the run it came from (tools/frame.js does exactly that).
+let replayResult = null;
+async function replayThenStart() {
+  const { BotDriver } = await import('./botDriver.js');
+  const { Perception } = await import('./perception.js');
+  // The road and the traffic already hold their seeds; only the journal's config
+  // diff must look like the runner's, which never touches CONFIG.seed.
+  CONFIG.seed = DEFAULTS.seed;
+  journal.start({
+    kind: 'bot',
+    driver: 'bot',
+    profile: REPLAY.driver,
+    seed: REPLAY.seed,
+    scenario: SCENARIO_NAME || null,
+    timeOfDay: mode,
+    limitKmh: playerLimit(sim),
+    playerLen: player.len,
+    player,
+    recordFps: false,
+  });
+  const bot = new BotDriver(REPLAY.driver, { seed: REPLAY.seed });
+  const t0 = performance.now();
+  advanceDrive(sim, { bot, perception: new Perception(), until: REPLAY.until, laneMap });
+  // count contacts after the fact: drainEvents() empties player.events every step
+  const contacts = sim.journal.data.events.filter((e) => e.type === 'crash').length;
+  const data = journal.finish({ reason: 'until', contacts });
+  // the other carriageway, for the picture only (bot runs never simulate it)
+  oncoming.initialFill(player.s, null);
+  // the scene the driver would see: everything within the streaming range, now
+  scenery.update(player.s, 999);
+  startEl.classList.add('hidden');
+  started = true;
+  paused = true;
+  document.getElementById('menu').classList.add('hidden');
+  replayResult = {
+    done: true,
+    driver: REPLAY.driver,
+    seed: REPLAY.seed,
+    until: REPLAY.until,
+    t: data.end.t,
+    s: player.s,
+    kmh: player.vAlong / KMH,
+    vehicles: traffic.vehicles.length,
+    hash: journalHash(data),
+    bodyHash: journalHash(data, { bodyOnly: true }),
+    secs: Math.round(performance.now() - t0) / 1000,
+    journal: data,
+  };
+  console.log(`[proefrit] replay ${REPLAY.driver} seed ${REPLAY.seed} until ${REPLAY.until}: t ${data.end.t}, s ${Math.round(player.s)}, ${traffic.vehicles.length} cars, body ${replayResult.bodyHash}`);
+  // frozen from here (paused), but render it: the still is the point
+  requestAnimationFrame(frame);
+}
+
+if (REPLAY) {
+  replayThenStart().catch((e) => {
+    console.error('[proefrit] replay failed: ' + (e && e.stack ? e.stack : e));
+    replayResult = { done: false, error: String(e && e.message ? e.message : e) };
+    requestAnimationFrame(frame);
+  });
+} else {
+  requestAnimationFrame(frame);
+}
 
 // debug handle
 window.__game = {
   radio,
-  player, traffic, oncoming, road, scene, renderer, CONFIG, scenery,
+  player, traffic, oncoming, road, scene, renderer, CONFIG, scenery, laneMap,
   cast: castViewer, castStage,
+  /** Proefrit slice 3: the moment a ?replay= run stopped on, with both hashes. */
+  get replay() {
+    return replayResult;
+  },
+  /** Proefrit slice 3: pick the camera by name, for a frame. */
+  setView(name) {
+    const i = VIEWS.indexOf(name);
+    if (i < 0) return VIEWS[viewIdx];
+    viewIdx = i;
+    hud.setView(VIEW_NAMES[VIEWS[viewIdx]]);
+    return VIEWS[viewIdx];
+  },
   /** Debug / look-dev: switch worlds without the flash (F-48). */
   setWorld(w) {
     applyWorld(w);

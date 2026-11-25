@@ -593,7 +593,14 @@ thresholds in `CONFIG.moments`), F8 marks + notes + end-of-drive questions, `POS
 `tools/momentstage.js`). Needs your 20-minute drive to calibrate.
 
 Slice 2 built (bot driver + runner, [docs/F-37-slice-2.md](docs/F-37-slice-2.md)): see "Built" under
-slice 2 in the design doc. Slices 3–4 (frames, compare/`jij`) next.
+slice 2 in the design doc.
+
+Slice 3 built (frames, reproduction, occlusion, `dwars`, [docs/specs/F-37-slice-3.md](docs/specs/F-37-slice-3.md)):
+see "Built" under slice 3. A run with `frames` gets two stills (bonnet + lane map) at its three
+worst and three best moments, each with a one-line command that reproduces it, and every still is
+hash-checked against a fresh headless run of that moment. Trucks now occlude in the percept, and
+`driver=dwars` is the bad-player probe. Slice 4 (`compare.js`, `jij`) next: it waits for at least
+3 of your journals.
 
 Q-6 (2026-11-25): the stage test's open probes are fixed. A lane closure is a journal row of its own
 (type `obstacle`), so a car braking for the cones or leaving the closed lane has a visible reason;

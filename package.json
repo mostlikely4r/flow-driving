@@ -23,6 +23,7 @@
     "moments": "node tools/momenttest.js && node tools/momentstage.js",
     "moments:stage": "node tools/momentstage.js",
     "playtest": "node tools/playtest.js",
+    "frame": "node tools/frame.js",
     "bottest": "node tools/bottest.js"
   },
   "dependencies": {

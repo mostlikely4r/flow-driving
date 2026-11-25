@@ -104,7 +104,8 @@ writes `playtests/bot/<run>/` (gitignored), containing the journals plus `report
 `frames` (needs `npm run build`), the runner uses the `clip.js`/`shot.js` machinery to shoot a
 bonnet-view frame and a lane-map frame at the three worst and the three best moments, so Claude
 can *look* at them, not only read numbers. Every moment carries `seed + t`, and because the bot
-is deterministic, `node tools/playtest.js seed=3 until=412 clip` reproduces it.
+is deterministic, the one-line command in the report (`npm run playtest -- seed=3 until=412`)
+reproduces it.
 
 **7. Report (`report.md`).** Fixed order, so two reports can be compared:
 1. Header: commit, profile, seeds, minutes, config diff.
@@ -183,6 +184,25 @@ is deterministic, `node tools/playtest.js seed=3 until=412 clip` reproduces it.
   cost one signal-time outlier.
 - **Slice 3: frames, reproduction, occlusion, `dwars` (S–M).** *Done when* each worst moment in a
   report comes with two frames and a one-line command that reproduces it.
+  **Built:** the plan is `docs/specs/F-37-slice-3.md`. `src/perception.js` occludes: a tall vehicle
+  (`occludeTypes`: truck, van, caravan) whose body the 2D sight line from your eye to a car's near
+  face crosses hides that car, unless it is inside 30 m; one that comes out from behind a truck is
+  `fresh`, so the bot never changes lane blind onto it. `dwars` drives in the middle at limit + 8
+  with 0.8 s signals, tight late merges and a brake tap with a clear road every ~25 s (`twitchS`);
+  the runner gates it on `NaN` and the keyboard only, because a collision there is the experiment.
+  The drive loop moved to `advanceDrive()` in `session.js`, so the runner and a browser replay take
+  the same steps; `journalHash()` moved to `src/journal.js` with a `bodyOnly` mode, and
+  `end.contacts` now counts the journal's crashes instead of the player's drained event list.
+  `main.js` has a dev-only `?dev&replay=1&seed=&until=&driver=` mode that re-simulates the drive,
+  hashes it and freezes on it; `tools/frame.js` loads that, shoots the bonnet view and the lane map
+  with its time-space diagram, and checks the hash against a fresh headless run stopped at the same
+  moment (`same world`). `npm run playtest -- … frames` shoots the three worst and three best
+  moments of a run into `frames/` and puts them under section 4 of `report.md`, each with its
+  one-line command (`… until=<t>`; add `frames` to re-shoot the pair). Watch items from building
+  it: a replay must start from the shipped defaults, put `CONFIG.seed` back (it is the journal's
+  config diff) and not spend vehicle ids on the oncoming carriageway before the first
+  `initialFill`, or the hash differs; the lane map has to be fed by the replay itself or the
+  time-space diagram is empty; the stills need `npm run build`.
 - **Slice 4: calibration (M).** `compare.js`, the `jij` profile fitted from your journals,
   thresholds tuned. *Done when* at least 3 of your journals exist and ≥ 70% of your "felt wrong"
   marks have a detector firing within 5 s, while each detector fires at most twice per 10 minutes

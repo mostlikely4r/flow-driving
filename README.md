@@ -165,12 +165,29 @@ same pedal ramp, cruise-control clicks and indicators as you.
 `npm run playtest -- driver=forens min=20 seeds=5 tod=day` runs one child process per seed (traffic
 ids are a module global) and writes `playtests/bot/<run>/` with a journal per seed, a bot trace
 (`seed-N.trace.json`), `run.json` (arguments, commit, timings, checks, pass/fail) and `report.md`
-from the same `buildReport()` a human drive uses. Options: `driver=slak` (the slowcoach),
-`scenario=closure`, `seed=N`, `until=T` (one seed; prints the player state, the nearest car per
-lane from the percept, the bot state and the last trace lines, no report), `jobs=N`, `dt=1/60`,
-`cfg.<key>=<value>` and `<profile>.<param>=<value>`. `npm run bottest` runs the headless tests:
-perception geometry and range cut-offs, a throwing proxy over every vehicle, the import/DOM
-whitelist, the drift cue, synthetic following/cut-in/indicator cases, and determinism.
+from the same `buildReport()` a human drive uses. Options: `driver=slak` (the slowcoach) or
+`driver=dwars` (short signals, late tight merges, a brake tap with nothing in front — the AI's
+defences against a bad player), `scenario=closure`, `seed=N`, `until=T` (one seed; prints the
+player state, the nearest car per lane from the percept, the bot state and the last trace lines, no
+report), `jobs=N`, `dt=1/60`, `cfg.<key>=<value>` (or `cfg=<json>` for a whole diff),
+`<profile>.<param>=<value>` and `frames` (below). `npm run bottest` runs the headless tests:
+perception geometry and range cut-offs, truck occlusion, a throwing proxy over every vehicle, the
+import/DOM whitelist, the drift cue, synthetic following/cut-in/indicator cases, `dwars` (twitch
+braking in the real sim) and determinism.
+
+### Frames: looking at a moment
+
+`npm run playtest -- … frames` shoots two stills — the bonnet view and the lane map with its
+time-space diagram — at the three worst and the three best moments of a run, and puts them in
+`playtests/bot/<run>/frames/` with the report. Each one carries the one-line command that
+reproduces it, e.g. `npm run playtest -- driver=forens seed=3 until=412` (add `frames` to that line
+to shoot the pair for that single moment). The stills need `npm run build`: they come from the
+built game re-driving that seed in a headless browser (`main.js`'s dev-only `?dev&replay=` mode)
+with the same bot and config as the runner. To prove it is the same drive, the replay's journal is
+hashed without its header and compared with a fresh headless run stopped at the same moment; the
+report says `same world` or, loudly, that the frames are of another drive.
+`npm run frame -- seed=3 until=412 [driver=forens] [tod=day] [out=frames]` shoots one moment
+without a report.
 `npm run signals -- <journal.json | run dir> …` counts AI signal episodes (signal to move, signals
 withdrawn after 6 s or more, re-signals within 20 s and who blocked them) for a human drive or a bot run (F-38).
 

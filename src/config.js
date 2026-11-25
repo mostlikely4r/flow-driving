@@ -116,7 +116,18 @@ export const DEFAULTS = {
   // --- Proefrit (F-37): what a driver in the car can see ---
   // The bot's view (src/perception.js). Forward well beyond a sane following
   // distance, mirrors closer; lanes two away are only readable near you.
-  perception: { aheadM: 250, behindM: 120, farM: 80, histS: 1.5, driftEps: 0.12 },
+  perception: {
+    aheadM: 250,
+    behindM: 120,
+    farM: 80,
+    histS: 1.5,
+    driftEps: 0.12,
+    // Slice 3: a tall vehicle between you and a car hides it (2D line of sight
+    // on the straightened road). `eyeM` is where you sit in your own car.
+    occludeTypes: ['truck', 'van', 'caravan'],
+    eyeM: 1.2,
+    nearUnhiddenM: 30,
+  },
 
   // --- Proefrit: moment detector thresholds (F-37) ---
   // A detector only counts once it fires where you dropped a mark (F8), so

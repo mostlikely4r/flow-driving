@@ -9,6 +9,7 @@
 //   { road, player, traffic, msi, rng, time, closureDist, lastGantry, journal,
 //     notices, scenario }
 import { CONFIG, speedLimitKmh } from './config.js';
+import { pedalStep } from './input.js';
 import { Road } from './road.js';
 import { Player } from './player.js';
 import { Traffic } from './traffic.js';
@@ -187,6 +188,40 @@ export function updateJunctionExits(sim) {
     traffic.removeExit(x);
     sim.exits.delete(b);
   }
+}
+
+/**
+ * Drive with the bot, frame by frame, exactly as a browser frame does it: the
+ * bot decides from the last percept, its presses go through the keyboard
+ * mapping, the pedals ramp, then the sim steps. The headless runner and the
+ * browser replay both call this, so a frame shot later is the same drive.
+ *
+ * `onStep(sim, dt, t)` is for the runner's diagnostics (min gap, min TTC); the
+ * bot itself never sees anything but the percept. `laneMap` is filled the same
+ * way the frame loop fills it, so the time-space diagram has history.
+ */
+export function advanceDrive(sim, { bot, perception, until, dt = 1 / 60, perceptEvery = 0.1, onStep = null, laneMap = null }) {
+  let t = 0;
+  const pedal = { thr: 0, brk: 0, thrHeld: 0, brkHeld: 0 };
+  let percept = perception.update(0, sim.player, sim.traffic, sim.msi, playerLimit(sim));
+  let perceptT = 0;
+  while (t < until - 1e-9) {
+    const out = bot.update(dt, percept);
+    for (const p of out.presses) applyDrivePress(sim, p);
+    const ctl = pedalStep(pedal, out.keys, dt);
+    stepSim(sim, dt, ctl);
+    holdFlash(sim, out.keys.flash);
+    drainEvents(sim);
+    perceptT -= dt;
+    if (perceptT <= 0) {
+      percept = perception.update(t, sim.player, sim.traffic, sim.msi, playerLimit(sim));
+      perceptT = perceptEvery;
+    }
+    if (onStep) onStep(sim, dt, t);
+    if (laneMap) laneMap.update(dt, sim.traffic, sim.player, sim.traffic.limitKmh, false);
+    t += dt;
+  }
+  return { t, percept };
 }
 
 /** A key press, exactly as handlePresses maps it. Returns false for other keys. */

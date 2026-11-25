@@ -36,6 +36,41 @@ const COMMIT = typeof __GIT_COMMIT__ === 'string' ? __GIT_COMMIT__ : null;
 const r1 = (x) => Math.round(x * 10) / 10;
 const r2 = (x) => Math.round(x * 100) / 100;
 
+/** FNV-1a, 32-bit; two seeds give a 64-bit hex digest. */
+function fnv(str) {
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    a ^= c;
+    a = Math.imul(a, 0x01000193);
+    b ^= c;
+    b = Math.imul(b, 0x85ebca6b);
+  }
+  return (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * A digest of a drive journal, without the wall-clock stamps.
+ *
+ * The full hash is what `npm run playtest` compares between two runs of the same
+ * seed: columns, meta, events, end and the header that describes the setup.
+ * `bodyOnly` also drops what a browser and a headless node run cannot share
+ * (commit, node version, fps, bot and runner descriptions), leaving the drive
+ * itself. A replay in the browser is checked against that: same columns, same
+ * events, same end means it was the same drive.
+ */
+export function journalHash(j, { bodyOnly = false } = {}) {
+  const h = { ...j.header };
+  delete h.startedAt;
+  if (bodyOnly) for (const k of ['commit', 'commitDirty', 'node', 'recordFps', 'bot', 'runner']) delete h[k];
+  const end = j.end ? { ...j.end } : null;
+  if (end) delete end.endedAt;
+  const body = { ...j, header: h, end };
+  if (bodyOnly) delete body.fps; // the browser's own column; empty in a replay
+  return fnv(JSON.stringify(body));
+}
+
 /** Difference between the running config and the shipped defaults (header). */
 function configDiff() {
   const out = {};

@@ -16,15 +16,6 @@ Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette a
 (sim output identical) and the review are done. Left `in progress` until you have driven under the
 deck: does it feel like a place, or a tunnel?
 
-## Q-5 · Proefrit slice 3: frames and clips · spec
-- state: queued
-- backlog: F-37
-- plan: docs/F-37-proefrit.md
-- added: 2026-11-23
-
-Two frames plus a one-line reproduce command per worst moment, occlusion, the `dwars` profile.
-Slice 4 (`compare.js`, `jij`) waits for at least 3 of your journals.
-
 ## Q-7 · Rain · spec
 - state: queued
 - backlog: F-24
@@ -64,6 +55,24 @@ probes show the closed lane in the journal, C quiet on both detectors, and a 0.0
 events that the column alone missed. `npm run moments` 5/5 + 3 probes.
 
 ## Done
+
+## Q-5 · Proefrit slice 3: frames and clips · spec
+- state: done
+- backlog: F-37
+- plan: docs/specs/F-37-slice-3.md
+- done: 2026-11-25
+- added: 2026-11-23
+
+Two frames plus a one-line reproduce command per worst moment, occlusion, the `dwars` profile.
+Slice 4 (`compare.js`, `jij`) waits for at least 3 of your journals.
+
+Done: the entry was a `spec` task, so the slice-3 plan was written first (`docs/specs/F-37-slice-3.md`;
+the master `docs/F-37-proefrit.md` had one line for the slice) and then built. `npm run playtest --
+… frames` shoots a bonnet view and the lane map at the three worst and three best moments of a run,
+each with the one-line command that reproduces it, and every still is hash-checked against a fresh
+headless run of that moment (`same world`). Trucks occlude in the percept, `driver=dwars` is the
+awkward-player probe, and the drive loop now lives in `session.js` so the runner and the browser
+replay take the same steps.
 
 ## Q-10 · Toekomstflitsen: the promised now · spec
 - state: done

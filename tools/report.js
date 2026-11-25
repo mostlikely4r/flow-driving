@@ -37,7 +37,7 @@ function fmtConfigDiff(diff) {
 }
 
 /** Build the report markdown for one or more drives. */
-export function buildReport(drives) {
+export function buildReport(drives, { frames = [] } = {}) {
   const rows = drives.map(({ j, file }) => {
     const moments = detectMoments(j);
     return { j, file, moments, sum: summarise(j, moments) };
@@ -134,6 +134,42 @@ export function buildReport(drives) {
       out.push(`| ${clock(m.t)} | ${Math.round(m.s)} | ${km(m.s)} | ${m.kind}${m.good ? ' (good)' : ''} | ${m.severity} | ${m.text} |`);
     }
     out.push('');
+  }
+
+  // 4b. Frames (slice 3) --------------------------------------------------
+  // Not a numbered section: the order 1-6 is what two reports are compared by.
+  if (frames.length) {
+    out.push('### Frames: the three worst and the three best');
+    out.push('');
+    out.push(
+      'Shot by `npm run playtest -- … frames`, each from a replay of the same seed, bot and config (`main.js` `?replay=`). ' +
+        'The drive is hashed without its header and compared with a fresh headless run stopped at the same moment: ' +
+        '`same world` means the frame is of the drive in this report. The command under each pair reproduces the moment; add `frames` to it to re-shoot the two stills.',
+    );
+    out.push('');
+    for (const f of frames) {
+      const m = f.m;
+      out.push(`#### Drive ${f.drive + 1} · ${clock(m.t)} · km ${km(m.s)} · ${m.kind}${m.good ? ' (good)' : ''} · sev ${m.severity}`);
+      out.push('');
+      out.push(m.text || '–');
+      out.push('');
+      out.push('```');
+      out.push(f.repro);
+      out.push('```');
+      out.push('');
+      if (f.bonnet && f.map) {
+        out.push(`![bonnet view](${f.bonnet})`);
+        out.push('');
+        out.push(`![lane map](${f.map})`);
+        out.push('');
+      }
+      out.push(
+        f.shotOk
+          ? `same world: body hash \`${f.bodyHash}\` matches the run stopped at ${Math.round(m.t * 10) / 10} s.`
+          : `**Different world:** the replay hashed \`${f.bodyHash}\`, the run \`${f.expect ?? 'unknown'}\`. The frames above are of another drive; do not trust them.`,
+      );
+      out.push('');
+    }
   }
 
   // 5. Your marks ---------------------------------------------------------

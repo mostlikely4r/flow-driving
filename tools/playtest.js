@@ -21,10 +21,11 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { CONFIG } from '../src/config.js';
 import { mulberry32 } from '../src/util.js';
-import { pedalStep } from '../src/input.js';
-import { createSim, stepSim, applyDrivePress, holdFlash, drainEvents, playerLimit } from '../src/session.js';
+import { createSim, advanceDrive, playerLimit } from '../src/session.js';
+import { journalHash } from '../src/journal.js';
 import { Perception } from '../src/perception.js';
 import { BotDriver, PROFILES } from '../src/botDriver.js';
+import { detectMoments } from '../src/moments.js';
 import { buildReport } from './report.js';
 
 const DT_DEFAULT = 1 / 60;
@@ -49,11 +50,23 @@ function parseArgs(argv) {
       o.child = true;
       continue;
     }
+    // bare flags: `frames` shoots the stills a report points at (slice 3)
+    if (a === 'frames' || a === 'quiet') {
+      o[a] = true;
+      continue;
+    }
     const i = a.indexOf('=');
     if (i < 0) continue;
     const k = a.slice(0, i);
     const v = a.slice(i + 1);
-    if (k.startsWith('cfg.')) {
+    if (k === 'cfg' && v.startsWith('{')) {
+      // a whole config diff in one argument: cfg={"moments":{...}}
+      try {
+        Object.assign(o.cfg, JSON.parse(v));
+      } catch {
+        console.error(`ignoring a config that is not JSON: ${v}`);
+      }
+    } else if (k.startsWith('cfg.')) {
       o.cfg[k.slice(4)] = parseScalar(v);
     } else if (k.includes('.') && !['dt', 'jobs', 'out'].includes(k)) {
       // <profile>.<param>=<value>
@@ -80,29 +93,9 @@ function git(args) {
 }
 
 // ---------------------------------------------------------------- determinism hash
-/** FNV-1a, 32-bit; two seeds give a 64-bit hex digest. */
-function fnv(str) {
-  let a = 0x811c9dc5;
-  let b = 0x01000193;
-  for (let i = 0; i < str.length; i++) {
-    const c = str.charCodeAt(i);
-    a ^= c;
-    a = Math.imul(a, 0x01000193);
-    b ^= c;
-    b = Math.imul(b, 0x85ebca6b);
-  }
-  return (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0');
-}
-
-/** Every column and event, without the wall-clock stamps. */
-export function journalHash(j) {
-  const h = { ...j.header };
-  delete h.startedAt;
-  const end = j.end ? { ...j.end } : null;
-  if (end) delete end.endedAt;
-  const body = { ...j, header: h, end };
-  return fnv(JSON.stringify(body));
-}
+// The digest lives in src/journal.js, so the browser replay can report the same
+// number for the drive it has just re-simulated.
+export { journalHash };
 
 // ---------------------------------------------------------------- analysis
 const median = (arr) => {
@@ -115,7 +108,12 @@ const mode = (arr) => {
   const c = new Map();
   for (const x of arr) c.set(x, (c.get(x) || 0) + 1);
   let best = null, n = -1;
-  for (const [x, k] of c) if (k > n) ((best = x), (n = k));
+  for (const [x, k] of c) {
+    if (k > n) {
+      best = x;
+      n = k;
+    }
+  }
   return best;
 };
 
@@ -204,6 +202,12 @@ export function verdict(driver, c) {
     const home = c.laneShare[1] ?? 0;
     need('home lane ≥ 70%', home >= 0.7);
     need('p50 = limit − 10 ± 2', c.p50 != null && Math.abs(c.p50 - (c.limit - 10)) <= 2);
+  } else if (driver === 'dwars') {
+    // Awkward on purpose: the bad driving is the experiment, so contacts and
+    // scrapes are printed in the table, not required to be zero. What must hold
+    // is that the sim stayed sane and the keyboard stayed a keyboard.
+    need('no red cross', c.redCross === 0);
+    need('cc events only toggle/resume/adjust', c.ccBad === 0);
   } else {
     need('ccSet = limit + 4', c.ccSetModal === c.limit + 4);
     need('≥ 1 R after braking', c.resume >= 1);
@@ -219,6 +223,120 @@ export function verdict(driver, c) {
     need('no red cross', c.redCross === 0);
   }
   return { ok: bad.length === 0, bad };
+}
+
+// ---------------------------------------------------------------- frames (slice 3)
+/**
+ * The moments a report is worth looking at: the three worst and the three best
+ * over the whole run, taken in turn from each drive (the worst of drive 1, then
+ * of drive 2, ...), so five seeds do not fill the page with the first minute.
+ * Within a drive: severity first, then earliest.
+ */
+export function pickMoments(drives, { worst = 3, best = 3 } = {}) {
+  const bySev = (a, b) => b.m.severity - a.m.severity || a.m.t - b.m.t;
+  const byDrive = drives.map(({ j }, i) => {
+    const meta = {
+      drive: i,
+      seed: j.header?.seed,
+      profile: j.header?.profile,
+      tod: j.header?.timeOfDay || 'day',
+      scenario: j.header?.scenario || null,
+      cfg: j.header?.config || {},
+    };
+    const ms = detectMoments(j).map((m) => ({ ...meta, m }));
+    return { bad: ms.filter((x) => !x.m.good).sort(bySev), good: ms.filter((x) => x.m.good).sort(bySev) };
+  });
+  const take = (key, n) => {
+    const out = [];
+    for (let round = 0; out.length < n; round++) {
+      const before = out.length;
+      for (const d of byDrive) {
+        if (!d[key][round]) continue;
+        out.push(d[key][round]);
+        if (out.length === n) break;
+      }
+      if (out.length === before) break; // no drive has a moment this far down
+    }
+    return out;
+  };
+  return [...take('bad', worst), ...take('good', best)];
+}
+
+/** The one-line command that puts the runner back at this moment (and shoots it). */
+export function reproCmd(p, { frames = false } = {}) {
+  const parts = ['npm run playtest --', `driver=${p.profile || 'forens'}`, `seed=${p.seed}`];
+  if (p.tod && p.tod !== 'day') parts.push(`tod=${p.tod}`);
+  if (p.scenario) parts.push(`scenario=${p.scenario}`);
+  const scalar = [];
+  const nested = {};
+  for (const [k, v] of Object.entries(p.cfg || {})) {
+    if (v !== null && typeof v === 'object') nested[k] = v;
+    else scalar.push(`cfg.${k}=${v}`);
+  }
+  parts.push(...scalar);
+  if (Object.keys(nested).length) parts.push(`cfg='${JSON.stringify(nested)}'`);
+  parts.push(`until=${Math.round(p.m.t * 10) / 10}`);
+  if (frames) parts.push('frames');
+  return parts.join(' ');
+}
+
+/**
+ * The body hash a moment's replay must reproduce: a fresh headless run stopped
+ * at the same moment. If a frame's world does not hash to this, the frame is of
+ * a different drive and the report says so.
+ */
+function bodyHashUntil(job) {
+  return new Promise((res) => {
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--child', JSON.stringify({ ...job, quiet: true })], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    let out = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.on('close', () => {
+      const line = out.split('\n').find((l) => l.startsWith('CHECKS '));
+      try {
+        res(line ? JSON.parse(line.slice(7)).bodyHash : null);
+      } catch {
+        res(null);
+      }
+    });
+  });
+}
+
+/** Shoot the two frames per moment, and keep what the report needs. */
+async function shootPicks(picks, { outDir, base }) {
+  const { shootAll } = await import('./frame.js');
+  const used = new Set();
+  const shots = picks.map((p) => {
+    let name = `d${p.drive + 1}-t${Math.round(p.m.t * 10) / 10}-${p.m.kind}`;
+    for (let k = 2; used.has(name); k++) name = `d${p.drive + 1}-t${Math.round(p.m.t * 10) / 10}-${p.m.kind}-${k}`;
+    used.add(name);
+    return {
+      name,
+      shot: {
+        seed: p.seed,
+        until: p.m.t,
+        driver: p.profile || 'forens',
+        tod: p.tod || 'day',
+        scenario: p.scenario || null,
+        cfg: p.cfg || null,
+        expect: p.expect ?? null,
+      },
+    };
+  });
+  const out = await shootAll({ shots, outDir, onLog: (l) => console.log(l) });
+  return picks.map((p, i) => ({
+    ...p,
+    name: shots[i].name,
+    bonnet: `frames/${shots[i].name}-bonnet.png`,
+    map: `frames/${shots[i].name}-map.png`,
+    shotOk: out[i].sameWorld,
+    bodyHash: out[i].replay.bodyHash,
+    expect: shots[i].shot.expect,
+    repro: reproCmd(p),
+    reproFrames: reproCmd(p, { frames: true }),
+    run: base,
+  }));
 }
 
 // ---------------------------------------------------------------- the null bot (P0 skeleton)
@@ -278,30 +396,13 @@ export function runSeed(o) {
     runner: { dt, playerSub: 1 / 120, trafficSub: 1 / 30, minutes, until: o.until ?? null },
   });
 
-  let percept = perception.update(0, sim.player, sim.traffic, sim.msi, playerLimit(sim));
-  let perceptT = 0;
-
-  const maxT = (o.until != null ? o.until : minutes * 60);
-  const pedal = { thr: 0, brk: 0, thrHeld: 0, brkHeld: 0 };
-  let t = 0;
-  let frames = 0;
+  const maxT = o.until != null ? o.until : minutes * 60;
   let minGap = Infinity;
   let minTtc = Infinity;
-  while (t < maxT - 1e-9) {
-    const out = bot.update(dt, percept);
-    for (const p of out.presses) applyDrivePress(sim, p);
-    const ctl = pedalStep(pedal, out.keys, dt);
-    stepSim(sim, dt, ctl);
-    holdFlash(sim, out.keys.flash);
-    drainEvents(sim);
-    perceptT -= dt;
-    if (perceptT <= 0) {
-      percept = perception.update(t, sim.player, sim.traffic, sim.msi, playerLimit(sim));
-      perceptT = 0.1;
-    }
-    // Diagnostics only (the runner may look; the bot may not).
-    const p = sim.player;
-    for (const v of sim.traffic.vehicles) {
+  // Diagnostics only (the runner may look; the bot may not).
+  const onStep = (s) => {
+    const p = s.player;
+    for (const v of s.traffic.vehicles) {
       if (Math.abs(v.latLocal - p.lat) > (v.width + p.width) / 2) continue; // another lane
       const dl = v.u - p.s;
       const gap = Math.abs(dl) - (v.len + p.len) / 2;
@@ -309,15 +410,20 @@ export function runSeed(o) {
       const close = p.vAlong - v.v;
       if (dl > 0 && close > 0.1) minTtc = Math.min(minTtc, gap / close);
     }
-    t += dt;
-    frames++;
-  }
+  };
+  const frames = Math.round(maxT / dt);
+  const driven = advanceDrive(sim, { bot, perception, until: maxT, dt, onStep });
   const secs = (Date.now() - t0) / 1000;
-  const crashes = (sim.player.events || []).filter((e) => e.type === 'crash').length;
-  const data = sim.journal.finish({ reason: o.until != null ? 'until' : 'end', contacts: crashes });
+  const data = sim.journal.finish({
+    reason: o.until != null ? 'until' : 'end',
+    // count it after the fact: drainEvents() empties player.events every step, so
+    // reading it at the end only ever found a crash on the last step
+    contacts: sim.journal.data.events.filter((e) => e.type === 'crash').length,
+  });
   const checks = analyse(data, { seed, minGap, minTtc, frames, secs });
   checks.hash = journalHash(data);
-  return { data, checks, bot, sim, percept };
+  checks.bodyHash = journalHash(data, { bodyOnly: true });
+  return { data, checks, bot, sim, percept: driven.percept };
 }
 
 // ---------------------------------------------------------------- child
@@ -343,7 +449,7 @@ function childMain(o) {
         0,
       ),
     );
-  } else {
+  } else if (!o.quiet) {
     const p = res.percept || null;
     const lanes = p
       ? p.lanes.map((lv, i) => ({
@@ -374,6 +480,7 @@ function childMain(o) {
     for (const line of res.bot.trace.slice(-20)) console.log('  ' + JSON.stringify(line));
   }
   console.log('CHECKS ' + JSON.stringify({ ...res.checks, seed: o.seed }));
+  return res;
 }
 
 // ---------------------------------------------------------------- parent
@@ -392,8 +499,24 @@ async function parentMain(o) {
   const base = { driver, minutes, tod, scenario, dt, cfg: o.cfg, overrides: o.overrides, profileParams: o.overrides[driver] || null, dir, until: o.until ?? null };
 
   // `until=` is a single interactive probe: run it here, no files, no report.
+  // With `frames` it also shoots both stills of that one moment, which is the
+  // one-line reproduction a report points at.
   if (o.until != null) {
-    childMain({ ...base, seed: seeds[0] });
+    const res = childMain({ ...base, seed: seeds[0] });
+    if (o.frames && res && res.data) {
+      const p = {
+        drive: 0,
+        m: { t: res.data.end.t, kind: 'until', severity: 1, good: false, text: 'the moment you asked for' },
+        seed: seeds[0],
+        profile: driver,
+        tod,
+        scenario,
+        cfg: res.data.header.config,
+        expect: res.checks.bodyHash,
+      };
+      const frames = await shootPicks([p], { outDir: join(dir, 'frames'), base: { driver, minutes, tod, scenario } });
+      for (const f of frames) console.log(`frame: ${join(dir, f.bonnet)} ${f.shotOk ? '(same world)' : '(NOT the same world)'}\n       map: ${join(dir, f.map)}`);
+    }
     return;
   }
 
@@ -476,8 +599,40 @@ async function parentMain(o) {
       }
     })
     .filter(Boolean);
+  let frames = [];
   if (drives.length) {
-    const md = buildReport(drives);
+    // Slice 3: the three worst and the three best, with frames and a command.
+    if (o.frames) {
+      const picks = pickMoments(drives);
+      if (picks.length) {
+        const t0 = Date.now();
+        // What the replay must reproduce: a fresh headless run stopped there.
+        const hashes = await Promise.all(
+          picks.map((p) =>
+            bodyHashUntil({
+              ...base,
+              seed: p.seed,
+              driver: p.profile || driver,
+              tod: p.tod,
+              scenario: p.scenario,
+              cfg: p.cfg || {},
+              minutes: 0,
+              until: p.m.t,
+            }),
+          ),
+        );
+        picks.forEach((p, i) => {
+          p.expect = hashes[i];
+        });
+        frames = await shootPicks(picks, { outDir: join(dir, 'frames'), base: { driver, minutes, tod, scenario } });
+        console.log(`frames: ${frames.length} moment(s) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+        const off = frames.filter((f) => !f.shotOk).length;
+        if (off) console.log(`frames: ${off} of ${frames.length} did not reproduce the run's hash (see the report)`);
+      } else {
+        console.log('frames: no moment detectors fired, so there is nothing to look at');
+      }
+    }
+    const md = buildReport(drives, { frames });
     writeFileSync(join(dir, 'report.md'), md);
     console.log(`report: ${join(dir, 'report.md')}`);
   }
@@ -491,6 +646,7 @@ async function parentMain(o) {
     totalSecs,
     failed: failures,
     checks: checks.map((c) => ({ ...c, verdict: verdict(driver, c) })),
+    frames: frames.map((f) => ({ name: f.name, drive: f.drive, t: f.m.t, kind: f.m.kind, sameWorld: f.shotOk, bonnet: f.bonnet, map: f.map })),
   };
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
   console.log(`run dir: ${dir}`);

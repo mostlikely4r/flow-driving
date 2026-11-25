@@ -9,9 +9,9 @@ import { CONFIG, DEFAULTS } from '../src/config.js';
 import { KMH } from '../src/util.js';
 import { laneLat } from '../src/layout.js';
 import { Perception, observe, ALLOWED } from '../src/perception.js';
-import { createSim, stepSim, playerLimit, applyDrivePress } from '../src/session.js';
+import { createSim, stepSim, advanceDrive, playerLimit, applyDrivePress } from '../src/session.js';
 import { pedalStep } from '../src/input.js';
-import { BotDriver } from '../src/botDriver.js';
+import { BotDriver, PROFILES } from '../src/botDriver.js';
 
 let failed = 0;
 let passed = 0;
@@ -118,7 +118,40 @@ const fakeTraffic = (vehicles, closures = []) => ({ vehicles, closures });
   ok('range: 81 m two away is not', !past.cars.find((c) => c.id === 10));
 }
 
-// ---------------------------------------------------------------- 2. poison
+// ---------------------------------------------------------------- 2. occlusion
+{
+  const p = playerAt({ lane: 0, kmh: 100 });
+  const truck = vehAt(21, { lane: 0, dl: 100, type: 'truck', variant: 'truck', len: 16.8, width: 2.55 });
+  const queue = vehAt(22, { lane: 0, dl: 200 }); // in the same lane, behind the truck
+  const aside = vehAt(23, { lane: 1, dl: 200 }); // one lane over, in plain view
+  const perc = new Perception().update(10, p, fakeTraffic([truck, queue, aside]), fakeMsi, 100);
+  ok('occlusion: the truck itself is visible', !!perc.cars.find((c) => c.id === 21));
+  ok('occlusion: a car in the queue behind the truck is hidden', !perc.cars.find((c) => c.id === 22));
+  ok('occlusion: a truck in your lane does not hide the next lane', !!perc.cars.find((c) => c.id === 23));
+  ok('occlusion: the lane view stops at the truck', perc.lanes[0].ahead.id === 21, perc.lanes[0].ahead && String(perc.lanes[0].ahead.id));
+
+  const low = vehAt(24, { lane: 0, dl: 100 });
+  const lowPerc = new Perception().update(10, p, fakeTraffic([low, vehAt(25, { lane: 0, dl: 200 })]), fakeMsi, 100);
+  ok('occlusion: a car does not hide the queue', !!lowPerc.cars.find((c) => c.id === 25));
+
+  // close enough to see past it: a car within 30 m is never called hidden
+  const close = vehAt(26, { lane: 0, dl: 12, type: 'van', variant: 'van', len: 5.9, width: 2.0 });
+  const near = vehAt(27, { lane: 0, dl: 25 });
+  const closePerc = new Perception().update(10, p, fakeTraffic([close, near]), fakeMsi, 100);
+  ok('occlusion: inside 30 m nothing is hidden', !!closePerc.cars.find((c) => c.id === 27));
+
+  // a car that comes out from behind a truck is "fresh": the bot will not move
+  // blind onto it (it waits 0.5 s for the cue, as for any car that just appeared)
+  const perception = new Perception();
+  const hiddenCar = vehAt(28, { lane: 0, dl: 200 });
+  const blocker = vehAt(29, { lane: 0, dl: 100, type: 'truck', variant: 'truck', len: 16.8, width: 2.55 });
+  perception.update(10, p, fakeTraffic([blocker, hiddenCar]), fakeMsi, 100);
+  const out = perception.update(10.4, p, fakeTraffic([vehAt(29, { lane: 1, dl: 100, type: 'truck', variant: 'truck', len: 16.8, width: 2.55 }), hiddenCar]), fakeMsi, 100);
+  const seen = out.cars.find((c) => c.id === 28);
+  ok('occlusion: a car that comes out from behind a truck is fresh', !!seen && seen.seenAge === 0, seen ? `seenAge ${fmt(seen.seenAge)}` : 'missing');
+}
+
+// ---------------------------------------------------------------- 3. poison
 {
   const sim = createSim({ seed: 7, timeOfDay: 'day' });
   const perc = new Perception();
@@ -183,7 +216,6 @@ checkModule('botDriver.js', ['./config.js', './util.js', './layout.js', './msi.j
     const lastOcc = new Map(); // id -> lanesOcc signature
     let t = 0;
     while (t < 180 && !found) {
-      sim.journal.active || sim.journal // the journal is off here
       stepSim(sim, 1 / 60, { steer: 0, throttle: 0, brake: 0, analog: false });
       t += 1 / 60;
       if (Math.abs(t % 0.1) > 1 / 120) continue;
@@ -383,6 +415,27 @@ function driveBot(bot, seconds, perceptFn, { dt = 1 / 60, kmh = 100 } = {}) {
     if (bot.state === 'ABORT') aborted = true;
   }
   ok('bot: aborts a lane change when the gap closes', aborted, `state ${bot.state}`);
+}
+
+{
+  // `dwars` (slice 3): short signals, a tight headway, and a brake tap with a
+  // clear road ahead — the things the AI has to survive from a bad player.
+  ok(
+    'dwars: profile is the awkward one',
+    PROFILES.dwars.signalS < 1 && PROFILES.dwars.homeLane === 1 && PROFILES.dwars.keepRight === false && PROFILES.dwars.twitchS > 0,
+    JSON.stringify(PROFILES.dwars),
+  );
+  const bot = new BotDriver('dwars', { seed: 9 });
+  const seen = driveBot(bot, 40, (t, cc, kmh) => perceptAt({ t, lane: 1, kmh, cc }));
+  ok('dwars: brakes with nothing in front of it', seen.brake && bot.twitchCount >= 1, `taps ${bot.twitchCount}`);
+
+  // Three minutes in the real sim: the awkwardness must not destabilise it.
+  const sim = createSim({ seed: 12, timeOfDay: 'day' });
+  const awkward = new BotDriver('dwars', { seed: 12 });
+  advanceDrive(sim, { bot: awkward, perception: new Perception(), until: 180 });
+  const finite = [sim.player.s, sim.player.v, sim.player.lat, sim.player.acc].every((x) => Number.isFinite(x));
+  ok('dwars: 3 min in the real sim stays finite', finite, `s ${fmt(sim.player.s)} v ${fmt(sim.player.v)}`);
+  ok('dwars: the real sim saw the brake taps', awkward.twitchCount >= 1, `taps ${awkward.twitchCount}`);
 }
 
 {

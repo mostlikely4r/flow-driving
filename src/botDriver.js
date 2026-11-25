@@ -49,6 +49,25 @@ export const PROFILES = {
     giveUpS: 15,
     backoffS: 10,
   },
+  // The awkward one: sits in the middle, fast, short signals, late tight merges,
+  // and now and then a brake tap with nothing in front of it. The probe for
+  // "do the AI's defences hold, or does it collide or panic?" (slice 3).
+  dwars: {
+    setOverKmh: 8,
+    keepRight: false,
+    homeLane: 1,
+    signalS: 0.8,
+    overtakeKmh: 4,
+    flashAfterS: Infinity,
+    headwayS: 0.9,
+    acceptLeadS: 0.6,
+    acceptLagS: 0.8,
+    minLagTtc: 2.5,
+    react: 0.2,
+    giveUpS: 15,
+    backoffS: 4,
+    twitchS: 25, // mean seconds between pointless brake taps (0 = never)
+  },
 };
 
 const LANE_KEEP_M = 0.25; // dead band for holding your lane
@@ -110,6 +129,9 @@ export class BotDriver {
     this.indPressT = -Infinity;
     this.indPending = null; // what the indicator should be, if a press is queued
     this.mergeCap = null; // closure with no gap: match the neighbouring lane instead
+    this.twitchT = 0; // `dwars`: seconds of brake tap still to hold
+    this.twitchCount = 0; // how many pointless taps it has made (the trace of a probe)
+    this.twitchNext = this.profile.twitchS ? this.profile.twitchS * (0.4 + this.rng()) : Infinity;
   }
 
   // ---------------------------------------------------------------- helpers
@@ -227,7 +249,7 @@ export class BotDriver {
   }
 
   /** Keep a closed-lane memory from the first sign until well past the works. */
-  noteClosedLane(p, dt) {
+  noteClosedLane(p) {
     const s = p.self;
     const faces = [p.signs.cur, p.signs.next].filter(Boolean);
     for (let lane = 0; lane < s.lanes; lane++) {
@@ -289,7 +311,7 @@ export class BotDriver {
     this.laneTarget = clamp(this.laneTarget, 0, s.lanes - 1);
 
     // ---------- remember a lane a red cross / arrow has marked closed
-    this.noteClosedLane(p, dt);
+    this.noteClosedLane(p);
 
     // ---------- lateral decisions and the lane-change machine
     this.runLaneChange(p, dt);
@@ -333,6 +355,7 @@ export class BotDriver {
       this.keys.brake = true;
       idm = true;
     }
+    if (prof.twitchS) this.runTwitch(p, dt);
 
     // yield: a car alongside that is drifting or signalling into my lane
     const yielding = p.cars.some((c) => {
@@ -575,9 +598,36 @@ export class BotDriver {
   }
 
   // ---------------------------------------------------------------- flash
+  /**
+   * `dwars` brakes for nothing now and then: with a clear road ahead, a short
+   * push on the pedal. That is what an inattentive driver does, and it is the
+   * part the AI cannot read (the report shows it as forced braking). A tap
+   * behind a car is an ordinary brake, so it only fires on a clear road.
+   */
+  runTwitch(p, dt) {
+    const prof = this.profile;
+    if (this.twitchT > 0) {
+      this.twitchT -= dt;
+      this.keys.brake = true;
+      this.keys.throttle = false;
+      return;
+    }
+    this.twitchNext -= dt;
+    if (this.twitchNext > 0) return;
+    const lane = this.myLane(p);
+    const lead = this.leader(p);
+    const own = p.lanes[lane] ? p.lanes[lane].ahead : null;
+    const clear = (!lead || lead.gap > 90) && (!own || own.gap > 90) && this.state !== 'MOVE' && this.state !== 'ABORT';
+    // look again shortly whatever happens: a tap while queueing is not the point
+    this.twitchNext = 2 + this.rng() * 3;
+    if (!clear) return;
+    this.twitchT = 0.6;
+    this.twitchCount++;
+    this.twitchNext = prof.twitchS * (0.5 + this.rng() * 1.5);
+  }
+
   runFlash(p, dt) {
     const prof = this.profile;
-    const s = p.self;
     const lane = this.myLane(p);
     if (!Number.isFinite(prof.flashAfterS) || lane === 0) {
       this.blockedId = null;

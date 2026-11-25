@@ -69,8 +69,10 @@ export class Perception {
     };
 
     // ---- other cars
-    const cars = [];
-    const alive = new Set();
+    // Two passes: what is in range at all, then which of those a tall vehicle
+    // between us and it hides. A hidden car is not a cue, so it is dropped
+    // before anything is derived from it (gaps, lane views, drift history).
+    const cand = [];
     for (const veh of traffic.vehicles || []) {
       const o = observe(veh);
       const dl = o.u - player.s;
@@ -81,6 +83,16 @@ export class Perception {
       const inRange = dl >= -cfg.behindM && dl <= cfg.aheadM;
       const visible = (inRange && adjacent) || Math.abs(dl) <= cfg.farM;
       if (!visible) continue;
+      cand.push({ o, dl, vLat, vOcc, vLane, adjacent });
+    }
+    const blockers = cand.filter((c) => cfg.occludeTypes.includes(c.o.type));
+    const eyeS = player.s + cfg.eyeM;
+    const eyeLat = player.lat;
+
+    const cars = [];
+    const alive = new Set();
+    for (const { o, dl, vLat, vOcc, vLane } of cand) {
+      if (blockers.length && hidden(blockers, { o, dl }, eyeS, eyeLat, cfg)) continue;
       alive.add(o.id);
 
       // lateral history → slope (never read from the sim)
@@ -203,15 +215,50 @@ export class Perception {
       if (alive.has(id)) continue;
       if (!hist.length || t - hist[hist.length - 1].t > 3) this.hist.delete(id);
     }
-    for (const [id, c] of this.cue) {
+    for (const id of this.cue.keys()) {
       const hist = this.hist.get(id);
       if (!alive.has(id) && (!hist || !hist.length || t - hist[hist.length - 1].t > 3)) this.cue.delete(id);
     }
   }
 }
 
-/** Least-squares slope of lat over t. */
-function slope(hist) {
+/**
+ * Is `target` hidden behind one of the tall vehicles in `blockers`?
+ *
+ * A 2D line-of-sight test on the straightened road: the sight line runs from the
+ * driver's eye to the middle of the target's near face (`u`), and a truck or van
+ * whose body rectangle that line crosses blocks it. Anything inside
+ * `nearUnhiddenM` is close enough to see past, and an occluder must lie between
+ * the eye and the target, so a car further away can never hide a closer one.
+ */
+function hidden(blockers, target, eyeS, eyeLat, cfg) {
+  const o = target.o;
+  // the face of the target you can see: its nose if it is ahead, its tail if it is behind
+  const nearU = target.dl >= 0 ? o.u - o.len / 2 : o.u + o.len / 2;
+  if (Math.abs(nearU - eyeS) < cfg.nearUnhiddenM) return false;
+  const span = nearU - eyeS;
+  const targetLat = o.latLocal;
+  const segA = Math.min(eyeS, nearU);
+  const segB = Math.max(eyeS, nearU);
+  const latAt = (u) => eyeLat + ((targetLat - eyeLat) * (u - eyeS)) / span;
+  for (const b of blockers) {
+    const bo = b.o;
+    if (bo.id === o.id) continue;
+    const lo = Math.max(segA, bo.u - bo.len / 2);
+    const hi = Math.min(segB, bo.u + bo.len / 2);
+    if (hi < lo) continue; // not between us and it
+    const lA = bo.latLocal - bo.width / 2;
+    const lB = bo.latLocal + bo.width / 2;
+    const h1 = latAt(lo);
+    const h2 = latAt(hi);
+    // lat is monotonic along the segment, so the line crosses the body when its
+    // two ends straddle the body's lateral span
+    if (Math.max(h1, h2) >= lA && Math.min(h1, h2) <= lB) return true;
+  }
+  return false;
+}
+
+/** Least-squares slope of lat over t. */function slope(hist) {
   const n = hist.length;
   if (n < 2) return 0;
   const t0 = hist[0].t;
