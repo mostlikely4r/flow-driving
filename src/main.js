@@ -80,6 +80,11 @@ ground.rotation.x = -Math.PI / 2;
 ground.position.y = -1.7;
 ground.receiveShadow = false;
 scene.add(ground);
+/** The far ground plane takes the promised world's greener fields (F-48). */
+function tintGround(w) {
+  ground.material.color.set(w === 'promised' ? 0xd8f0c0 : 0xffffff);
+}
+tintGround(CONFIG.world);
 
 // ---------------------------------------------------------------- player
 const player = new Player(road);
@@ -108,11 +113,17 @@ playerVis.front.add(headHigh, headHigh.target);
 // with you, so sodium light sweeps over the car (and the cockpit) one lamp at
 // a time. Distant lamps are glow sprites only.
 const SODIUM = [1, 0.6, 0.22];
+const COOL = [0.72, 0.84, 1]; // F-48: the promised world's lamps are cool white
 const streetLights = [0, 1, 2].map(() => {
   const l = new THREE.SpotLight(0xff9a3c, 0, 48, 1.1, 0.7, 1.3);
   scene.add(l, l.target);
   return l;
 });
+function streetLampColor(w) {
+  const light = w === 'promised' ? 0xd8e6ff : 0xff9a3c;
+  for (const l of streetLights) l.color.set(light);
+}
+streetLampColor(CONFIG.world);
 function updateStreetLamps(night, dusk) {
   const on = night || dusk;
   const s = player.s;
@@ -139,11 +150,12 @@ function updateStreetLamps(night, dusk) {
   if (!on) return;
   // glowing lamp heads, both carriageways, receding into the distance
   const k = night ? 1 : 0.4;
+  const lampCol = CONFIG.world === 'promised' ? COOL : SODIUM;
   for (let sl = base - 4 * LAMP_EVERY; sl < s + 1600; sl += LAMP_EVERY) {
     if (!scenery.litAt(sl)) continue;
     const p = road.sample(sl);
     for (const sg of [1, -1]) {
-      glow.add(p.x + p.nx * sg * 2.9, 11.85, p.z + p.nz * sg * 2.9, SODIUM[0] * 2.2 * k, SODIUM[1] * 2.2 * k, SODIUM[2] * 2.2 * k, 0.9);
+      glow.add(p.x + p.nx * sg * 2.9, 11.85, p.z + p.nz * sg * 2.9, lampCol[0] * 2.2 * k, lampCol[1] * 2.2 * k, lampCol[2] * 2.2 * k, 0.9);
     }
   }
 }
@@ -430,7 +442,7 @@ let mode = null;
 
 function applyTime(m) {
   mode = m;
-  env.setMode(m);
+  env.setMode(m, CONFIG.world);
   scenery.setNight(m);
   setVehicleNight(m === 'night');
   applyTimeSim(sim, m);
@@ -445,11 +457,54 @@ function applyTime(m) {
 applyTime(CONFIG.timeOfDay);
 hud.setView(VIEW_NAMES[VIEWS[viewIdx]]);
 
+// ---------------------------------------------------------------- the world (F-48)
+// `now` is the A12 as it is, `promised` the same road as 1990 drew the future.
+// Only the view changes: the sim never learns which world it is in.
+const flitsEl = document.getElementById('flits');
+let swapping = false;
+
+function applyWorld(w) {
+  CONFIG.world = w;
+  saveSetting('world', w);
+  env.setWorld(w);
+  // the nearby chunks are rebuilt now (the flits covers the hitch), the rest stream in
+  scenery.setWorld(w, player.s);
+  applyTime(mode);
+  hud.setWorld(w);
+  tintGround(w);
+  streetLampColor(w);
+}
+
+/** The flits: a short white flash, so the swap and the rebuild happen out of sight. */
+function swapWorld(w) {
+  if (w === CONFIG.world || swapping) return;
+  const done = () => {
+    applyWorld(w);
+    hud.toast(w === 'promised' ? 'De beloofde wereld' : 'De wereld zoals hij werd');
+  };
+  if (paused) {
+    done();
+    return;
+  }
+  swapping = true;
+  flitsEl.style.transition = 'opacity 0.08s linear';
+  flitsEl.style.opacity = '1';
+  setTimeout(() => {
+    done();
+    setTimeout(() => {
+      flitsEl.style.transition = 'opacity 0.18s linear';
+      flitsEl.style.opacity = '0';
+      swapping = false;
+    }, 90);
+  }, 80);
+}
+
 // prebuild nearby scenery
 scenery.update(player.s, 999);
 
 hud.buildMenu((key, v) => {
   if (key === 'timeOfDay') applyTime(v);
+  else if (key === 'world') swapWorld(v);
   else if (key === 'trafficDensity') traffic.density = v;
   else if (key === 'oncomingDensity') oncoming.density = v;
   else if (key === 'volume') audio.setVolume(v);
@@ -694,6 +749,9 @@ function handlePresses(pad) {
         hud.toast(next === 'day' ? 'Day · limit 100' : next === 'dusk' ? 'Dusk · limit 130' : 'Night · limit 130');
         break;
       }
+      case 'F9':
+        swapWorld(CONFIG.world === 'now' ? 'promised' : 'now');
+        break;
       case 'KeyT': {
         const steps = [4, 8, 12, 18, 25];
         const i = steps.findIndex((s) => s > traffic.density);
@@ -1114,6 +1172,10 @@ window.__game = {
   radio,
   player, traffic, oncoming, road, scene, renderer, CONFIG, scenery,
   cast: castViewer, castStage,
+  /** Debug / look-dev: switch worlds without the flash (F-48). */
+  setWorld(w) {
+    applyWorld(w);
+  },
   /** Debug / look-dev: jump to distance s along the road with fresh traffic. */
   teleport(s) {
     for (const tr of [traffic, oncoming]) for (const v of tr.vehicles) view.remove(v);

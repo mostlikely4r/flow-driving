@@ -21,6 +21,25 @@ const MODES = {
   },
 };
 
+/**
+ * F-48: the promised world's palette, laid over MODES[mode] when the world is
+ * 'promised'. A cleaner brochure blue, greener grass and a lighter, bluer haze:
+ * noticeable side by side, never cartoonish. Night is unchanged except for its
+ * lamp colours, which live with the scenery that owns those lamps.
+ */
+const PROMISED = {
+  day: {
+    turbidity: 4.5, rayleigh: 1.15, mie: 0.005, sun: 0xfff7e6, sunI: 3.1,
+    hemiSky: 0xaad2f6, hemiGround: 0x6d8346, hemiI: 1.18,
+    fog: 0xd2e6f2, fogNear: 330, fogFar: 4200, exposure: 0.66, bloom: 0.1, envI: 1.0,
+  },
+  dusk: {
+    turbidity: 7.5, hemiSky: 0x6d80aa, hemiGround: 0x34392a, hemiI: 0.5,
+    fog: 0x9aa4ae, fogNear: 240, fogFar: 3400, exposure: 0.78,
+  },
+  night: {},
+};
+
 export class Environment {
   constructor(scene, renderer) {
     this.scene = scene;
@@ -57,6 +76,7 @@ export class Environment {
 
     scene.fog = new THREE.Fog(0xffffff, 200, 3000);
     this.mode = null;
+    this.world = CONFIG.world;
     this.envCache = {};
   }
 
@@ -110,8 +130,15 @@ export class Environment {
     return g;
   }
 
-  envFor(mode) {
-    if (this.envCache[mode]) return this.envCache[mode];
+  /** The mode's numbers for a world (F-48 lays PROMISED over MODES). */
+  modeTable(mode, world) {
+    return world === 'promised' ? { ...MODES[mode], ...PROMISED[mode] } : MODES[mode];
+  }
+
+  envFor(mode, world = this.world) {
+    const key = `${mode}:${world}`;
+    if (this.envCache[key]) return this.envCache[key];
+    const m = this.modeTable(mode, world);
     const sc = new THREE.Scene();
     if (mode === 'night') {
       const ns = this.makeNightSky();
@@ -120,16 +147,20 @@ export class Environment {
     } else {
       const sky = new Sky();
       sky.scale.setScalar(100);
-      this.applySkyUniforms(sky, MODES[mode]);
+      this.applySkyUniforms(sky, m);
       sc.add(sky);
       // a darkish ground plane so reflections have a horizon
-      const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshBasicMaterial({ color: mode === 'day' ? 0x4b5a3a : 0x1c1c18 }));
+      const green = world === 'promised';
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(400, 400),
+        new THREE.MeshBasicMaterial({ color: mode === 'day' ? (green ? 0x5f8046 : 0x4b5a3a) : 0x1c1c18 }),
+      );
       ground.rotation.x = -Math.PI / 2;
       ground.position.y = -1;
       sc.add(ground);
     }
     const rt = this.pmrem.fromScene(sc, 0.02);
-    this.envCache[mode] = rt.texture;
+    this.envCache[key] = rt.texture;
     return rt.texture;
   }
 
@@ -146,9 +177,10 @@ export class Environment {
     return v;
   }
 
-  setMode(mode) {
+  setMode(mode, world = this.world) {
     this.mode = mode;
-    const m = MODES[mode];
+    this.world = world;
+    const m = this.modeTable(mode, world);
     const night = mode === 'night';
     this.sky.visible = !night;
     this.nightSky.visible = night;
@@ -168,11 +200,17 @@ export class Environment {
     this.scene.fog.near = m.fogNear;
     this.scene.fog.far = m.fogFar;
     this.scene.background = night ? new THREE.Color(0x010204) : null;
-    this.scene.environment = this.envFor(mode);
+    this.scene.environment = this.envFor(mode, world);
     this.scene.environmentIntensity = m.envI;
     this.renderer.toneMappingExposure = m.exposure;
     this.bloomStrength = m.bloom;
     this.exposure = m.exposure;
+  }
+
+  /** Switching the world re-applies the current time of day in it (F-48). */
+  setWorld(world) {
+    this.world = world;
+    if (this.mode) this.setMode(this.mode, world);
   }
 
   update(focus) {

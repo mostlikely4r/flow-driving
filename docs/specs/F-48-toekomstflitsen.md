@@ -133,9 +133,51 @@ Four slices. Each ends at a commit and a short user try. Slice 1 rests on a gues
 is the image that carries the mode, and that a covered left lane feels good to drive under), so it
 is the smallest version that tests it.
 
-### Slice 1: the toggle, the spine and the palette
+### Slice 1: the toggle, the spine and the palette — *built* (2026-11-25)
 
-**1.1 The setting and the toggle.** *Decided:* live swap mid-drive **[user]**.
+*Built* in this tree: `src/futureScenery.js`, the world switch (`src/config.js`, `src/main.js`,
+`src/hud.js`, `index.html`), the palette (`src/environment.js`), the spine hook in
+`src/scenery.js`, and `tools/worldtest.js`. What changed from the plan is listed after 1.5.
+
+#### What changed from the plan (and why)
+
+1. **The deck hangs at 7.8 m, not 6 m** (top 8.35, spine wall 9.85). A present-day matrix face box
+   hangs at 6.1 m and is 1.5 m tall, and the gantry beam sits at 7.2 m — both over the left lane.
+   At 6 m the deck would swallow the left lane's sign and slice every gantry. At 7.8 m everything
+   present-day passes underneath untouched, so slice 3's gantries and faces keep their meaning.
+   The pillars split into their Y at 4.6 m as planned.
+2. **The cabins ride the deck's outer edge**, on a track cantilevered just outside the parapet,
+   instead of standing on the deck top. A driver is always *under* the deck surface, so nothing
+   standing on it is visible from the road: measured, only the outer ~0.3 m of the deck top ever
+   shows above the edge. On the edge track the platoons pass where you can see them, just outside
+   the pale blue rail, and their shadows sweep the road. `tools/worldtest.js` pins this.
+3. **A platoon every 5 to 12 s per side**, not 15 to 40: at the plan's spacing the guideway stood
+   empty for most of a minute at a time. As drawn, it is a stream.
+4. **The narrow fallback is ±2.5 m**, not ±1.5: a 1.6 m cabin still has to fit on each side of the
+   spine wall.
+5. **The spine also stops 150 m either side of the random viaducts**, not only at junction
+   bridges; they cross at 6.9 m and would be flown through.
+6. **End blocks, no down ramp**: the deck runs into a solid block from 4.75 to 8.35 m. The cabins
+   disappear into it, which is the read the plan wanted ("as if into a station").
+7. **The deck underside is its own paler material** with a faint warm emissive: lit only by the
+   dark hemisphere ground colour it read as a black mass at noon.
+8. **The clearance overlay box was not built.** `tools/worldtest.js` asserts the clearance numbers
+   and walks 20 km of road instead, which also runs on every full check.
+9. **Night: the street lamps and their glow turn cool white** in the promised world, alongside the
+   guideway lamps (the plan's "night is unchanged except for its lamp colours").
+10. `overpassS` moved to `junctions.js` so the scenery and the spine agree on where the viaducts
+    are without a second copy of the rule.
+
+Checks: `npm run build`, `simtest`, `personas`, `moments`, `bottest` and the new `worldtest` all
+pass; `simtest`, `personas` and `bottest` print byte-identical output to before the change, and
+`moments` differs only in the wall-clock durations it prints. The full check takes about 25 s on
+this machine, so the list stays as it is. Frame time in headless Edge, same spot in both worlds:
++7%, +15% and +22%, the last near a junction — noisier than the plan's 10% but in the same range;
+the scene adds ~45k triangles per ~1.5 km.
+
+#### The steps as written
+
+**1.1 The setting and the toggle.** *Built.* *Decided:* live swap mid-drive **[user]**.
 - `config.js`: `world: 'now'` (`'now' | 'promised'`), stored with the other menu settings.
 - Menu: a two-button row "World: Now · Promised" in the same style as `#calmbtns`.
 - *Proposal:* **F9** toggles it while driving and shows a toast ("De beloofde wereld" / "De wereld
@@ -147,7 +189,7 @@ is the smallest version that tests it.
   player synchronously; the rest follow at the normal `budget`. If the rebuild still hitches, it
   hides under the flash.
 
-**1.2 The spine.** New `src/futureScenery.js`, called from `Scenery.buildChunk` when the world is
+**1.2 The spine.** *Built.* New `src/futureScenery.js`, called from `Scenery.buildChunk` when the world is
 `promised`; it adds to the same chunk group and buckets, so disposal needs no change. Built along
 the median with the existing `sweep` and `mat` helpers, in both directions of travel at once
 (the spine is symmetric about `lat` 0).
@@ -169,7 +211,7 @@ the median with the existing `sweep` and `mat` helpers, in both directions of tr
 - **Night.** A line of small cool-white lamps under each deck edge every 20 m, and amber
   reflectors on the parapet, both in `setNight`.
 
-**1.3 The cabins.** In `futureScenery.js`, view only.
+**1.3 The cabins.** *Built.* In `futureScenery.js`, view only.
 - Platoons of 3 to 6 small rounded cabins (about 3.2 × 1.6 × 1.4 m, glass canopy, a pastel
   colour per platoon) run on each deck in that side's direction of travel.
 - *Proposal* **[guess]:** a steady 140 km/h, 1.5 m apart inside a platoon, a platoon every 15 to
@@ -179,7 +221,7 @@ the median with the existing `sweep` and `mat` helpers, in both directions of tr
   into the end block, as if into a station.
 - An `InstancedMesh` per side; positions are updated in `Scenery.animate(dt)`.
 
-**1.4 The palette.** `environment.js`: a `PROMISED` tweak table, applied on top of `MODES[mode]`
+**1.4 The palette.** *Built.* `environment.js`: a `PROMISED` tweak table, applied on top of `MODES[mode]`
 when the world is `promised`. *Proposal:* for day, lower `turbidity` (7 → 4.5), a bluer
 `hemiSky`, a greener `hemiGround`, slightly higher `exposure`, and a lighter, bluer `fog`. Dusk
 gets a smaller version of the same change. Night is unchanged except for its lamp colours. Grass
@@ -187,10 +229,11 @@ and fields materials in `scenery.js` get a saturation lift (a colour multiply on
 new textures). The change should be noticeable side by side and never cartoonish.
 
 **1.5 Checks for slice 1** (section 8), then commit:
-"Toekomstflitsen slice 1: toggle, spine and palette (F-48)".
+"Toekomstflitsen slice 1: toggle, spine and palette (F-48)". *Done.*
 
 **Stop here for the user to try.** The deck over the left lane and the spine's look decide
 whether slices 2 to 4 keep the drawing's cross-section or fall back to a narrower spine.
+*Waiting on that drive: everything after slice 1 is still to be built.*
 
 ### Slice 2: wedge bodies
 
@@ -296,7 +339,7 @@ Every slice:
 Per slice:
 - Slice 1: the spine stops before every junction bridge on a 10 km drive; no deck intersects an
   overpass; nothing below 4.6 m outside `|lat| ≤ 0.3`. *Proposal:* a dev overlay toggle draws the
-  clearance box.
+  clearance box. *Built as `tools/worldtest.js` instead* (the overlay is still open, see below).
 - Slice 2: in the persona viewer (F-35, `castViewer.js`), every archetype shown in both worlds
   side by side keeps its tell (rule 3). Lamp emitters line up with the new bodies; brake lights,
   indicators and headlights all fire.
@@ -332,6 +375,9 @@ night. That one question, whether the covered left lane feels good, decides slic
 
 ## Not in this build
 
+- **Left over from slice 1:** the dev overlay toggle that draws the clearance box (the headless
+  `worldtest` asserts the numbers instead); a down ramp at the spine ends (they run into an end
+  block); cabins are on the deck's edge track rather than its top, for the reason in slice 1.
 - **Handing over to the guideway:** an on-ramp onto the deck where the player lets go and rides
   in a platoon. A later slice with its own spec: it touches player control and is the first part
   of F-48 that would reach the sim.

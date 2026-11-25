@@ -91,12 +91,16 @@ npm run simtest
 npm run personas
 npm run moments
 npm run bottest
+npm run worldtest
 ```
 
 `npm run playtest` is the long one (minutes of traffic per seed, written to `playtests/bot/`).
 
 `npm run simtest` runs the traffic model headless and prints lane usage, speeds and collisions
 (options: `density=20 lanes=4 player=120 plane=2 limit=130 min=6`).
+`npm run worldtest` holds the line between the sim and F-48's promised world: no sim module may
+reach a future module or read `CONFIG.world`, the guideway spine stops at every bridge and viaduct,
+and nothing below 4.6 m stands outside the median barrier.
 `node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Chrome or Edge (run `npm run build` first).
 The screenshot and clip tools find Chrome or Edge on their own; set `BROWSER_PATH` to the browser
 executable when it sits somewhere unusual.

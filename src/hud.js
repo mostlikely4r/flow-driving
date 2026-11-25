@@ -85,6 +85,11 @@ export class Hud {
     this.viewEl.textContent = name;
   }
 
+  /** Which world the menu's World row shows as chosen (F-48). */
+  setWorld(w) {
+    for (const b of this.menuEl.querySelectorAll('[data-world]')) b.classList.toggle('on', b.dataset.world === w);
+  }
+
   toggle(el, force) {
     const show = force ?? el.classList.contains('hidden');
     el.classList.toggle('hidden', !show);
@@ -100,6 +105,7 @@ export class Hud {
   buildMenu(onChange) {
     const defs = [
       ['timeOfDay', 'Time of day', 'select', [['day', 'Day (limit 100)'], ['dusk', 'Dusk (limit 130)'], ['night', 'Night (limit 130)']]],
+      ['world', 'World', 'world'],
       ['lanes', 'Lanes per direction *', 'select', [[2, '2'], [3, '3'], [4, '4'], [5, '5']]],
       ['trafficDensity', 'Traffic (vehicles / km / lane)', 'range', [2, 30, 1]],
       ['oncomingDensity', 'Oncoming traffic', 'range', [0, 25, 1]],
@@ -194,6 +200,22 @@ export class Hud {
           pick.click();
         };
         row.appendChild(pick);
+      } else if (type === 'world') {
+        // F-48: the same road now or as 1990 promised it, in the calm-buttons style
+        input = document.createElement('div');
+        input.className = 'calmbtns worldbtns';
+        for (const [v, t] of [['now', 'Now'], ['promised', 'Promised']]) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = t;
+          b.dataset.world = v;
+          b.classList.toggle('on', CONFIG.world === v);
+          b.onclick = (e) => {
+            e.preventDefault();
+            onChange(key, v);
+          };
+          input.appendChild(b);
+        }
       } else if (type === 'check') {
         input = document.createElement('input');
         input.type = 'checkbox';

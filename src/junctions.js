@@ -59,6 +59,18 @@ function bridgeS(b) {
 const cache = new Map();
 
 /**
+ * The random viaduct in km block K: its s, or null if that block has none. A
+ * junction brings its own bridge, so no viaduct is put on top of one. The
+ * scenery draws these, and F-48's guideway spine stops for them.
+ */
+export function overpassS(K) {
+  if (!(hash01(K, 1) < 0.24)) return null;
+  const s = K * 1000 + 520;
+  for (const j of junctionsNear(s - 1000, s + 1000)) if (Math.abs(j.sBridge - s) < 1000) return null;
+  return s;
+}
+
+/**
  * One junction, from its block number. All marks are in your direction of
  * travel (s increasing) and derived from the bridge.
  */

@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --open",
     "simtest": "node tools/simtest.js",
+    "worldtest": "node tools/worldtest.js",
     "headway": "node tools/headway.js",
     "onramp": "node tools/onramp.js",
     "onrampsuite": "node tools/onrampsuite.js",

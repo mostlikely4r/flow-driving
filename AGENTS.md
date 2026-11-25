@@ -10,8 +10,8 @@ scored and the milestones; `BACKLOG.md` holds every feature by ID, in the vibevi
 
 - `npm run dev`: play locally. `npm run build`: production build.
 - No unit-test script. The checks are the headless tools in `tools/`, each an npm script:
-  `simtest`, `personas`, `scenario <name>`, `moments`, `bottest`, `playtest`, and others listed
-  in the README. `playtest` drives minutes of traffic per seed and is a long run.
+  `simtest`, `personas`, `scenario <name>`, `moments`, `bottest`, `worldtest`, `playtest`, and
+  others listed in the README. `playtest` drives minutes of traffic per seed and is a long run.
 - Human drive journals in `playtests/human/` are local: they are the user's design history and
   calibration set, git ignores them, never delete or rewrite them.
 <!-- vibeview:commands start -->
@@ -45,9 +45,9 @@ Read by `/spec` and `/build`.
 - **Quick check:** `npm run build`, plus the one headless tool closest to the change (`simtest`
   for the traffic model, `personas` for archetypes, `moments` for detectors, `bottest` for the
   bot).
-- **Full check:** `npm run build`, `npm run simtest`, `npm run personas`, `npm run moments` and
-  `npm run bottest`. Note in the plan how long they took the first time, so this list can be
-  trimmed.
+- **Full check:** `npm run build`, `npm run simtest`, `npm run personas`, `npm run moments`,
+  `npm run bottest` and `npm run worldtest`. Note in the plan how long they took the first time, so
+  this list can be trimmed.
 - **Background only:** `npm run playtest` runs and other multi-minute drives, with output to a log.
 - **Review:** from the repo root, against the uncommitted tree:
 

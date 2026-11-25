@@ -3,7 +3,7 @@
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
 ## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
-- state: queued
+- state: in progress
 - backlog: F-48
 - plan: docs/specs/F-48-toekomstflitsen.md
 - added: 2026-11-25
@@ -11,6 +11,10 @@
 Slice 1 only (section 7): F9 live toggle with the flits, the median spine with decks over the left
 lane and cabin platoons, the brochure palette. Sim output must match `main` exactly; stop for the
 user to drive under the deck. Slices 2 to 4 still wait for M2/M3.
+
+Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette are in, the checks
+(sim output identical) and the review are done. Left `in progress` until you have driven under the
+deck: does it feel like a place, or a tunnel?
 
 ## Q-6 · Proefrit: fix the stage-test probes · build
 - state: queued

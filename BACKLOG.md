@@ -711,7 +711,7 @@ Gentle "driving style" feedback through other drivers' reactions, such as being 
 hogging a lane, instead of a score. (From the old parking lot.)
 
 ## F-48 · Toekomstflitsen: the promised now
-- status: specced
+- status: building
 - priority: P3
 - effort: XL
 - plan: docs/specs/F-48-toekomstflitsen.md
@@ -734,6 +734,16 @@ stands in for a present-day one; sky, sea and rail wait for F-49, F-50 and F-51.
 
 Decided 2026-11-25: slice 1 (toggle, spine, palette) is built early as a test of the covered left
 lane; slices 2 to 4 still wait for M2/M3.
+
+Built 2026-11-25, slice 1: `F9` (and a World row in the menu) swaps the A12 for the promised one
+under a short white flash, without touching the sim. The spine rises out of the median barrier on
+Y-pillars every 40 m, with an ochre deck and a red running surface over the left lane on both
+sides, a pale blue rail, cool-white lamps under the deck edge and a 1.6 m cabin platoon stream on
+a track along the deck's outer edge — on the deck top nothing is visible from the road, so they
+ride the edge; the deck hangs at 7.8 m to clear the matrix faces and gantry beams untouched. The
+spine stops 150 m either side of every bridge and viaduct with an end block. Palette: brochure
+blue, greener grass, cooler street lamps at night. New `npm run worldtest` guards the sim's import
+graph and the 4.6 m clearance rule. Waiting for the drive under the deck before slices 2 to 4.
 
 ## F-49 · Rail line beside the motorway
 - status: parked

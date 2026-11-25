@@ -11,6 +11,16 @@ export const DEFAULTS = {
 
   // --- time of day & limits (Dutch: 100 from 6-19h, 130 at night) ---
   timeOfDay: 'day', // 'day' | 'dusk' | 'night'
+
+  // --- F-48 Toekomstflitsen: the promised world ---
+  // 'now' is the A12 as it is; 'promised' is the same road as 1990 drew the
+  // future: a guideway spine over the median with cabins on top. View only.
+  world: 'now', // 'now' | 'promised'
+  future: {
+    deckReachLanes: 1, // 1 = the deck covers the left lane; 0 = median-only spine
+    spineEveryKm: 0, // 0 = the spine is continuous ...
+    spineGapKm: 0, // ... otherwise each stretch is this much shorter than its spacing
+  },
   speedLimitDay: 100,
   speedLimitNight: 130,
 

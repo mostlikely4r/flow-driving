@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 import { hash01, mulberry32, clamp } from './util.js';
 import { innerEdge, outerEdgeLine, pavementEdge, guardrailLat, laneLat } from './layout.js';
 import * as TX from './textures.js';
+import { futureMaterials, futureNight, buildSpine, Cabins } from './futureScenery.js';
 import {
   junctionsNear,
   junctionAtEstateBlock,
@@ -11,6 +12,7 @@ import {
   roadSegments,
   inJunction,
   mirrorS,
+  overpassS,
   BRIDGE_PLATEAU_M,
   DECK_Y,
   DUTCH_PLACES as DUTCH_PLACES_J,
@@ -130,10 +132,16 @@ export class Scenery {
     this.msiSigns = new Map(); // gantry index -> { ch, mats: [per lane] } (faces set by main from msi.js)
     this.road = road;
     this.chunks = new Map();
+    this.stale = new Set(); // chunk indices the world switch still has to rebuild
     this.rotors = [];
     this.night = false;
+    this.mode = null;
+    this.world = CONFIG.world;
+    this.sPlayer = 0;
     this.time = 0;
     this.makeMaterials();
+    this.cabins = new Cabins(scene, road, this.M);
+    this.cabins.setWorld(this.world);
   }
 
   makeMaterials() {
@@ -226,6 +234,10 @@ export class Scenery {
     M.poolWhite = M.pool.clone();
     M.poolWhite.color.set(0xcfe0ff);
     this.M = M;
+    // the promised world's pieces (F-48), so a bucket name is also a material
+    futureMaterials(M, conc);
+    // colours the world switch tints (the tint is a multiply on the material)
+    this.baseTint = { grass: M.grass.color.getHex(), fields: M.fields.color.getHex(), lamp: M.lampHead.emissive.getHex() };
   }
 
   /** Is the motorway lit at s? Lit stretches are 1.6 km long, lamps every 50 m. */
@@ -237,6 +249,7 @@ export class Scenery {
     const night = mode === 'night';
     const dusk = mode === 'dusk';
     this.night = night;
+    this.mode = mode;
     const M = this.M;
     M.marking.emissiveIntensity = night ? 0.015 : 0;
     M.reflector.emissiveIntensity = night ? 0.5 : dusk ? 0.1 : 0;
@@ -247,8 +260,55 @@ export class Scenery {
     M.dockLamp.emissiveIntensity = night ? 4 : dusk ? 2 : 0;
     M.poolWhite.visible = night || dusk;
     M.poolWhite.opacity = night ? 0.18 : 0.06;
+    // the promised world lights with cool white instead of sodium
+    this.applyWorldTint();
+    futureNight(M, mode, this.world === 'promised');
     for (const ch of this.chunks.values()) for (const m of ch.signMats) m.emissiveIntensity = night ? m.userData.nightE : 0;
     this.signNightFactor = night;
+  }
+
+  /**
+   * F-48: switch between the A12 as it is and the promised one. The chunks
+   * within 900 m of the player are rebuilt here, on the white frame of the
+   * flits; the rest are marked stale and stream over at the usual budget, each
+   * one replaced only once its new version exists, so no stretch of road goes
+   * bare behind the flash.
+   */
+  setWorld(w, sPlayer = null) {
+    if (w === this.world) return;
+    this.world = w;
+    this.cabins.setWorld(w);
+    if (this.mode) this.setNight(this.mode);
+    if (sPlayer != null) this.rebuild(sPlayer);
+  }
+
+  rebuild(sPlayer) {
+    const i0 = Math.floor((sPlayer - 600) / CHUNK);
+    const i1 = Math.floor((sPlayer + 2800) / CHUNK);
+    const near = [];
+    for (let i = i0; i <= i1; i++) if (Math.abs(i * CHUNK - sPlayer) < 900) near.push(i);
+    near.sort((a, b) => Math.abs(a * CHUNK - sPlayer) - Math.abs(b * CHUNK - sPlayer));
+    for (const i of near) this.replaceChunk(i);
+    for (const i of this.chunks.keys()) if (!near.includes(i)) this.stale.add(i);
+  }
+
+  /** Builds a chunk in the current world, replacing the one that is there. */
+  replaceChunk(i) {
+    const old = this.chunks.get(i);
+    this.chunks.delete(i);
+    if (old) this.dispose(old);
+    this.stale.delete(i);
+    this.chunks.set(i, this.buildChunk(i));
+  }
+
+  /** Grass and fields take the promised world's colour; lamps turn cool white. */
+  applyWorldTint() {
+    const promised = this.world === 'promised';
+    const M = this.M;
+    M.grass.color.set(promised ? 0xd6f4bc : this.baseTint.grass);
+    M.fields.color.set(promised ? 0xd8f0c0 : this.baseTint.fields);
+    M.lampHead.emissive.set(promised ? 0xcfe2ff : this.baseTint.lamp);
+    M.pool.color.set(promised ? 0xa8c8ff : 0xffa04a);
   }
 
   dispose(ch) {
@@ -265,28 +325,32 @@ export class Scenery {
   }
 
   update(sPlayer, budget = 2) {
+    this.sPlayer = sPlayer;
     const i0 = Math.floor((sPlayer - 600) / CHUNK);
     const i1 = Math.floor((sPlayer + 2800) / CHUNK);
     for (const [idx, ch] of this.chunks) {
       if (idx < i0 - 1 || idx > i1 + 1) {
         this.dispose(ch);
         this.chunks.delete(idx);
+        this.stale.delete(idx);
       }
     }
-    // build nearest first
+    // build nearest first (the two keep-buffers included, so a chunk that the
+    // world switch left stale is replaced wherever it sits)
     let built = 0;
     const order = [];
-    for (let i = i0; i <= i1; i++) if (!this.chunks.has(i)) order.push(i);
+    for (let i = i0 - 1; i <= i1 + 1; i++) if (!this.chunks.has(i) || this.stale.has(i)) order.push(i);
     order.sort((a, b) => Math.abs(a * CHUNK - sPlayer) - Math.abs(b * CHUNK - sPlayer));
     for (const i of order) {
       if (built >= budget) break;
-      this.chunks.set(i, this.buildChunk(i));
+      this.replaceChunk(i);
       built++;
     }
   }
 
   animate(dt) {
     this.time += dt;
+    this.cabins.update(dt, this.sPlayer);
     for (const r of this.rotors) r.mesh.rotation.z += r.speed * dt;
     const blink = Math.floor(this.time / 1.0) % 2 === 0;
     this.M.aviation.emissiveIntensity = this.night ? (blink ? 6 : 0.3) : 0;
@@ -414,6 +478,10 @@ export class Scenery {
     const barrierProfile = [[-0.3, 0], [-0.24, 0.08], [-0.1, 0.3], [-0.085, 0.85], [0.085, 0.85], [0.1, 0.3], [0.24, 0.08], [0.3, 0]];
     sweep(bucket('concrete'), barrierProfile, (R, l, y) => [R.s / 4, y * 1.5]);
 
+    // ---- the promised world (F-48): the guideway spine over the median, with
+    // its decks and the cabins that run on them. Same chunk group, same buckets.
+    if (this.world === 'promised') buildSpine({ s0, s1, bucket, sweep, mat, rows, local, road, ox, oz });
+
     // ---- verges, ditches, fields, guardrails on both sides
     const vergeR = [[E, 0], [E + 1.5, -0.08], [E + 5, -0.35], [E + 8.5, -1.2], [E + 11, -1.25], [E + 14.5, -0.35], [E + 16, -0.3]];
     const vergeL = vergeR.map(([l, y]) => [-l, y]).reverse();
@@ -492,13 +560,11 @@ export class Scenery {
 
     // ---- features scheduled per km
     const kmA = Math.floor(s0 / 1000), kmB = Math.floor((s1 - 1) / 1000);
-    const nearBridge = (s) => junctionsNear(s - 1000, s + 1000).some((j) => Math.abs(j.sBridge - s) < 1000);
     for (let K = kmA; K <= kmB; K++) {
       const inChunk = (s) => s >= s0 && s < s1;
-      const hasOverpass = hash01(K, 1) < 0.24;
-      const sOver = K * 1000 + 520;
+      const sOver = overpassS(K);
       // a junction brings its own bridge; no random viaduct on top of it
-      if (hasOverpass && inChunk(sOver) && !nearBridge(sOver)) this.overpass(sOver, local, bucket, ox, oz, K);
+      if (sOver != null && inChunk(sOver)) this.overpass(sOver, local, bucket, ox, oz, K);
       // matrix signs every 500 m (see msi.js for what they show)
       for (const sMatrix of [K * 1000 + 160, K * 1000 + 660]) if (inChunk(sMatrix)) this.matrixGantry(sMatrix, group, ch, ox, oz, bucket, K);
       const sAnwb = K * 1000 + 860;
@@ -609,8 +675,8 @@ export class Scenery {
     for (const [name, b] of Object.entries(B)) {
       if (b.empty) continue;
       const mesh = new THREE.Mesh(b.build(), this.M[name]);
-      mesh.receiveShadow = ['asphalt', 'grass', 'concrete', 'fields', 'marking', 'wall', 'building', 'cladding', 'yard', 'lane'].includes(name);
-      mesh.castShadow = ['concrete', 'steel', 'post', 'building', 'gantry', 'wall', 'turbine', 'cladding'].includes(name);
+      mesh.receiveShadow = ['asphalt', 'grass', 'concrete', 'fields', 'marking', 'wall', 'building', 'cladding', 'yard', 'lane', 'futDeck', 'futDeckUnder', 'futDeckTop', 'futSpine', 'futRail', 'futEnd'].includes(name);
+      mesh.castShadow = ['concrete', 'steel', 'post', 'building', 'gantry', 'wall', 'turbine', 'cladding', 'futDeck', 'futDeckUnder', 'futDeckTop', 'futSpine', 'futEnd'].includes(name);
       if (name === 'pool' || name === 'poolWhite') mesh.renderOrder = 4;
       group.add(mesh);
     }
