@@ -15,6 +15,7 @@ import { innerEdge } from './layout.js';
 import { Environment } from './environment.js';
 import { GlowSystem, BeamSystem } from './fx.js';
 import { TrafficView } from './trafficView.js';
+import { LAYER_TRAFFIC, LAYER_TRAFFIC_MIRROR } from './vehicleInstances.js';
 import { createVehicleVisual, initVehicleMaterials, setVehicleNight, setLayerRecursive } from './vehicles.js';
 import { setMaxAnisotropy, matrixTexture } from './textures.js';
 import { MSI, gantryS } from './msi.js';
@@ -280,6 +281,8 @@ function makeMirror(w, h, fov, pos, yaw, pitch, layers) {
   cam.position.copy(pos);
   cam.rotation.set(pitch, yaw, 0, 'YXZ');
   cam.layers.set(LAYER_WORLD);
+  // only the near cars: the mirror set of every vehicle batch (F-54)
+  cam.layers.enable(LAYER_TRAFFIC_MIRROR);
   for (const l of layers) cam.layers.enable(l);
   playerVis.front.add(cam);
   return { rt, cam };
@@ -356,6 +359,10 @@ function layoutHud(w, h) {
 const camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.08, 6000);
 camera.layers.enable(LAYER_SELF);
 camera.layers.enable(LAYER_COCKPIT);
+// the instanced traffic of the main view (F-54); the mirrors have their own set
+camera.layers.enable(LAYER_TRAFFIC);
+// ... and the shadow map has to see it too, or no car casts a shadow
+env.sun.shadow.camera.layers.enable(LAYER_TRAFFIC);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.3, 0, 0.88);
@@ -444,7 +451,7 @@ let debriefOpen = false;
 let calmPick = 0;
 const overlay = new Overlay(document.getElementById('overlay'));
 const laneMap = new LaneMap();
-const castStage = new CastStage(scene, road, view, player);
+const castStage = new CastStage(scene, road, new TrafficView(scene, road, glow, beams, { solo: true }), player);
 const castViewer = new CastViewer(castStage);
 castViewer.onOpen = () => {
   hud.toggle(hud.menuEl, false);
@@ -1269,6 +1276,14 @@ if (REPLAY) {
 window.__game = {
   radio,
   player, traffic, oncoming, road, scene, renderer, CONFIG, scenery, laneMap,
+  /** The main camera, so `npm run perf` can tell the main pass from the mirrors. */
+  get camera() {
+    return camera;
+  },
+  /** Instanced draw-call bookkeeping (F-54), for the profiler and a check. */
+  get vehicleStats() {
+    return view.inst ? view.inst.stats() : null;
+  },
   cast: castViewer, castStage,
   /** Proefrit slice 3: the moment a ?replay= run stopped on, with both hashes. */
   get replay() {

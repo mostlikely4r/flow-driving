@@ -2,18 +2,6 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
-## Q-15 · Draw calls: one mesh per vehicle · build
-- state: queued
-- who: strong
-- backlog: F-54
-- plan: docs/specs/F-54-draw-calls.md
-- added: 2026-11-26
-
-Instanced vehicles, mirrors skip far cars, a draw-call budget in `npm run perf`. Before the
-guideway build; the sim output must not change.
-
-Tier strong: rewrites how every vehicle is drawn and lit, with many look details to keep.
-
 ## Q-16 · Toekomstflitsen slice 1b: the guideway as drawn · build
 - state: queued
 - who: strong
@@ -69,6 +57,28 @@ probes show the closed lane in the journal, C quiet on both detectors, and a 0.0
 events that the column alone missed. `npm run moments` 5/5 + 3 probes.
 
 ## Done
+
+## Q-15 · Draw calls: one mesh per vehicle · build
+- state: done
+- done: 2026-11-26
+- who: strong
+- backlog: F-54
+- plan: docs/specs/F-54-draw-calls.md
+- added: 2026-11-26
+
+Instanced vehicles, mirrors skip far cars, a draw-call budget in `npm run perf`. Before the
+guideway build; the sim output must not change.
+
+Tier strong: rewrites how every vehicle is drawn and lit, with many look details to keep.
+
+Done: every vehicle is a pose plus a slot in two or three `InstancedMesh` batches (one per body
+shape, one per lamp signature), with the paint as `instanceColor` and the brake and indicator lamps
+as a per-instance `aGlow` attribute; each batch has a mirror set with only the cars within 260 m
+behind, so the mirrors no longer draw the whole motorway. `npm run perf` splits main and mirror
+draw calls and fails at density 25 over 1,500 a frame. Density 25: 38–43 fps and 3,710 calls before,
+88.6 fps and 1,139 calls after (density 10: 62 → 83–87). The sim output is unchanged, and the
+cast viewer and the player's car keep the per-mesh path. The density-10 target of 90 fps was not
+met; recorded in the plan.
 
 ## Q-12 · Toekomstflitsen cross-section: the 2 m guideway · spec
 - state: done

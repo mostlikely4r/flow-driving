@@ -625,6 +625,37 @@ const CAR_COLORS = [
 const TRUCK_CAB = [[0xf2f2f2, 30], [0xa51c1c, 10], [0x1f3d7a, 10], [0x1a1a1a, 8], [0x8a9096, 8], [0x2f6b3a, 3], [0xe0a020, 3]];
 const TRAILER = [[0xeeeeee, 35], [0x9aa0a6, 12], [0x1f4f9a, 8], [0x8f1f1f, 6], [0x2f6b3a, 5], [0xe8b020, 4], [0x333538, 6], [0xd06a1a, 3]];
 const CARAVAN = [[0xf2efe6, 6], [0xe8e4d8, 3], [0xdcd8cc, 2]];
+const VAN_STRIPE = [[0x1f5fbf, 3], [0xe0661a, 2], [0x2f8a3c, 2], [0xb3202a, 2], [0x1a1b1d, 1]];
+const TRUCK_TRAILERS = [['box', 4], ['curtain', 4], ['reefer', 2]];
+
+/**
+ * Paint and trailer picks for one vehicle: the body colour, the second paint
+ * (trailer body, rigid box, van stripe, caravan), the trailer kind and whether
+ * the paint is flat instead of clearcoated. The rng draws are in the order they
+ * always were, so a scene keeps the colours it had.
+ */
+export function pickVehicleLook(variant, rng, opts = {}) {
+  // always draw the body colour, even when a look overrides it: that keeps the
+  // rng stream per vehicle exactly what it was before the look was applied
+  const rolled = pickWeighted(rng, variant === 'truck' || variant === 'rigid' ? TRUCK_CAB : CAR_COLORS);
+  const color = opts.color ?? rolled;
+  const flatPaint = variant === 'truck' || variant === 'rigid' || variant === 'van';
+  let paint2 = null;
+  let trailerKind = null;
+  if (variant === 'truck') {
+    trailerKind = pickWeighted(rng, TRUCK_TRAILERS);
+    paint2 = pickWeighted(rng, TRAILER);
+  } else if (variant === 'rigid') {
+    paint2 = pickWeighted(rng, TRAILER);
+  } else if (variant === 'van') {
+    // company stripe (only on the white-van geometry)
+    paint2 = pickWeighted(rng, VAN_STRIPE);
+  } else if (variant === 'caravan') {
+    trailerKind = 'caravan';
+    paint2 = pickWeighted(rng, CARAVAN);
+  }
+  return { color, paint2, trailerKind, flatPaint };
+}
 
 // ---------------- instance ----------------
 function lightMat(color, emissive) {
@@ -645,24 +676,11 @@ export function createVehicleVisual(variant, rng, opts = {}) {
     marker: lightMat(0x6b3e00, 0xff8a10),
     drl: lightMat(0xc8ced2, 0xeaf2ff),
   };
-  const bodyColor = opts.color ?? pickWeighted(rng, variant === 'truck' || variant === 'rigid' ? TRUCK_CAB : CAR_COLORS);
-  // commercial vehicles get plain paint: a big glossy flat back mirrors your headlights straight back
-  const flatPaint = variant === 'truck' || variant === 'rigid' || variant === 'van';
-  const paint = paintMaterial(bodyColor, flatPaint);
+  const v = pickVehicleLook(variant, rng, opts);
+  const paint = paintMaterial(v.color, v.flatPaint);
   let paint2 = paint;
-  let trailerKind = null;
-  if (variant === 'truck') {
-    trailerKind = pickWeighted(rng, [['box', 4], ['curtain', 4], ['reefer', 2]]);
-    paint2 = paintMaterial(pickWeighted(rng, TRAILER), true);
-  } else if (variant === 'rigid') {
-    paint2 = paintMaterial(pickWeighted(rng, TRAILER), true);
-  } else if (variant === 'van') {
-    // company stripe (only on the white-van geometry)
-    paint2 = paintMaterial(pickWeighted(rng, [[0x1f5fbf, 3], [0xe0661a, 2], [0x2f8a3c, 2], [0xb3202a, 2], [0x1a1b1d, 1]]), true);
-  } else if (variant === 'caravan') {
-    trailerKind = 'caravan';
-    paint2 = paintMaterial(pickWeighted(rng, CARAVAN), true);
-  }
+  if (v.paint2 !== null) paint2 = paintMaterial(v.paint2, true);
+  const trailerKind = v.trailerKind;
   const matFor = (slot) => {
     switch (slot) {
       case 'paint': return paint;
@@ -728,4 +746,68 @@ export function applyLook(vis, look) {
 
 export function setLayerRecursive(obj, layer) {
   obj.traverse((o) => o.layers.set(layer));
+}
+
+// ---------------- instanced materials (F-54) ----------------
+// Traffic is drawn as one InstancedMesh per (geometry batch, material slot) instead
+// of ten meshes per car. The parts that differ per vehicle are instance data: the
+// paint colour (instanceColor) and the brake / indicator lamps (the aGlow attribute
+// below). Everything else stays a property of the material, exactly as before.
+export const DRL_SIGS = new Set(['bar', 'angel', 'ev']);
+/** Slots whose emissive amount differs per vehicle: the light state is an attribute. */
+export const GLOW_SLOTS = new Set(['tail', 'indL', 'indR']);
+export const LAMP_SLOTS = new Set(['head', 'tail', 'indL', 'indR', 'marker', 'drl']);
+
+/** The lamp signature a variant really builds with (see getVariantGeo). */
+export function lampSig(variant, sig) {
+  return CAR_SPECS[variant] ? sig || 'std' : variant === 'van' && sig === 'rack' ? 'rack' : 'std';
+}
+
+const instPaint = new Map();
+/** White paint for an instanced batch: the instance colour carries the colour. */
+export function instancedPaint(flat) {
+  if (!instPaint.has(flat)) {
+    instPaint.set(flat, flat
+      // commercial vehicles get plain paint: a big glossy flat back mirrors your headlights straight back
+      ? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0.05 })
+      : new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0.45, clearcoat: 1.0, clearcoatRoughness: 0.28 }));
+  }
+  return instPaint.get(flat);
+}
+
+const LAMP_STYLE = {
+  head: { color: 0xdfe6ea },
+  tail: { color: 0x5a0606, emissive: 0xff1a0a },
+  smoked: { color: 0x1a0204, emissive: 0xff1a0a },
+  ind: { color: 0x6b3e00, emissive: 0xff8a10 },
+  drl: { color: 0xc8ced2, emissive: 0xeaf2ff },
+};
+
+/**
+ * A lamp material for an instanced batch. Same look as lightMat(), but the lamps
+ * that differ per vehicle read their emissive amount from a per-instance `aGlow`
+ * attribute instead of from material.emissiveIntensity. The head, marker and DRL
+ * lamps are the same for every car in a batch, so those keep a plain uniform.
+ */
+export function instancedLampMaterial(slot, sig) {
+  const style = slot === 'head' ? LAMP_STYLE.head
+    : slot === 'tail' ? (sig === 'angel' ? LAMP_STYLE.smoked : LAMP_STYLE.tail)
+      : slot === 'drl' ? LAMP_STYLE.drl
+        : LAMP_STYLE.ind; // indL, indR, marker
+  const m = new THREE.MeshStandardMaterial({
+    color: style.color,
+    emissive: slot === 'head' ? (HEAD_EMISSIVE[sig] ?? HEAD_EMISSIVE.std) : style.emissive,
+    emissiveIntensity: 1,
+    roughness: 0.3,
+    ...DECAL,
+  });
+  if (!GLOW_SLOTS.has(slot)) return m;
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = 'attribute float aGlow;\nvarying float vGlow;\n' + shader.vertexShader
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvGlow = aGlow;');
+    shader.fragmentShader = 'varying float vGlow;\n' + shader.fragmentShader
+      .replace('vec3 totalEmissiveRadiance = emissive;', 'vec3 totalEmissiveRadiance = emissive * vGlow;');
+  };
+  m.customProgramCacheKey = () => 'vehicle-lamp-glow';
+  return m;
 }

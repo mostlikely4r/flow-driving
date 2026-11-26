@@ -30,6 +30,7 @@ const browser = await puppeteer.launch({
   defaultViewport: { width: 1600, height: 900 },
 });
 
+const results = [];
 for (const [label, cfg] of CASES) {
   if (only && !label.includes(only)) continue;
   const page = await browser.newPage();
@@ -46,13 +47,22 @@ for (const [label, cfg] of CASES) {
     const g = window.__game;
     const R = g.renderer;
     const gl = R.getContext();
-    const acc = { sim: 0, render: 0, renderN: 0 };
+    // Draw calls per pass: the mirrors render into a target with their own camera,
+    // the main pass is the one the composer's RenderPass draws with the game camera.
+    const acc = { sim: 0, render: 0, renderN: 0, calls: 0, tris: 0, callsMain: 0, callsMirror: 0 };
     const wrap = (obj, name, key) => {
       const f = obj[name].bind(obj);
       obj[name] = (...a) => {
         const t = performance.now();
         const out = f(...a);
-        if (key === 'render') { gl.finish(); acc.renderN++; acc.calls = (acc.calls||0) + R.info.render.calls; acc.tris = (acc.tris||0) + R.info.render.triangles; }
+        if (key === 'render') {
+          gl.finish();
+          acc.renderN++;
+          const calls = R.info.render.calls;
+          if (a[1] === g.camera) acc.callsMain += calls; else acc.callsMirror += calls;
+          acc.calls += calls;
+          acc.tris += R.info.render.triangles;
+        }
         acc[key] += performance.now() - t;
         return out;
       };
@@ -60,7 +70,6 @@ for (const [label, cfg] of CASES) {
     };
     const un = [wrap(g.traffic, 'step', 'sim'), wrap(g.oncoming, 'step', 'sim'), wrap(R, 'render', 'render')];
     const frames = [];
-    let calls = 0, tris = 0, n = 0;
     await new Promise((done) => {
       let last = performance.now();
       const t0 = last;
@@ -68,7 +77,6 @@ for (const [label, cfg] of CASES) {
         const now = performance.now();
         frames.push(now - last);
         last = now;
-        calls += R.info.render.calls; tris += R.info.render.triangles; n++;
         if (now - t0 < 5000) requestAnimationFrame(tick); else done();
       };
       requestAnimationFrame(tick);
@@ -86,13 +94,28 @@ for (const [label, cfg] of CASES) {
       lastCalls: R.info.render.calls,
       lastTris: R.info.render.triangles,
       veh: g.traffic.vehicles.length + g.oncoming.vehicles.length,
-      callsPerFrame: Math.round(acc.calls / F), trisPerFrame: Math.round(acc.tris / F), meshPerVeh: (() => { let m = 0, k = 0; for (const tr of [g.traffic, g.oncoming]) for (const v of tr.vehicles) if (v.vis) { k++; v.vis.root.traverse((o) => { if (o.isMesh && o.visible) m++; }); } return +(m / k).toFixed(1); })(),
+      callsPerFrame: Math.round(acc.calls / F),
+      callsMain: Math.round(acc.callsMain / F),
+      callsMirror: Math.round(acc.callsMirror / F),
+      trisPerFrame: Math.round(acc.tris / F),
+      inst: g.vehicleStats,
       scene: (() => { let m = 0; g.scene.traverse((o) => { if (o.isMesh || o.isPoints) m++; }); return m; })(),
     };
   });
   console.log(label.padEnd(22), JSON.stringify(res));
+  results.push([label, res]);
   await page.close();
 }
 await browser.close();
 server.kill();
+
+// The budget (plan section 5.4): busy traffic stays inside 1,500 draw calls a frame.
+const BUDGET = 1500;
+const dense = results.find(([label]) => label === 'dense d25 cockpit');
+if (!dense) console.log('\nDraw-call budget not checked: this run was filtered and did not include "dense d25 cockpit".');
+if (dense) console.log(`\nDraw-call budget: ${dense[1].callsPerFrame} of ${BUDGET} calls a frame at density 25 (main ${dense[1].callsMain}, mirrors ${dense[1].callsMirror}).`);
+if (dense && dense[1].callsPerFrame > BUDGET) {
+  console.error(`Draw-call budget missed: ${dense[1].callsPerFrame} > ${BUDGET} at density 25.`);
+  process.exit(1);
+}
 process.exit(0);

@@ -839,7 +839,7 @@ as separate models. Then check the current AI against the rules: what conforms, 
 and which rules the headless tools can check. Raised 2026-11-26 while speccing rain.
 
 ## F-54 · Draw calls: one mesh per vehicle
-- status: specced
+- status: built
 - priority: P0
 - value: 4
 - effort: M
@@ -852,6 +852,30 @@ meshes drawn in the main view and three mirrors, ~13 draw calls each, so 240 veh
 calls and a 25 ms frame. Instance the vehicles (one draw call per variant and material slot),
 let mirrors skip far cars, and keep a draw-call budget in `npm run perf`. Comes before the F-48
 guideway and helps rain (F-24).
+
+Built 2026-11-26: a vehicle is now a pose plus a slot in two or three `InstancedMesh` batches (one
+per body shape and one per lamp signature, since the lamps are the only geometry that differs
+between two cars of the same shape), with the paint colour as `instanceColor` and the brake and
+indicator lamps as a per-instance `aGlow` attribute. Each batch also has a mirror set that holds
+only the cars within 260 m behind, so a mirror no longer draws the whole motorway, and `npm run
+perf` now splits main and mirror draw calls and fails at density 25 over 1,500 a frame. The sim
+output is untouched (`simtest`, `personas`, `bottest` unchanged). `npm run perf`, headless Edge at
+1600×900 in the cockpit view — by 2026-11 the machine gave ±10 fps between runs:
+
+| Setting | before | after |
+|---|---|---|
+| empty d2 | 128 fps, 1,050 calls | 126 fps, 806 calls |
+| base d10 | 62 fps, 2,510 calls | 83–87 fps, 1,027 calls |
+| dense d25 | 38–43 fps, 3,710 calls | 88.6 fps, 1,139 calls (main 514, mirrors 625) |
+| dense d25 promised | 38 fps | 86 fps, 1,337 calls |
+| dense d25 no shadows | 34–36 fps | 99.8 fps |
+| dense d25 no bloom / mirrorRes 0.5 / px 1.0 | – / – / 41 fps | 94.2 / 91.8 / 89.8 fps |
+
+The d25 goal (≤1,500 calls, ≥60 fps) is met; the density-10 target of 90 fps is not (83–87), and
+the frame is no longer vehicle-draw-call bound, so it was left there. Same look: day stills of the
+same replay differ in 0.09–0.11% of pixels (edge noise on moving cars), night in ~2% (a different
+trailer kind on one truck, which the view's rng never kept stable between runs). The cast viewer
+keeps the old per-mesh path; the player's car is still an ordinary visual.
 
 ## F-55 · Electric lane at ground level on 2-lane roads
 - status: idea

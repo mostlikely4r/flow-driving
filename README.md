@@ -102,6 +102,9 @@ npm run worldtest
 reach a future module or read `CONFIG.world`, the guideway spine stops at every bridge and viaduct,
 and nothing below 4.6 m stands outside the median barrier.
 `node tools/shot.js <dir> [day|dusk|night]` takes screenshots in headless Chrome or Edge (run `npm run build` first).
+`npm run perf` (after `npm run build`) times the frame in headless Edge per setting and prints
+draw calls a frame for the main pass and the mirrors; it fails when density 25 goes over the
+1,500 draw calls a frame that instanced vehicles (F-54) exist to keep it under.
 The screenshot and clip tools find Chrome or Edge on their own; set `BROWSER_PATH` to the browser
 executable when it sits somewhere unusual.
 

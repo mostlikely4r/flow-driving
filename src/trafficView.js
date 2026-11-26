@@ -1,6 +1,7 @@
 // Places vehicle models from the traffic simulation into the world and feeds
 // their lamps into the glow / beam systems.
 import { createVehicleVisual, applyLook } from './vehicles.js';
+import { VehicleInstances, inMirrorRange } from './vehicleInstances.js';
 import { lookFor } from './archetypes.js';
 import { mulberry32, clamp, slipAngle } from './util.js';
 import { CONFIG } from './config.js';
@@ -25,13 +26,18 @@ const DRL_SIGS = new Set(['bar', 'angel', 'ev']);
 const DRL = [0.9, 0.95, 1];
 
 export class TrafficView {
-  constructor(scene, road, glow, beams) {
+  /**
+   * `solo` gives per-vehicle meshes instead of the instanced world (the cast
+   * viewer poses one car by hand and lights it through vis.mats).
+   */
+  constructor(scene, road, glow, beams, opts = {}) {
     this.scene = scene;
     this.road = road;
     this.glow = glow;
     this.beams = beams;
     this.pool = new Map();
     this.rng = mulberry32(1234);
+    this.inst = opts.solo ? null : new VehicleInstances(scene);
   }
 
   static poolKey(variant, look) {
@@ -40,6 +46,10 @@ export class TrafficView {
 
   add(veh, lookOverride = null) {
     const look = lookOverride ?? lookFor(veh);
+    if (this.inst) {
+      this.inst.add(veh, look, this.rng);
+      return;
+    }
     const key = TrafficView.poolKey(veh.variant, look);
     const list = this.pool.get(key);
     const vis = list && list.length ? list.pop() : createVehicleVisual(veh.variant, this.rng, { low: look?.low, lights: look?.lights });
@@ -53,6 +63,10 @@ export class TrafficView {
   remove(veh) {
     const vis = veh.vis;
     if (!vis) return;
+    if (this.inst) {
+      this.inst.remove(veh);
+      return;
+    }
     this.scene.remove(vis.root);
     const key = TrafficView.poolKey(veh.variant, vis.look);
     if (!this.pool.has(key)) this.pool.set(key, []);
@@ -175,6 +189,8 @@ export class TrafficView {
   update(traffics, sPlayer, cam, night, time) {
     const road = this.road;
     const beams = this.beams;
+    const inst = this.inst;
+    if (inst) inst.begin(night);
     for (const tr of traffics) {
       const dir = tr.dir;
       for (const veh of tr.vehicles) {
@@ -224,16 +240,23 @@ export class TrafficView {
         const blinkOn = phase < 0.38;
         const indL = veh.indicator === -1 && blinkOn;
         const indR = veh.indicator === 1 && blinkOn;
-        const m = vis.mats;
-        // At night the lamp meshes glow only softly: the round glow sprites carry
-        // the flare, so bloom doesn't turn every box-shaped lamp into a rectangle.
-        m.head.emissiveIntensity = night ? 1.3 : 0.8;
-        m.tail.emissiveIntensity = (night ? 0.5 : 0) + (veh.brake ? (night ? 1.5 : 4) : 0);
-        m.indL.emissiveIntensity = indL ? 6 : 0;
-        m.indR.emissiveIntensity = indR ? 6 : 0;
-        m.marker.emissiveIntensity = night ? 2.5 : 0;
+        if (inst) {
+          // one instance per car: matrices and lamp state go into the batch buffers,
+          // and the near ones also into the set the mirrors draw
+          inst.write(vis, night, veh.brake, indL, indR, inMirrorRange(ds));
+        } else {
+          const m = vis.mats;
+          // At night the lamp meshes glow only softly: the round glow sprites carry
+          // the flare, so bloom doesn't turn every box-shaped lamp into a rectangle.
+          m.head.emissiveIntensity = night ? 1.3 : 0.8;
+          m.tail.emissiveIntensity = (night ? 0.5 : 0) + (veh.brake ? (night ? 1.5 : 4) : 0);
+          m.indL.emissiveIntensity = indL ? 6 : 0;
+          m.indR.emissiveIntensity = indR ? 6 : 0;
+          m.marker.emissiveIntensity = night ? 2.5 : 0;
+          const lights = vis.look ? vis.look.lights : 'std';
+          m.drl.emissiveIntensity = DRL_SIGS.has(lights) ? (night ? 2.2 : 5) : 0;
+        }
         const lights = vis.look ? vis.look.lights : 'std';
-        m.drl.emissiveIntensity = DRL_SIGS.has(lights) ? (night ? 2.2 : 5) : 0;
 
         const dist = Math.abs(ds);
         if (dist < 1500) {
@@ -249,5 +272,6 @@ export class TrafficView {
         }
       }
     }
+    if (inst) inst.end();
   }
 }

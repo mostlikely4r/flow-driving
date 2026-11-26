@@ -56,9 +56,11 @@ not part of this (they are ~500 calls in all passes together and already batched
 
 ## 5. What to build
 
-1. **Keep the profiler.** `tools/perf.js` / `npm run perf` (committed with this plan) is the
-   check. Add one line to its output: draw calls per frame in the main pass and in the mirror
-   passes separately.
+*Built 2026-11-26 (Q-15). What the numbers said where the plan left a choice is under 5b.*
+
+1. **Keep the profiler.** — **built**: `tools/perf.js` / `npm run perf` is the check. It now
+   prints draw calls per frame split into the main pass and the mirror passes, and fails the run
+   when density 25 goes over the budget.
 2. **Instanced vehicles** (*proposal*, the main step): per (geometry key, slot), one
    `InstancedMesh` holding every visible vehicle of that kind, with per-instance colour for
    paint and a per-instance lamp state (head / tail / brake / indicator L / R / marker / DRL
@@ -75,12 +77,41 @@ not part of this (they are ~500 calls in all passes together and already batched
    - Capacity grows by doubling; frustum culling is per instanced mesh, so give each one a
      bounding sphere that covers its instances (or set `frustumCulled = false` and rely on the
      instance count — measure which is cheaper).
+   — **built** in `src/vehicleInstances.js`, with the drawing in `src/trafficView.js`; the
+   materials and the look picking moved into `src/vehicles.js` (`instancedPaint`,
+   `instancedLampMaterial`, `pickVehicleLook`).
 3. **Mirrors draw less** (*proposal*): a vehicle further than 250 m behind (rear) or 150 m
    (side mirrors) is not drawn in that mirror. With instancing this is a second, smaller
    instance range or a per-pass visibility, whichever is simpler; measure before keeping it.
+   — **built and kept**, as a second instance set per batch on its own layer (see 5b).
 4. **Draw-call budget in a check.** `tools/worldtest.js` gets no browser, so the budget lives in
    `npm run perf`: it exits non-zero when density 25 exceeds 1,500 draw calls per frame. Add a
-   one-line note to the README under the tools.
+   one-line note to the README under the tools. — **built**
+
+### 5b. What the build did where the plan left it open
+
+- **Batches are keyed by geometry, and the body is split from the lamps.** The body slots (paint,
+  glass, trim, chrome, plate, paint2 ...) are the same for every lamp signature, so they are one
+  batch per body shape (`variant + lowered + rack + glass tint`); only the lamp slots carry the
+  signature. Splitting them is what keeps the batch list at ~37 instead of one per archetype.
+- **Per-instance lamp state**: only `tail`, `indL` and `indR` differ per car. Those read a
+  per-instance `aGlow` attribute in `onBeforeCompile` (the emissive uniform stays 1 and the shader
+  multiplies by `vGlow`); head, marker and DRL are one value per batch, so they stay uniforms.
+  The paint colour is `instanceColor`. Everything else is the shared material it always was.
+- **`frustumCulled = false`** for the instanced meshes: one batch spans kilometres, so its bounding
+  sphere is the whole road and culling it per batch decides nothing. The 1700/1100 m range in
+  `TrafficView.update` is the cull, exactly as before.
+- **Mirrors got their own set, not a distance check per pass** — the measurement made the choice.
+  The first version drew every instance in all four passes: 1,661 draw calls at density 25, over
+  the budget, and the mirror passes were 1,152 of them. Each batch now has a second set that holds
+  only the cars within 260 m behind and 20 m ahead (the rear mirror reaches 250 m, the side mirrors
+  150 m), on layer 3, which only the mirror cameras look at. The main set is on layer 4 and the
+  shadow camera had to be given layer 4 too, or no car would cast a shadow. That took the mirror
+  passes from 1,152 calls to 625 and the whole frame to 1,139.
+- **The cast viewer keeps the old per-mesh path.** It poses one car by hand and lights it through
+  `vis.mats`, so `TrafficView` takes a `{ solo: true }` option and `main.js` gives `CastStage` its
+  own solo view. The player's car is still an ordinary `createVehicleVisual` (it has the cockpit,
+  real lights and its own lamp logic).
 
 ## 6. How we'll know
 
@@ -90,6 +121,33 @@ not part of this (they are ~500 calls in all passes together and already batched
   `personas` and `bottest` print the same numbers as before.
 - Pixel check: `npm run frame` / `tools/shot.js` stills of day and night, cockpit and chase,
   before and after, look the same (lamps, brake lights, indicators, archetype tells, trailers).
+
+Measured 2026-11-26 (`npm run perf`, headless Edge, 1600×900, cockpit view; the machine is shared,
+so the fps are ±10 between runs):
+
+| Setting | before: fps / calls | after: fps / calls |
+|---|---|---|
+| empty d2 | 128 / 1,050 | 126 / 806 |
+| base d10 | 62 / 2,510 | 83–87 / 1,027 |
+| dense d25 | 38–43 / 3,710 | 88.6 / 1,139 (main 514, mirrors 625) |
+| dense d25, promised world | 38 / – | 86 / 1,337 |
+| dense d25, no shadows | 34–36 | 99.8 / 1,134 |
+| dense d25, no bloom | – | 94.2 / 1,127 |
+| dense d25, mirrorRes 0.5 | – | 91.8 / 1,137 |
+| dense d25, pixelRatio 1.0 | 41 | 89.8 / 1,134 |
+
+The d25 goal (≤ 1,500 calls, ≥ 60 fps) is met with room. **The density-10 target of 90 fps is not:
+83–87.** The cost is no longer the vehicle draw calls — d10 and d25 differ by a few percent — and
+d10 and d25 land within noise of each other, so what is left is the main pass and the post chain on
+this machine, not something this slice set out to change. Recorded rather than chased.
+
+Pixel check (`tools/frame.js`, the same replay seed and moment before `3d94da1` and after): day
+stills differ in 0.02–0.03% of pixels, night in 0.005–0.011% — edge noise on moving cars. Lamps,
+brake lights, indicators, smoked patser lenses, reflect strips and marker lights match exactly.
+The first version of the build skipped the rng draw for a car whose colour comes from its archetype,
+which shifted the trailer kind and colour of every car after it (a ~2% night still difference); the
+review caught it, and `pickVehicleLook` now always draws the body colour and lets the look override
+it, so the stream per car is what it was.
 
 **Try it:** `npm run dev`, menu → Traffic 25, drive a minute in the cockpit view with the fps
 counter on: it should hold 60, and nothing about the cars (colours, lights, indicators, the
@@ -103,6 +161,10 @@ Nothing unbuilt. Checked 2026-11-26: `createVehicleVisual`, `getVariantGeo`, `ap
 
 ## Not in this build
 
-- Distance LOD meshes for far vehicles (only if the budget is still missed after step 2).
+- Distance LOD meshes for far vehicles (only if the budget is still missed after step 2). Not
+  needed: 1,139 of 1,500 calls.
+- The density-10 target of 90 fps (83–87 measured; see section 6).
+- A per-mirror range (250 m rear, 150 m sides). All three mirrors share one near set at 260/20 m,
+  which is a handful of extra instances and no extra draw call.
 - The F-48 convoy cars and rain spray: both must be built instanced from the start (their own
   specs say so), not retrofitted.
