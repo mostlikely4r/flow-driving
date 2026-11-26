@@ -894,3 +894,57 @@ From the Toekomstflitsen pictures: a ground-level electric lane on the normal ro
 yellow line between it and the remaining lanes. Where the guideway can't go (2-lane roads), this
 could be the promised world's transition. Takes a lane from today's traffic, so it changes the
 sim. No reference picture at hand yet (2026-11-26).
+
+## F-56 · Passenger: ride along, and walk around in the back
+- status: idea
+- priority: P2
+- value: 4
+- effort: L
+- risk: Med
+- pillar: Calm
+
+Ride in a car you don't drive: watch the road go by from the passenger seat, or, in a camper or
+van, get up and walk around in the back while the motorway passes. From the user's own life: years
+as a passenger, and holidays walking around in the back of a pre-camper van (2026-11-26). It is the
+calmest way to be part of traffic, and the most honest test of Readable: sitting next to a driver
+is where you feel whether they drive like a person.
+
+Slices, cheapest first:
+1. **Ride along in your own car (S).** The Proefrit bot (`src/botDriver.js`) already drives the
+   player car with only what a player can see. Passenger mode hands the wheel to it (a persona of
+   your choice) and moves the camera to the passenger seat of the cockpit that already exists; you
+   can look around. No new geometry, and the sim still centres on the player car.
+2. **Hop into an AI car (M).** Pick a car in traffic and ride in it. The sim's window
+   (`rangeAhead` 1500 / `rangeBehind` 900 m) has to follow the car you're in; AI cars are instanced
+   bodies with no interior (F-54), so the car you're in swaps to a per-mesh build with a simple
+   interior, like the player's.
+3. **Walk in the back of a camper or van (L).** A camper body with a walkable interior (floor,
+   bench, side windows, rear window), first-person walking inside the moving car's frame, sway with
+   the car's acceleration and lane changes. Needs a camper/van vehicle type in traffic first.
+
+Fits with F-53 (driver rules): riding next to a persona is where its rules show.
+
+## F-57 · Onlooker view: see traffic from outside
+- status: idea
+- priority: P2
+- value: 4
+- effort: M
+- risk: Low
+- pillar: Readable
+
+Leave the car and look at traffic from outside: from a helicopter, from a viaduct, from the verge.
+Seeing a situation build from above is the Readable pillar made literal, and a calm way to just
+watch the road breathe.
+
+Slices:
+1. **Free camera (S).** Detach the camera, fly it with mouse and keys, the game keeps running (the
+   player car on cruise control or driven by the bot, as in F-56 slice 1). The sim only runs
+   1500 m ahead and 900 m behind the player car, so the camera stays on a leash inside that window,
+   or slice 2 moves the window with it.
+2. **Structure (M).** Named places the camera can go and move between, instead of only free flight:
+   *helicopter* (follows a car or a stretch at 150–300 m, slow orbit), *viaduct* (stand on a junction
+   bridge, which exist every 3–6 km, and watch both carriageways pass under you), *verge* (beside
+   the road at eye height, traffic passing), *follow* (behind any car you click). A smooth move
+   between them, never a cut that makes you lose the picture.
+3. **Later:** pairs with the overhead lane map (F-32) and replay (F-44), and with F-56 slice 2
+   (from following a car, step into it).
