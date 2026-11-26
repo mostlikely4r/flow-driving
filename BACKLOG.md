@@ -434,15 +434,25 @@ lane map; random closures in free play (`closuresPer10km`, menu); `?scenario=clo
 `node tools/closure.js`.
 
 ## F-24 · Rain
-- status: idea
+- status: specced
 - priority: P2
 - value: 4
 - effort: L
 - risk: Med
 - pillar: Authentic
 - milestone: M2
+- plan: docs/specs/F-24-rain.md
 
 Wet road reflections, spray behind trucks, wipers, and AI that keeps bigger gaps.
+
+Slice 1 specced 2026-11-26 ([docs/specs/F-24-rain.md](docs/specs/F-24-rain.md)): a Rain toggle;
+the AI leaves longer gaps, drives a few km/h slower and brakes softer, spread by persona and some
+not at all; spray behind lorries blinds the AI (it backs off or overtakes within 1–2 s) and your
+view through the camera; wipers and a wet sky. Matrix signs stay traffic-driven. Reflections are
+slice 2.
+
+Later: "bij nat wegdek" signs (a 90 with that sub-sign, seen on Dutch roads) belong on sharper
+bends, which the road doesn't have yet (curves, M3); some drivers would slow for them, some not.
 
 ## F-25 · Spitsstrook (rush-hour lane)
 - status: idea

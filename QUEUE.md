@@ -2,6 +2,18 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-14 · Rain slice 1: wet driving, spray and wipers · build
+- state: queued
+- who: strong
+- backlog: F-24
+- plan: docs/specs/F-24-rain.md
+- added: 2026-11-26
+
+All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
+to `main`.
+
+Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
+
 ## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
 - state: in progress
 - who: cheap
@@ -18,17 +30,6 @@ Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette a
 deck: does it feel like a place, or a tunnel?
 
 Tier cheap: the plan is precise and the sim-identical check covers it.
-
-## Q-7 · Rain · spec
-- state: queued
-- who: pair
-- backlog: F-24
-- added: 2026-11-23
-
-Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; wet-road
-reflections can be a second slice.
-
-Tier pair: still a spec.
 
 ## Q-12 · Toekomstflitsen cross-section: the 2 m guideway · spec
 - state: queued
@@ -76,6 +77,22 @@ probes show the closed lane in the journal, C quiet on both detectors, and a 0.0
 events that the column alone missed. `npm run moments` 5/5 + 3 probes.
 
 ## Done
+
+## Q-7 · Rain · spec
+- state: done
+- plan: docs/specs/F-24-rain.md
+- done: 2026-11-26
+- who: pair
+- backlog: F-24
+- added: 2026-11-23
+
+Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; wet-road
+reflections can be a second slice.
+
+Tier pair: still a spec.
+
+Done: plan `docs/specs/F-24-rain.md`. Toggle, matrix signs traffic-only, spray blinds AI and player
+(camera only) and the AI backs off, wipers and wet sky; "bij nat wegdek" signs left for bends. Queued as Q-14.
 
 ## Q-5 · Proefrit slice 3: frames and clips · spec
 - state: done
