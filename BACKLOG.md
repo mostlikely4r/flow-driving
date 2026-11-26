@@ -261,7 +261,7 @@ Everything the expanded overlay shows now, plus predicted paths, target gaps and
 drawn in the world. Later; separate from the AR overlay.
 
 ## F-20 · On-ramps (AI only)
-- status: building
+- status: built
 - priority: P1
 - value: 5
 - effort: L
@@ -352,6 +352,8 @@ density 8 and 72 at 12 (67 and 45). Both slice-3 targets met with room; density 
 Driven 2026-11-25 (Q-3): free play with `rampsFreePlay` on, "not much to add — it just looks fine",
 no F8 marks. Nothing queued from it; slice 5 is jams (F-22).
 
+Closed 2026-11-26 (grooming): the on-ramps do what they set out to; the jam at density 16 is F-22's.
+
 ## F-21 · Exits (AI only)
 - status: built
 - priority: P1
@@ -413,7 +415,9 @@ lanes at 9/km/lane: ~30 veh/min get through against ~50 on a plain 2-lane road, 
 than reality, where a merge costs 10-30%). 0 collisions over 8 closure setups. Causes of the low
 throughput: stragglers zip in from standstill, trucks pull away at 0.45 m/s², queue discharge gaps.
 
-Still open: on-ramps.
+Still open (groomed 2026-11-26, on-ramps are built in F-20): a jam at on-ramps from density 16 up
+that should form and clear again rather than sit, and the closure jam being harsher than real
+(~30 veh/min through against the ~40 a 10-30% merge loss would give). Queued as a spec (Q-17).
 
 ## F-23 · Dynamic matrix signs
 - status: built
@@ -469,7 +473,7 @@ A hard shoulder that opens at rush hour under the matrix signs.
 - status: idea
 - priority: P3
 - value: 3
-- effort: M
+- effort: S
 - risk: Low
 - pillar: Authentic
 - milestone: M2
@@ -577,10 +581,11 @@ sheet.
 A car build variant with real wheel groups so tyres and rims rotate with speed. Today `wheel()`
 merges the tyre into `trim` and the rim into `chrome`, so nothing on any car can spin.
 
-Open. Cost is draw calls: 4 wheels × 2 materials per car roughly doubles the ~8 slots a car has
-now. Plan: opt-in `wheels: true` build used by the F-35 stage and the player's own car first,
-measure with the fps counter, and only then consider close traffic. Found while speccing F-35 (a
-turntable is where a motionless wheel actually shows).
+Open. Found while speccing F-35 (a turntable is where a motionless wheel actually shows). The
+draw-call worry it was parked on is out of date since F-54: traffic is one instanced batch per body
+shape, so spinning wheels in traffic are one or two extra batches (tyre, rim) with four instances
+per car, not 8 more meshes per car; `npm run perf` keeps the 1,500 budget honest. The player's car
+and the cast viewer still use the per-mesh path, so they are the cheap place to start.
 
 ## F-37 · Proefrit (playtest loop)
 - status: building
@@ -880,6 +885,9 @@ keeps the old per-mesh path; the player's car is still an ordinary visual.
 ## F-55 · Electric lane at ground level on 2-lane roads
 - status: idea
 - priority: P3
+- value: 2
+- effort: L
+- risk: Med
 - pillar: Authentic
 
 From the Toekomstflitsen pictures: a ground-level electric lane on the normal road, with a

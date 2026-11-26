@@ -2,6 +2,18 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-14 · Rain slice 1: wet driving, spray and wipers · build
+- state: queued
+- who: strong
+- backlog: F-24
+- plan: docs/specs/F-24-rain.md
+- added: 2026-11-26
+
+All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
+to `main`.
+
+Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
+
 ## Q-16 · Toekomstflitsen slice 1b: the guideway as drawn · build
 - state: queued
 - who: strong
@@ -15,18 +27,6 @@ convoys, splits and joins. The sim output must not change.
 
 Tier strong: new curved geometry with hard clearance rules, and it must stay within the draw-call budget.
 
-## Q-14 · Rain slice 1: wet driving, spray and wipers · build
-- state: queued
-- who: strong
-- backlog: F-24
-- plan: docs/specs/F-24-rain.md
-- added: 2026-11-26
-
-All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
-to `main`.
-
-Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
-
 ## Q-13 · Driver rules: write down what a sane driver does · spec
 - state: queued
 - who: pair
@@ -38,23 +38,17 @@ personas as deviations from them, then audit the current AI against them. No cod
 
 Tier pair: a spec that needs your own driving habits as input.
 
-## Q-6 · Proefrit: fix the stage-test probes · build
-- state: done
-- backlog: F-37
-- plan: docs/F-37-proefrit.md
-- done: 2026-11-25
-- added: 2026-11-23
+## Q-17 · Jams that form and clear: on-ramps and closures · spec
+- state: queued
+- who: pair
+- backlog: F-22
+- added: 2026-11-26
 
-The "Open: what the stage test cannot see yet" list: closure obstacles as journal rows,
-`pointless-lane`'s hard-coded 120 m as `cfg.pointlessM`, brake-light on/off events. Before Q-5 so
-frames aren't shot of mislabelled closure moments.
+The open part of F-22 now that on-ramps are built: at density 16+ the on-ramp jam should form and
+clear again rather than sit, and a closure should let ~40 veh/min through instead of ~30. Start from
+the onrampsuite numbers at D16 and the F-23 closure setups.
 
-Done: closure obstacles are journal rows (negative id, `obstacle`, near end, 800 m ahead, never a
-subject, never dropped by the vehicle cap); `pointless-lane`'s leader window is
-`cfg.pointlessLookM`, and a closure explains a move at any distance; brake lights are
-`brake-on`/`brake-off` events with the sample column latched from them (journal v2). The stage
-probes show the closed lane in the journal, C quiet on both detectors, and a 0.09 s tap in the
-events that the column alone missed. `npm run moments` 5/5 + 3 probes.
+Tier pair: what a "real" jam looks like is your call before it is a number.
 
 ## Done
 
@@ -157,6 +151,24 @@ each with the one-line command that reproduces it, and every still is hash-check
 headless run of that moment (`same world`). Trucks occlude in the percept, `driver=dwars` is the
 awkward-player probe, and the drive loop now lives in `session.js` so the runner and the browser
 replay take the same steps.
+
+## Q-6 · Proefrit: fix the stage-test probes · build
+- state: done
+- backlog: F-37
+- plan: docs/F-37-proefrit.md
+- done: 2026-11-25
+- added: 2026-11-23
+
+The "Open: what the stage test cannot see yet" list: closure obstacles as journal rows,
+`pointless-lane`'s hard-coded 120 m as `cfg.pointlessM`, brake-light on/off events. Before Q-5 so
+frames aren't shot of mislabelled closure moments.
+
+Done: closure obstacles are journal rows (negative id, `obstacle`, near end, 800 m ahead, never a
+subject, never dropped by the vehicle cap); `pointless-lane`'s leader window is
+`cfg.pointlessLookM`, and a closure explains a move at any distance; brake lights are
+`brake-on`/`brake-off` events with the sample column latched from them (journal v2). The stage
+probes show the closed lane in the journal, C quiet on both detectors, and a 0.09 s tap in the
+events that the column alone missed. `npm run moments` 5/5 + 3 probes.
 
 ## Q-10 · Toekomstflitsen: the promised now · spec
 - state: done

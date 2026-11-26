@@ -22,4 +22,13 @@ reproduces it and the two stills next to it. For one moment only:
 should hold 60, and nothing about the cars (colours, lights, indicators, the patser's smoked tail
 lamps, trailers swinging) looks different. Then at night.
 
+## P-3 · A drive with F8 marks, for the bot calibration
+- from: Q-5
+- plan: docs/F-37-proefrit.md
+- added: 2026-11-26
+
+`npm run dev` and drive 20 minutes of ordinary free play, pressing F8 every time a car (or you) does
+something that feels wrong or exactly right. Of the 13 journals so far only the first has marks;
+slice 4 of Proefrit needs your "felt wrong" marks to tune the detectors and fit the `jij` bot.
+
 ## Passed
