@@ -795,6 +795,11 @@ A double-track railway running beside the motorway on some stretches (like the A
 and the A2), with an occasional intercity or freight train passing. Present-day first; it is also
 the twin that F-48's future rail needs.
 
+Also where rail and motorway cross (added 2026-11-26): a rail bridge over the motorway, or the
+motorway over the tracks on one of the junction-style bridges, with a train passing overhead or
+under you now and then. A crossing is a cheaper first slice than a stretch alongside: one bridge
+and a train on a short straight, no long track beside the road.
+
 ## F-50 · Planes on approach
 - status: parked
 - pillar: Authentic
@@ -948,3 +953,41 @@ Slices:
    between them, never a cut that makes you lose the picture.
 3. **Later:** pairs with the overhead lane map (F-32) and replay (F-44), and with F-56 slice 2
    (from following a car, step into it).
+
+## F-58 · River bridge with boats
+- status: idea
+- priority: P3
+- value: 3
+- effort: M
+- risk: Low
+- pillar: Authentic
+
+A motorway bridge over a wide river or canal, with barges and the odd pleasure boat passing under
+it: the long climb onto the bridge, the view opening up left and right, the drop back to polder
+level. Like the A12 over the IJssel or the A16 over the Hollands Diep. Smaller than F-51 (a
+stretch along a harbour): one crossing, water to the horizon and a few boats on simple paths.
+The sim doesn't change, though a bridge is a natural place for wind warnings later. Also a twin
+for F-48: what a promised-now river crossing and its ships would look like. Added 2026-11-26.
+
+## F-59 · Buses and exceptional transport
+- status: idea
+- priority: P2
+- value: 4
+- effort: M
+- risk: Med
+- pillar: Authentic
+
+More kinds of vehicle in traffic, from today's set (cars, vans, caravans, rigid trucks and
+articulated trucks):
+
+- **Coaches and buses (S–M).** Touring coaches and the odd regional bus, kept to the bus limit,
+  mostly in the right lane, with their own long, tall silhouette and a readable "won't overtake
+  much" behaviour. A new body variant plus a persona-style speed and lane habit.
+- **Exceptional transport (M–L).** A slow, wide or long load (a wind-turbine blade, a prefab
+  section, a dredge part) taking more than its own lane, with escort vehicles in front and behind
+  carrying the signs, and traffic having to deal with it: slowing, waiting, overtaking with care.
+  Changes the sim (a vehicle that blocks part of a second lane), so it is a Readable test too:
+  can you see it coming and read what the escort wants? Rare: once in a long drive.
+
+Both are F-48 tie-ins: the promised now had its own buses and its own giant transports. Added
+2026-11-26.
