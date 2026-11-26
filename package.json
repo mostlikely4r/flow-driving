@@ -24,7 +24,8 @@
     "moments:stage": "node tools/momentstage.js",
     "playtest": "node tools/playtest.js",
     "frame": "node tools/frame.js",
-    "bottest": "node tools/bottest.js"
+    "bottest": "node tools/bottest.js",
+    "perf": "node tools/perf.js"
   },
   "dependencies": {
     "three": "^0.170.0"

@@ -2,6 +2,18 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-15 · Draw calls: one mesh per vehicle · build
+- state: queued
+- who: strong
+- backlog: F-54
+- plan: docs/specs/F-54-draw-calls.md
+- added: 2026-11-26
+
+Instanced vehicles, mirrors skip far cars, a draw-call budget in `npm run perf`. Before the
+guideway build; the sim output must not change.
+
+Tier strong: rewrites how every vehicle is drawn and lit, with many look details to keep.
+
 ## Q-14 · Rain slice 1: wet driving, spray and wipers · build
 - state: queued
 - who: strong

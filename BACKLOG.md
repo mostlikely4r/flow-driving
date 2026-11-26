@@ -829,3 +829,28 @@ behaviour, and general human limits (reaction time, what you can see, attention,
 behind spray for more than a moment). The personas sit on top as deviations from those rules, not
 as separate models. Then check the current AI against the rules: what conforms, what needs tuning,
 and which rules the headless tools can check. Raised 2026-11-26 while speccing rain.
+
+## F-54 · Draw calls: one mesh per vehicle
+- status: specced
+- priority: P0
+- value: 4
+- effort: M
+- risk: Med
+- plan: docs/specs/F-54-draw-calls.md
+
+Busy traffic runs at ~30 fps (your drive, 2026-11-26). Measured with `npm run perf`: the sim
+costs 1 ms, shadows, bloom, pixels and the promised world hardly matter; each vehicle is ~10
+meshes drawn in the main view and three mirrors, ~13 draw calls each, so 240 vehicles make 3,710
+calls and a 25 ms frame. Instance the vehicles (one draw call per variant and material slot),
+let mirrors skip far cars, and keep a draw-call budget in `npm run perf`. Comes before the F-48
+guideway and helps rain (F-24).
+
+## F-55 · Electric lane at ground level on 2-lane roads
+- status: idea
+- priority: P3
+- pillar: Authentic
+
+From the Toekomstflitsen pictures: a ground-level electric lane on the normal road, with a
+yellow line between it and the remaining lanes. Where the guideway can't go (2-lane roads), this
+could be the promised world's transition. Takes a lane from today's traffic, so it changes the
+sim. No reference picture at hand yet (2026-11-26).
