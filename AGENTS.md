@@ -16,9 +16,10 @@ scored and the milestones; `BACKLOG.md` holds every feature by ID, in the vibevi
   calibration set, git ignores them, never delete or rewrite them.
 <!-- vibeview:commands start -->
 - **Project files:** `QUEUE.md` (the order tasks go to agents), `BACKLOG.md` (the pool of ideas
-  and features) and `INBOX.md` (quick notes) are plain markdown, edited by hand or from the
-  vibeview page. Format and agent rules: `~/Desktop/vibeview/FORMAT.md`; check a file with
-  `node ~/Desktop/vibeview/scripts/check.ts <file>`.
+  and features), `INBOX.md` (quick notes) and `PLAY.md` (what waits for the user to try) are
+  plain markdown, edited by hand or from the vibeview page. Format and agent rules:
+  `~/Desktop/vibeview/FORMAT.md`; check a file with `node ~/Desktop/vibeview/scripts/check.ts
+  <file>`, and see what can run with `node ~/Desktop/vibeview/scripts/check.ts --ready QUEUE.md`.
 <!-- vibeview:commands end -->
 
 ## Sessions
@@ -61,11 +62,12 @@ Read by `/spec` and `/build`.
   never waits on one. The headless checks and a quick look at the scenario are enough to close an
   item. When the user drives and brings a journal or report, that starts a new session.
 <!-- vibeview:workflow start -->
-- **Queue and inbox:** `QUEUE.md` is the order tasks go to agents (top is next); `BACKLOG.md`
-  holds the pool of ideas and features; `INBOX.md` holds quick notes the user sent from the
-  vibeview page. When the user asks what is open or what's next, read all three, then follow
-  `~/Desktop/vibeview/FORMAT.md` for the format and for triaging notes with the user. Triage one
-  note at a time, with the user: fix it now, queue it, backlog it or drop it; delete the note in
+- **Queue and inbox:** `QUEUE.md` is the order tasks go to agents (top is next), each in a tier
+  (`who:`) and able to run once its `after:` entries are built and played; `BACKLOG.md` holds
+  the pool of ideas and features; `INBOX.md` holds quick notes the user sent from the vibeview
+  page; `PLAY.md` lists what waits for the user to try. When the user asks what is open or what's
+  next, read all four, then follow `~/Desktop/vibeview/FORMAT.md` for the format and for triaging
+  notes with the user. Triage one note at a time, with the user: fix it now, queue it, backlog it or drop it; delete the note in
   the same change, and name the id it became in the commit message (`inbox: I-3 → F-41`) — or in
   the handoff, where the operator owns commits.
 - **Shared files:** the commands in `.claude/commands/` and this block come from
