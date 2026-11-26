@@ -991,3 +991,34 @@ articulated trucks):
 
 Both are F-48 tie-ins: the promised now had its own buses and its own giant transports. Added
 2026-11-26.
+
+## F-60 · Other futures: more worlds behind the F9 switch
+- status: parked
+- priority: P3
+- effort: XL
+- risk: High
+- pillar: —
+
+Maybe later, a wild direction (2026-11-26). The same A12, the same drivers and the same sim, but more
+"futures" to switch to beside F-48's promised now: only what you see from the road changes (the
+roadside, buildings, sky, gantries, car shapes, sounds). Each is one theme with an equivalent for
+each piece of today's road, the way F-48 maps every future piece to a present-day one.
+
+Directions, all as genres in our own designs (no names, logos, characters, ships or machines from
+existing films or series):
+
+- **Machine war:** a grim future where the machines won; ruined overpasses, searchlights, hunter
+  craft over the horizon, the traffic carrying on regardless.
+- **Eldritch cyber horror:** neon and screens over something vast and wrong; gantries that watch
+  you, a sky that doesn't behave, signs that almost read.
+- **Space-age frontier:** the optimistic exploration future; clean white arcs, a spaceport on the
+  skyline, launches in the distance.
+- More: **solarpunk** (green, solar, cycling lanes on the deck), **drowned Netherlands** (the
+  dykes raised as high as the road, the sea above the polder beside you), **atomic fifties**
+  (chrome, fins, a reactor dome where the power station was), **overgrown** (nature taking the
+  road back, the traffic still there).
+
+Built on F-48's toggle: once that has its slices in, a world is a theme set (palette, scenery
+pieces, car bodies that keep every archetype tell, sounds) behind the same switch. Pillar 1 doesn't
+apply inside these worlds, Readable and Calm still do: the traffic stays real Dutch drivers. Not
+before M3 and F-48 are done; pick one to spike first.
