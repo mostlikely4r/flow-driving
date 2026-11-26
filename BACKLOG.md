@@ -774,6 +774,14 @@ specs it). The 4.20 m is the junction clearance we already have, the deck is 2 m
 the pods are ordinary cars on a centre rail — so the built 7.8 m deck, its junction gaps and its
 edge-track cabins are interim until that spec lands.
 
+Driven and re-specced 2026-11-26: slice 1 missed the drawing (deck over the matrix signs, ANWB
+boards clipping through it, end blocks at junctions, cabins riding like a train). Slice 1b in the
+plan rebuilds it as drawn: bridges at a real 4.8 m in both worlds, a grey concrete track on
+Y-pillars over the median and left lanes with red lanes and a charging strip, 2.6 m van clearance
+at bridges and above lorry height between them with gentle 5000 m curves, convoys of 1–5 cars at
+150 km/h, banked splits over the carriageway at some junctions, portal gantries and no matrix face
+over the left lane. No track on 2-lane roads; the sim stays untouched. Builds after F-54.
+
 ## F-49 · Rail line beside the motorway
 - status: parked
 - pillar: Authentic

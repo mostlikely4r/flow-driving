@@ -14,6 +14,19 @@ guideway build; the sim output must not change.
 
 Tier strong: rewrites how every vehicle is drawn and lit, with many look details to keep.
 
+## Q-16 · Toekomstflitsen slice 1b: the guideway as drawn · build
+- state: queued
+- who: strong
+- after: Q-15
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- added: 2026-11-26
+
+Slice 1b only (steps 1b.1–1b.8): bridges at 4.8 m, the profiled track, furniture, instanced
+convoys, splits and joins. The sim output must not change.
+
+Tier strong: new curved geometry with hard clearance rules, and it must stay within the draw-call budget.
+
 ## Q-14 · Rain slice 1: wet driving, spray and wipers · build
 - state: queued
 - who: strong
@@ -25,39 +38,6 @@ All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must ke
 to `main`.
 
 Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
-
-## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
-- state: in progress
-- who: cheap
-- backlog: F-48
-- plan: docs/specs/F-48-toekomstflitsen.md
-- added: 2026-11-25
-
-Slice 1 only (section 7): F9 live toggle with the flits, the median spine with decks over the left
-lane and cabin platoons, the brochure palette. Sim output must match `main` exactly; stop for the
-user to drive under the deck. Slices 2 to 4 still wait for M2/M3.
-
-Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette are in, the checks
-(sim output identical) and the review are done. Left `in progress` until you have driven under the
-deck: does it feel like a place, or a tunnel?
-
-Tier cheap: the plan is precise and the sim-identical check covers it.
-
-## Q-12 · Toekomstflitsen cross-section: the 2 m guideway · spec
-- state: queued
-- who: pair
-- after: Q-11
-- backlog: F-48
-- plan: docs/specs/F-48-toekomstflitsen.md
-- added: 2026-11-25
-
-Picked up later, with Opus. The drawings' real cross-section: the 4.20 m is the junction
-clearance we already have (our on/off ramps), the deck sits 2 m above the road and the pods ride
-under it — and the pods are ordinary cars with an electric rail down the lane centre, not bespoke
-cabins. So no stopping at junctions, no 7.8 m deck and no edge-track cabins. Open questions and the
-interim build are listed at the end of slice 1 in the plan. Nothing is built for this yet.
-
-Tier pair: still a spec. After Q-11: the slice-1 drive under the deck decides the cross-section.
 
 ## Q-13 · Driver rules: write down what a sane driver does · spec
 - state: queued
@@ -89,6 +69,50 @@ probes show the closed lane in the journal, C quiet on both detectors, and a 0.0
 events that the column alone missed. `npm run moments` 5/5 + 3 probes.
 
 ## Done
+
+## Q-12 · Toekomstflitsen cross-section: the 2 m guideway · spec
+- state: done
+- done: 2026-11-26
+- who: pair
+- after: Q-11
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- added: 2026-11-25
+
+Picked up later, with Opus. The drawings' real cross-section: the 4.20 m is the junction
+clearance we already have (our on/off ramps), the deck sits 2 m above the road and the pods ride
+under it — and the pods are ordinary cars with an electric rail down the lane centre, not bespoke
+cabins. So no stopping at junctions, no 7.8 m deck and no edge-track cabins. Open questions and the
+interim build are listed at the end of slice 1 in the plan. Nothing is built for this yet.
+
+Tier pair: still a spec. After Q-11: the slice-1 drive under the deck decides the cross-section.
+
+Done: the cross-section was talked through with the user and written as slice 1b in the plan:
+bridges at 4.8 m in both worlds, a track with 2.6 m van clearance that dips at bridges and rises
+gently between them, convoys of 1–5 cars at 150, splits at some junctions, portal gantries and no
+left-lane matrix face. Queued as Q-16, after the draw-call fix (Q-15).
+
+## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
+- state: done
+- done: 2026-11-26
+- who: cheap
+- backlog: F-48
+- plan: docs/specs/F-48-toekomstflitsen.md
+- added: 2026-11-25
+
+Slice 1 only (section 7): F9 live toggle with the flits, the median spine with decks over the left
+lane and cabin platoons, the brochure palette. Sim output must match `main` exactly; stop for the
+user to drive under the deck. Slices 2 to 4 still wait for M2/M3.
+
+Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette are in, the checks
+(sim output identical) and the review are done. Left `in progress` until you have driven under the
+deck: does it feel like a place, or a tunnel?
+
+Tier cheap: the plan is precise and the sim-identical check covers it.
+
+Driven 2026-11-26: the concept was missed (deck over the matrix signs, ANWB boards clipping
+through it, end blocks at junctions, pods riding like a train), and busy traffic runs at ~30 fps.
+The first became slice 1b (Q-12 → Q-16), the second F-54 (Q-15).
 
 ## Q-7 · Rain · spec
 - state: done

@@ -2,7 +2,8 @@
 
 Status: specced. Written 2026-11-24. BACKLOG item **F-48**. *Decided* (2026-11-25): slice 1 is
 built early, as a cheap test of the covered left lane (QUEUE Q-11); slices 2 to 4 wait until the
-real world (M2, M3) is done. Build it slice by slice, each in its own thread
+real world (M2, M3) is done. *Decided* (2026-11-26): slice 1 missed the drawing's concept;
+**slice 1b** replaces its spine with the guideway as drawn, built after F-54 (draw calls). Build it slice by slice, each in its own thread
 (`/build docs/specs/F-48-toekomstflitsen.md`, naming the slice).
 
 *Decided* marks the user's own calls. *Proposal* marks the planner's; the builder may change a
@@ -31,14 +32,18 @@ its vehicles or its numbering; the descriptions below are enough to build from.
 You are driving the A12 at 100 km/h in light traffic. You press the toggle; a short white flash
 (the *flits*), and the world is the promised one. The same cars sit in the same places, doing the
 same things, but they are now 1990 wedges: low, sharp-nosed and glassy, with each driver's tells
-still readable. The concrete median barrier now carries a raised spine on Y-shaped pillars. Ochre
-and red decks reach out over the left lane on both sides, and on them platoons of small automated
-cabins hiss past overhead at a steady pace. Your left lane is half covered: shade, a ceiling, the
-opposing carriageway hidden behind pillars. The sky is a cleaner brochure blue and the grass
-greener. At the next overpass a round tube portal sits in the embankment; now and then a freight
-capsule train slides out of it. The distribution centre ahead is a terraced glass building with
-planted roofs. The matrix gantry reads the same 100 as before, in a slimmer, rounder frame. Press
-the toggle again: flash, and the grey present is back, with traffic unchanged.
+still readable. Over the middle of the road runs a second, grey concrete roadway on Y-pillars:
+two red lanes with a lighter red charging strip, one each way, over the median and the left
+lanes. Convoys of docked electric cars glide along it at 150 km/h while you do 100 below. Between
+junctions it rises high enough for a lorry; towards a bridge it sinks gently into the squeeze, so
+the left lane passes under a low, lit ceiling that only cars and vans fit under. At some junctions
+a single car peels off its convoy on a banked branch that arcs over your carriageway onto the
+crossing road. The sky is a cleaner brochure blue and the grass greener. At the next overpass a
+round tube portal sits in the embankment; now and then a freight capsule train slides out of it.
+The distribution centre ahead is a terraced glass building with planted roofs. The gantries are
+single portals over the whole road; the left lane has no matrix face, because the cars' own
+displays took over. Press the toggle again: flash, and the grey present is back, with traffic
+unchanged.
 
 ## 3. Governing rule
 
@@ -47,7 +52,7 @@ objects. The mode is a re-skin of things the present world already builds:
 
 | Present (today's code) | Promised (this plan) |
 |---|---|
-| Concrete median barrier (`scenery.js` `buildChunk`, "median barrier") | Barrier plus guideway spine, decks and cabins |
+| Concrete median barrier and the median lamp posts (`scenery.js` `buildChunk`) | Barrier plus the guideway (slice 1b), its convoys and its parapet lamps |
 | Car, van, truck, rigid and caravan bodies (`vehicles.js` `buildVariant`) | Wedge bodies with the same `VARIANTS` dimensions |
 | Overpasses (`scenery.js` `overpass`) and their embankments | Freight tube portals beside the overpass, with a capsule train |
 | Distribution-centre boxes (`scenery.js` `distributionCentre`) | Terraced glass buildings |
@@ -64,7 +69,7 @@ None exists today **[code]**.
 ## 4. Goal and non-goals
 
 **Goal.** A live toggle between `world: 'now'` and `world: 'promised'` that changes only what you
-see and hear: the median spine with its automated cabins, wedge bodies for every vehicle, freight
+see and hear: the guideway over the median and left lanes with its convoys, wedge bodies for every vehicle, freight
 tube portals, glass buildings, future gantries, a palette shift, sounds and a radio station.
 
 **Non-goals.**
@@ -117,19 +122,20 @@ Facts from the code at `137ad71` **[code]**:
    lowered patser is still low, light signatures keep their shape class (bar stays a bar, angel
    rings stay rings, round stays round), tinted glass stays tinted. A wedge van still reads as a
    van and a truck as a truck at 200 m.
-4. **Collision is unchanged.** Nothing new stands where the player or a vehicle can touch it.
-   Everything below 4.6 m above the road stays inside the barrier footprint (`|lat| ≤ 0.3`).
-   *Proposal:* 4.6 m is the usual Dutch clearance under motorway structures **[guess]**; the
-   reference drawing gives about 4.20 **[user]**. Take whichever leaves a truck visibly clear.
+4. **Collision is unchanged.** Nothing new stands where the player or a vehicle can touch it
+   (slice 1b's clearances, *decided* 2026-11-26): below 2.6 m only inside the barrier footprint
+   (`|lat| ≤ 0.3`); over the leftmost lane of a 3+ lane road (no lorries or caravans there,
+   `maxLaneFor`) at least 2.6 m; over every other lane, hard shoulder, exit lane or ramp road at
+   least 4.3 m (a 4.0 m lorry + 0.3). Bridges are 4.8 m in both worlds from slice 1b on.
 5. **Night, dusk and rain still work.** Every new material gets its night/dusk behaviour in the
    `setNight` pattern: lit deck edges, lamps on the spine, glowing tube portals, lit glass.
-6. **Determinism.** Cabins, capsule trains and building choices come from `hash01` /
+6. **Determinism.** Convoys, splits, capsule trains and building choices come from `hash01` /
    `mulberry32` on the chunk index and the seed plus the clock, never `Math.random`, so the same
    seed shows the same promised world.
 
 ## 7. Steps
 
-Four slices. Each ends at a commit and a short user try. Slice 1 rests on a guess (that the spine
+Four slices, plus slice 1b (2026-11-26), which rebuilds slice 1's spine as the drawing shows it. Each ends at a commit and a short user try. Slice 1 rests on a guess (that the spine
 is the image that carries the mode, and that a covered left lane feels good to drive under), so it
 is the smallest version that tests it.
 
@@ -175,40 +181,11 @@ this machine, so the list stays as it is. Frame time in headless Edge, same spot
 +7%, +15% and +22%, the last near a junction — noisier than the plan's 10% but in the same range;
 the scene adds ~45k triangles per ~1.5 km.
 
-#### Open: the real cross-section, **to be specced** (2026-11-25, **[user]**)
+#### The real cross-section: *specced as slice 1b* (2026-11-26)
 
-The build above is an interim shape, and the user has since read the drawings back and corrected
-the numbers. Recorded here so the next spec starts from the drawing and not from this build:
-
-- **The 4.20 m is the junction clearance we already have**, the one our on/off ramps bring.
-- **The guideway passes under it**: the deck sits **2 m above the road**, the pods ride on it.
-- **The pods are ordinary cars**, not bespoke cabins — only with an electric rail down the middle
-  of the lane.
-
-So nothing in the design needs the spine to stop at junctions, and slice 1's 7.8 m deck, its
-150 m gaps and its end blocks are all consequences of the interim choice (a 7.8 m deck was the
-height that cleared the present-day matrix faces at 6.1 m and gantry beams at 7.2 m; the pods had
-to stand on the deck's edge because nothing on a deck top is visible from the road). At 2 m none
-of that furniture is in the way — it is all above the pods.
-
-What the spec has to settle, in order:
-
-1. **A 2 m deck and the left lane.** A deck 2 m up cannot cover a lane a truck (≈4.0 m) drives
-   in, and rule 4 in this plan (nothing below 4.6 m outside the barrier) forbids it. So either the
-   guideway stays **median-only** (our `CONFIG.future.deckReachLanes: 0`, ±2.5 m today) — which
-   would remove slice 1's "does the covered left lane feel good" question — or the promised left
-   lane is cars-only, or the deck reaches over it and lorries keep right. This one decides the
-   whole cross-section.
-2. **The pods.** Reuse the wedge bodies (slice 2) as the deck's traffic, with the rail down the
-   lane centre; view-only and clock-driven like today's cabins, or sim-driven when the guideway
-   hand-over slice arrives. "Small automated cabins" in slice 1's text is superseded by this.
-3. **The interim build.** Whether slice 1's 7.8 m spine stays behind `CONFIG.future` until the
-   new spec lands, or is pulled straight to the median-only fallback in the meantime.
-4. **Junctions.** At 2 m the gaps at bridges and viaducts can go, and the end blocks with them (or
-   they become the station stop the drawing shows at a deck's end).
-
-*Right now nothing has changed in the code*: the world switch, the palette, the cabins and
-`worldtest` stand as built; only the heights, the gaps, the cabin bodies and the reach would move.
+The user drove slice 1 and read the drawings back; the 7.8 m deck, the edge-track cabins and the
+gaps with end blocks above were an interim shape built on a misreading. Slice 1b below replaces
+them; what slice 1 built for the toggle, the flits and the palette stays.
 
 #### The steps as written
 
@@ -268,7 +245,164 @@ new textures). The change should be noticeable side by side and never cartoonish
 
 **Stop here for the user to try.** The deck over the left lane and the spine's look decide
 whether slices 2 to 4 keep the drawing's cross-section or fall back to a narrower spine.
-*Waiting on that drive: everything after slice 1 is still to be built.*
+*Driven 2026-11-25/26: the concept was missed (see slice 1b), so the spine is rebuilt as drawn.*
+
+### Slice 1b: the guideway as drawn — *specced* (2026-11-26)
+
+Replaces slice 1's interim spine (7.8 m deck, edge-track cabins, gaps and end blocks at every
+bridge). The toggle, the flits and the palette from slice 1 stay as built.
+
+#### Why, and where it comes from
+
+The user drove slice 1 (2026-11-25/26) and found the concept was missed: the deck sits on top of
+the matrix signs, the blue ANWB direction boards clip through it, it stops before junctions in
+big blocks, and pods ride on it like a train **[user, own play; screenshot]**. The spec had been
+written from the planner's reading of the pictures without checking them against the book.
+
+Read back from the book **[user]**: the drawing is a *squeeze*. Two new lanes sit over the middle
+of the road (over the median and the left lanes), low enough that ordinary cars drive under them
+and lorries don't, and the whole stack fits inside the junction clearance the road already has:
+in the schematic 2.0 m under + deck + 1.8 m over = 4.2 m, normal lanes 3.0 m, the lane under the
+new lane 2.5 m, 0.2 m dividing strips. On the new lanes ride ordinary (future) cars; an electric
+rail charges them and lets them dock into trains; single cars leave a train for their own
+destination, and that split is where the track flows like Hot Wheels. Pictures without a junction
+show more room under the new lanes, enough for a lorry. How opposite directions and merging work
+is not clear from the pictures.
+
+#### Our version
+
+All of this is *decided* by the user in the 2026-11-26 thread unless marked *proposal*.
+
+- **Bridges come down to 4.8 m clearance, in both worlds.** Today `overpass()` leaves 5.65 m
+  **[code]**; a real Dutch motorway bridge is about 4.5–4.6 m **[planner's general knowledge, not
+  measured]**. An authenticity fix to the present-day world, and what makes the squeeze readable.
+  4.8 rather than 4.6 because of the van clearance in the next point.
+- **Van clearance under the track: 2.6 m.** The book's 2.0 would shut out our 2.5 m vans, which
+  would be a sim change. Stack at a bridge: 2.6 under + 0.4 deck + 1.8 headroom = 4.8.
+- **Lorries never meet the low deck, with no sim change:** on 3+ lanes `Traffic.maxLaneFor()`
+  (`src/traffic.js`) already keeps lorries and caravans out of the leftmost lane **[code]**. Vans
+  (2.5 m), cars (1.45–1.7 m) and the player fit under 2.6 m. **The sim stays untouched and F9
+  changes nothing in the traffic** (rules 1 and 2 hold).
+- **No guideway on 2-lane roads** (`CONFIG.lanes < 3`): there lorries overtake in the left lane.
+  The promised world shows its other pieces there, but no track and none of the furniture changes
+  below.
+- **The profile:** low (underside 2.6 m) around every bridge — junction bridges and the random
+  viaducts (`overpassS`) alike — and high (underside ≥ 4.3 m: a 4.0 m lorry + 0.3) in between.
+  The rise and fall is **gradual: a few degrees at most, and the angle itself changes slowly, a
+  few tenths of a degree per tens of metres.** *Proposal:* vertical curves of radius 5000 m
+  (≈ 0.11° of slope change per 10 m); a rise is a sag curve then a crest curve, so 2.6 → 4.3 m
+  (1.7 m) takes ≈ 185 m with a steepest slope of ≈ 1.1°. The low part covers the bridge's
+  footprint over the track (deck ±6 m along the road, more with a skewed viaduct) plus 15 m each
+  side. Where two low parts are closer than two full rises, the track stays low between them.
+- **Cross-section** (lat from the median centre; 3 lanes: inner edge line at 1.35, left lane to
+  4.85): the deck covers |lat| ≤ 4.55, the median and the left lane on both sides, its edge 0.3 m
+  inside the line to the middle lane (a lorry in the middle lane keeps ≈ 0.8 m to the deck edge).
+  On top: two new lanes of 3.5 m, one per direction of travel (each over its own carriageway's
+  left lane), split by a 0.2 m dividing strip at lat 0. *Proposal:* a 0.4 m deck.
+- **Look:** grey concrete structure; a red riding surface with a lighter red line down the middle
+  of each new lane (the charging strip); a thin solid concrete parapet on each deck edge with a
+  guardrail mounted on it. **Y-pillars** standing in the median barrier, whose two arms reach only
+  to the middle of each new lane (lat ±1.85); the deck cantilevers beyond them. *Proposal:* a
+  pillar every 30–40 m; where the deck is low the Y shortens into a wide column head, since the
+  arms must stay above 2.6 m wherever they leave the barrier footprint.
+- **Under the deck** *(proposal)*: slice 1's pale underside with its faint warm emissive and the
+  row of cool-white lamps under each deck edge stay, so the low passage at a bridge reads as lit,
+  not as a tunnel.
+- **Bridges in the promised world lose their median pillars** *(proposal)*: `overpass()` puts a
+  pillar pair at lat 0, where the track runs; the deck spans from the outer pillars instead.
+- **Gantries:** in the promised world each matrix and ANWB gantry becomes one portal over the
+  whole road, legs beyond each guardrail, no leg in the median (`gantryFrame` puts one at lat 0);
+  the beam stays at 7.2 m (cars on the high track reach ≈ 6.2 m). **The leftmost lane gets no
+  matrix face:** in the promised future the displays inside the cars took over (the user's canon).
+  The other lanes keep their faces with unchanged content; the sim's matrix limits apply as
+  before, and the HUD's limit circle already shows yours. ANWB boards span only the lanes not
+  under the track (narrower, shifted right). **Fallback:** if the remaining faces look off, the
+  promised world drops matrix signs altogether.
+- **Street lamps** *(proposal)*: the 12 m lamp posts stand in the median (`buildChunk`, lit
+  stretches), through the track. In the promised world they move to the outer parapets, one each
+  side, with arm and lamp at the same height and lateral place, so the light pools stay put.
+
+#### What drives on top
+
+- **Convoys of 1 to 5 docked cars at a constant 150 km/h**: faster than the 130 at night, so the
+  promise shows over your head. They keep their gaps (≈ 1 m, *proposal*); no docking animation in
+  this slice (*decided: keep it simple*).
+- Bodies *(proposal)*: our present car models (hatch, sedan, estate, suv) in a promised palette
+  (white, pale blue, ochre); slice 2's wedge bodies replace them later. They sit on the lane
+  centre, pitched with the profile.
+- *Proposal:* a convoy every 15 to 40 s per direction, from a seeded schedule. A convoy's place is
+  a pure function of the clock and its schedule entry (rule 6), never the sim. Drawn only within
+  ≈ 1.5 km of the camera.
+- **Instanced from the start:** one `InstancedMesh` per body part and slot for all convoy cars.
+  Today each car is ~10 meshes and ~13 draw calls (F-54); convoys must not add to that.
+
+#### Splits and joins (the Hot Wheels part)
+
+- **Only at some junctions**, so it stays special. *Proposal:* about 1 in 3, chosen from the
+  junction number (`hash01(j.b, …)`), always including junctions with a distribution centre
+  (`junctionHasEstate(j)`), so the same junction always has it.
+- **Split:** before the junction, while the track is still high (*proposal:* starting ≈ 400 m
+  before `j.sBridge`), a branch leaves the track and arcs, banked, over its own carriageway to the
+  right. It climbs gently from the riding surface (≈ 4.7 m) to the crossing road on the bridge
+  (`DECK_Y`, ≈ 6.05 m after step 1b.1), lands on the embankment plateau beside the bridge and runs
+  along the crossing road out of sight beyond the embankment. Every part of it keeps ≥ 4.3 m over
+  any road surface below (lanes, exit lane, hard shoulder, ramp road), and its slope follows the
+  same slow-changing rule as the main track. *Proposal:* the sideways move as an S-curve of
+  ≈ 400 m horizontal radius, then a banked turn of ≈ 35 m radius onto the plateau.
+- **Join:** the mirror image after the bridge (`mirrorS(j, s)`): a branch comes off the plateau,
+  curves down and over the carriageway and merges into the track ≈ 400 m past the bridge, where it
+  is high again. Our own version; the book doesn't show merging.
+- Each direction has its own pair, on its own right side.
+- **Who uses them** *(proposal)*: at a split junction, about 1 convoy in 3 with ≥ 2 cars drops its
+  last car, which slows to ≈ 80 km/h on the branch and ≈ 40 in the final turn. Now and then a
+  single car comes down the join, reaches 150 and rides on alone. A join is only scheduled when no
+  convoy is within 150 m of the merge point at that moment. All of it from the clock,
+  deterministic.
+
+#### Steps
+
+**1b.1 Bridges at 4.8 m (both worlds).** `scenery.js` `overpass()`: the deck slab moves down so
+its underside is at 4.8 m (centre 5.45, slab 1.3 m as now); parapets, pillars (4.85 m) and
+embankment tops follow. `junctions.js` `DECK_Y` 6.9 → 6.05, which carries the junction ramp roads,
+pavement and crossing road with it (their profiles scale from `DECK_Y`). Look at
+`?scenario=onramp` and `?scenario=exit` to see that the ramp and exit roads still meet the
+plateau. View only; the sim reads no heights. Its own commit: "Bridges at a real 4.8 m clearance
+(F-48)".
+
+**1b.2 Remove the interim spine.** In `src/futureScenery.js`: the 7.8 m deck, spine wall, end
+blocks, junction and viaduct gaps (`JUNCTION_CLEAR`, `spineGapCuts`), the edge-track cabins and
+their schedule. `CONFIG.future` (`deckReachLanes`, `spineEveryKm`, `spineGapKm`) is replaced by
+the knobs in 1b.3. Keep `futureMaterials` / `futureNight` and the world plumbing.
+
+**1b.3 The profile, as a pure function.** `trackUnder(s)` in `futureScenery.js`: the underside
+height at `s`, from `junctionsNear` and `overpassS` (read-only), with the low parts, curves and the
+"stay low when close" rule; `trackSlope(s)` for pitching cars. No state, so any chunk and
+`worldtest` can ask it. Knobs in `CONFIG.future` *(proposal)*: `lowUnder 2.6`, `highUnder 4.3`,
+`curveR 5000`, `lowMarginM 15`, `deckT 0.4`.
+
+**1b.4 The track.** Built per 200 m chunk in `buildChunk` when the world is promised and
+`CONFIG.lanes >= 3`, swept along the road with the existing `sweep` / `mat` helpers and sampled
+densely enough (*proposal:* every 4 m) that the curves read smooth. **All of it goes into the
+chunk's existing material buckets** (merged geometry: a handful of draw calls per chunk, not one
+per piece): deck, riding surfaces, charging strips, divider, parapets, guardrails, Y-pillars,
+underside, lamps. Shadows as in slice 1.
+
+**1b.5 Promised-world furniture.** Only where the track is (promised, 3+ lanes): gantry portals
+without the median leg and no matrix face over the leftmost lane (`gantryFrame`, `matrixGantry`,
+`anwbGantry`); ANWB boards over the uncovered lanes only; street lamps on the parapets; bridge
+median pillars dropped. `updateMatrixSigns` in `main.js` must cope with a missing face.
+
+**1b.6 Convoys.** Instanced and clock-driven, per direction on its lane centre at
+`trackUnder(s) + deckT`, pitched by `trackSlope(s)`, updated in `Scenery.animate(dt)` (or a small
+`Convoys` class in `futureScenery.js`). Night: head and tail lamps through the existing
+`GlowSystem`.
+
+**1b.7 Splits and joins.** The branch geometry per selected junction (a piece in `junctionPieces`,
+promised world only, merged into the chunk buckets) and the cars that use it, both deterministic
+from the junction and the clock. Cars roll with the bank in the curves.
+
+**1b.8 Checks** (section 8), then commit each step as in the history ("Toekomstflitsen slice 1b
+P3: ... (F-48)").
 
 ### Slice 2: wedge bodies
 
@@ -319,11 +453,11 @@ portal down the road, or into the ground 300 m on. Like the cabins, it is a cloc
 view only. Portals glow softly at night.
 
 **3.3 Future gantries and matrix signs.**
-- `matrixGantry` and `anwbGantry` frames become a slim white tubular arch with rounded corners
-  when the world is `promised`.
+- `matrixGantry` and `anwbGantry` frames (single portals over the whole road since slice 1b)
+  become a slim white tubular arch with rounded corners when the world is `promised`.
 - `textures.js` `matrixTexture(content, flash, style)`: style `promised` gives a rounded dark
   housing with a pale rim and a slightly bolder LED face. **The content and its meaning are
-  identical:** the same numbers, red cross, arrows, flashing amber lamps, at the same size or
+  identical** (except the leftmost lane's face, gone since slice 1b): the same numbers, red cross, arrows, flashing amber lamps, at the same size or
   larger. *Decided:* signs are styled, not changed **[user]**. ANWB route signs keep their colours,
   fonts and text; only the frame changes.
 - Speed signs beside the road: unchanged.
@@ -369,10 +503,20 @@ Every slice:
   that checks the import graph of the sim modules, and add it to the full check.
 - A manual look in `npm run dev` at day, dusk and night in both worlds.
 - Frame time: with the promised world near a junction, the frame time stays within about 10% of
-  `now` at the same spot, using the existing stats overlay.
+  `now` at the same spot, measured with `npm run perf` (F-54).
 
 Per slice:
-- Slice 1: the spine stops before every junction bridge on a 10 km drive; no deck intersects an
+- Slice 1b (replaces slice 1's line below): `tools/worldtest.js` walks 20 km of road on 3 lanes
+  and asserts rule 4's clearances against `trackUnder(s)` (2.6 m over the leftmost lane, 4.3 m
+  elsewhere, nothing below 2.6 m outside `|lat| ≤ 0.3`), that the track's underside never goes
+  below 2.6 m nor its top above the bridge underside minus 1.8 m at a bridge, that the slope
+  never exceeds 3° and changes by at most 0.2° per 10 m (main track and branches), that
+  branches keep 4.3 m over every road surface below, and that no track is built with
+  `lanes = 2`. A seeded run puts every convoy car on its lane centre at 150 km/h and never two
+  cars closer than the docking gap. `npm run perf` (F-54): busy traffic in the promised world
+  within 100 draw calls and 10% frame time of the same spot in `now`. The sim output stays
+  identical, as for every slice; bridges at 4.8 m change no sim number.
+- Slice 1 (interim, superseded): the spine stops before every junction bridge on a 10 km drive; no deck intersects an
   overpass; nothing below 4.6 m outside `|lat| ≤ 0.3`. *Proposal:* a dev overlay toggle draws the
   clearance box. *Built as `tools/worldtest.js` instead* (the overlay is still open, see below).
 - Slice 2: in the persona viewer (F-35, `castViewer.js`), every archetype shown in both worlds
@@ -384,13 +528,22 @@ Per slice:
 - Slice 4: no audio clicks on swap; the radio cycles cleanly and falls back to text with no Dutch
   voice.
 
-**Try it.** `npm run dev`, free play, day, light traffic. Drive for a minute, press **F9**: a
-flash, then the spine is overhead with cabins passing, the sky is cleaner, and (from slice 2) the
-same cars are wedges. Move to the left lane and drive under the deck for a while: does it feel
-like a place you'd drive, or a tunnel? Press F9 again; nothing in the traffic changed. Repeat at
-night. That one question, whether the covered left lane feels good, decides slice 1.
+**Try it** (slice 1b). `npm run dev`, free play, day, 3 lanes. Drive a minute, press **F9**: a
+flash, then the grey guideway runs over the middle of the road with red lanes on top, and
+convoys of cars pass overhead faster than you. Stay in the left lane up to the next junction: the
+track sinks gently (no kink) until you pass under a low, lit ceiling beside the bridge, then rises
+again. Nothing clips: no sign through the deck, no lamp post through it, the gantries span the
+whole road and the left lane has no matrix face. At a junction that has a distribution centre,
+watch a single car leave its convoy on a banked branch over your lanes onto the bridge. Press F9
+again: the bridges are as low as in the promised world, and the traffic did not change. Repeat at
+night.
 
 ## 9. Not doing
+
+- A guideway on 2-lane roads, or keeping vans out of the left lane: both would change the sim
+  (*decided* 2026-11-26). See F-55 for a ground-level electric lane.
+- A train of bespoke cabins, or a deck at constant height with end blocks at junctions: the
+  interim slice 1 shape, not the drawing.
 
 - Driving onto the guideway or handing control over in this plan (see **Not in this build**).
 - Any change to speeds, limits, driver archetypes or rules in the promised world.
@@ -404,20 +557,26 @@ night. That one question, whether the covered left lane feels good, decides slic
   `distributionCentre`, `matrixGantry`, `matrixTexture`, `TrafficView.add`/`remove`,
   `createVehicleVisual`, `applyLook`, `Environment` `MODES`, `AudioEngine.update`, `Radio`).
   Check that they still exist before building; M2/M3 work may have moved them.
+- **F-54 (draw calls) is built first** *(decided 2026-11-26)*: busy traffic runs at ~30 fps
+  today, and slice 1b's convoys add vehicles. Check `npm run perf` exists and passes its budget.
+- Slice 1b needs only slice 1 (built): `futureScenery.js`, `worldtest.js`, the F9 plumbing;
+  `overpass()`, `gantryFrame()`, `matrixGantry()`, `anwbGantry()` in `scenery.js`; `DECK_Y`,
+  `overpassS`, `junctionsNear`, `junctionHasEstate`, `mirrorS` in `junctions.js`;
+  `maxLaneFor` in `traffic.js`. All present on 2026-11-26.
 - *Decided:* slice 1 now; slices 2 to 4 only after the real world (M2, M3) is done **[user]**. By then, exits (F-21),
   rain (F-24), roadworks (F-26) and the klaverblad (F-41) may add scenery. Each new present-day
   piece needs a promised counterpart or stays as it is; list them at build time.
 
 ## Not in this build
 
-- **The drawing's real cross-section** (deck 2 m up, pods are cars on a centre rail, passing under
-  the 4.20 m junctions): **to be specced** — see the note at the end of slice 1. Until that spec
-  lands, the 7.8 m deck and the edge-track cabins are the interim shape.
-- **Left over from slice 1:** the dev overlay toggle that draws the clearance box (the headless
-  `worldtest` asserts the numbers instead); a down ramp at the spine ends (they run into an end
-  block); cabins are on the deck's edge track rather than its top, for the reason in slice 1.
+- **Left over from slice 1b:** the junction lane lights from the book (a small A5 sign in the
+  middle of the road and per lane a square green / orange / red light for the upper lane and the
+  two normal lanes beside it, maybe with a line of text) as the promised stand-in for matrix
+  signs at junctions; a docking animation (gaps closing when a car joins a convoy); the promised
+  world at 120 km/h at all hours (a sim change, its own decision); a ground-level electric lane
+  on 2-lane roads (F-55); the dev overlay that draws the clearance box (`worldtest` asserts it).
 - **Handing over to the guideway:** an on-ramp onto the deck where the player lets go and rides
-  in a platoon. A later slice with its own spec: it touches player control and is the first part
+  in a convoy. A later slice with its own spec: it touches player control and is the first part
   of F-48 that would reach the sim.
 - **Sky, sea and rail slice:** future aircraft, ships, ports, airports and trains, once F-49 (rail
   beside the motorway), F-50 (planes on approach) and F-51 (harbour stretch with ships) exist.
