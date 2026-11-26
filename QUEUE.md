@@ -4,6 +4,7 @@
 
 ## Q-11 · Toekomstflitsen slice 1: toggle, spine and palette · build
 - state: in progress
+- who: cheap
 - backlog: F-48
 - plan: docs/specs/F-48-toekomstflitsen.md
 - added: 2026-11-25
@@ -16,16 +17,23 @@ Built 2026-11-25, waiting for the drive: the toggle, the spine and the palette a
 (sim output identical) and the review are done. Left `in progress` until you have driven under the
 deck: does it feel like a place, or a tunnel?
 
+Tier cheap: the plan is precise and the sim-identical check covers it.
+
 ## Q-7 · Rain · spec
 - state: queued
+- who: pair
 - backlog: F-24
 - added: 2026-11-23
 
 Biggest open M2 item. Focus on AI keeping bigger gaps and spray behind trucks; wet-road
 reflections can be a second slice.
 
+Tier pair: still a spec.
+
 ## Q-12 · Toekomstflitsen cross-section: the 2 m guideway · spec
 - state: queued
+- who: pair
+- after: Q-11
 - backlog: F-48
 - plan: docs/specs/F-48-toekomstflitsen.md
 - added: 2026-11-25
@@ -35,6 +43,8 @@ clearance we already have (our on/off ramps), the deck sits 2 m above the road a
 under it — and the pods are ordinary cars with an electric rail down the lane centre, not bespoke
 cabins. So no stopping at junctions, no 7.8 m deck and no edge-track cabins. Open questions and the
 interim build are listed at the end of slice 1 in the plan. Nothing is built for this yet.
+
+Tier pair: still a spec. After Q-11: the slice-1 drive under the deck decides the cross-section.
 
 ## Q-6 · Proefrit: fix the stage-test probes · build
 - state: done
