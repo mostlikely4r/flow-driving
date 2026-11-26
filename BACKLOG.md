@@ -804,3 +804,18 @@ slid sideways instead of steering. Seen in a drive report on the on-ramp scenari
 ordinary lane changes sit at 2° median, 6–16° at p99, so the cap only touches the pathological
 frames. Done: `slipAngle` in `util.js` caps the drawn slip at 8.6° and both views (`trafficView`,
 `castStage`) use it. Render only; the traffic numbers do not move.
+
+## F-53 · Driver rules: what a sane driver does
+- status: idea
+- priority: P1
+- value: 5
+- effort: M
+- risk: Med
+- pillar: Readable
+
+Write down, in plain language first, the general rules every driver here follows, before any code.
+Four sources: how you drive yourself, what you see in traffic, what is known about driving
+behaviour, and general human limits (reaction time, what you can see, attention, no driving blind
+behind spray for more than a moment). The personas sit on top as deviations from those rules, not
+as separate models. Then check the current AI against the rules: what conforms, what needs tuning,
+and which rules the headless tools can check. Raised 2026-11-26 while speccing rain.

@@ -46,6 +46,17 @@ interim build are listed at the end of slice 1 in the plan. Nothing is built for
 
 Tier pair: still a spec. After Q-11: the slice-1 drive under the deck decides the cross-section.
 
+## Q-13 · Driver rules: write down what a sane driver does · spec
+- state: queued
+- who: pair
+- backlog: F-53
+- added: 2026-11-26
+
+For later. Write the rules first (your driving, what you see, driving research, human limits), then
+personas as deviations from them, then audit the current AI against them. No code in the first pass.
+
+Tier pair: a spec that needs your own driving habits as input.
+
 ## Q-6 · Proefrit: fix the stage-test probes · build
 - state: done
 - backlog: F-37
