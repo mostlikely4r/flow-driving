@@ -2,6 +2,18 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-14 · Rain slice 1: wet driving, spray and wipers · build
+- state: queued
+- who: strong
+- backlog: F-24
+- plan: docs/specs/F-24-rain.md
+- added: 2026-11-26
+
+All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
+to `main`.
+
+Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
+
 ## Q-20 · Driver rules: the audit · build
 - state: queued
 - who: strong
@@ -26,18 +38,6 @@ All of the plan's steps 1–6: `npm run jams` first and its before numbers, then
 re-saved baselines and the numbers written into F-61 for Q-18.
 
 Tier strong: changes the core traffic step, the per-driver setup (rng draws) and the spawner; every seed moves.
-
-## Q-14 · Rain slice 1: wet driving, spray and wipers · build
-- state: queued
-- who: strong
-- backlog: F-24
-- plan: docs/specs/F-24-rain.md
-- added: 2026-11-26
-
-All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
-to `main`.
-
-Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
 
 ## Q-16 · Toekomstflitsen slice 1b: the guideway as drawn · build
 - state: queued
