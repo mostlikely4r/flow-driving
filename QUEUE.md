@@ -2,6 +2,18 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-19 · Jams calibrated: measuring tool, lorries, pull-away, spawner · build
+- state: queued
+- who: strong
+- backlog: F-22
+- plan: docs/specs/F-22-calibration.md
+- added: 2026-11-27
+
+All of the plan's steps 1–6: `npm run jams` first and its before numbers, then the fixes, then
+re-saved baselines and the numbers written into F-61 for Q-18.
+
+Tier strong: changes the core traffic step, the per-driver setup (rng draws) and the spawner; every seed moves.
+
 ## Q-14 · Rain slice 1: wet driving, spray and wipers · build
 - state: queued
 - who: strong
@@ -38,8 +50,24 @@ personas as deviations from them, then audit the current AI against them. No cod
 
 Tier pair: a spec that needs your own driving habits as input.
 
-## Q-17 · Jams: calibrate the near traffic to real numbers · spec
+## Q-18 · Far traffic: jams born kilometres ahead · spec
 - state: queued
+- who: pair
+- after: Q-19
+- backlog: F-61
+- added: 2026-11-27
+
+Spec all four slices of F-61 (corridor model, coupling at the window edges, signs and radio, the
+jam explainer); build slice 1 first. Start from Q-17's measured numbers.
+
+Tier pair: an architecture choice (a second traffic model) the rest of the sim leans on.
+
+## Done
+
+## Q-17 · Jams: calibrate the near traffic to real numbers · spec
+- state: done
+- done: 2026-11-27
+- plan: docs/specs/F-22-calibration.md
 - who: pair
 - backlog: F-22
 - added: 2026-11-26
@@ -52,19 +80,9 @@ settings the far layer (F-61, Q-18) runs on.
 
 Tier pair: what a "real" jam looks like is your call before it is a number.
 
-## Q-18 · Far traffic: jams born kilometres ahead · spec
-- state: queued
-- who: pair
-- after: Q-17
-- backlog: F-61
-- added: 2026-11-27
-
-Spec all four slices of F-61 (corridor model, coupling at the window edges, signs and radio, the
-jam explainer); build slice 1 first. Start from Q-17's measured numbers.
-
-Tier pair: an architecture choice (a second traffic model) the rest of the sim leans on.
-
-## Done
+Done: measured 2026-11-27 (queue discharge ~1,060 veh/h/lane against ~1,750 real, closure 29 veh/min,
+queue front 10 km/h, spawner capped at ~20 veh/km/lane). Decided: realistic targets, lorry pull-away
+0.4–0.9, persona-dependent start anticipation, spawner fix in. Queued as Q-19.
 
 ## Q-15 · Draw calls: one mesh per vehicle · build
 - state: done

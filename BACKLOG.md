@@ -391,13 +391,14 @@ matrix is unchanged line for line (it is compared against a clean worktree of `b
 baseline is stale, from slice 4 P1).
 
 ## F-22 · Bottlenecks and jams
-- status: building
+- status: specced
 - priority: P1
 - value: 5
 - effort: M
 - risk: Med
 - pillar: Readable
 - milestone: M2
+- plan: docs/specs/F-22-calibration.md
 
 Density waves and lane drops that create a jam which forms and dissolves.
 
@@ -418,7 +419,9 @@ throughput: stragglers zip in from standstill, trucks pull away at 0.45 m/s², q
 Still open (groomed 2026-11-26, on-ramps are built in F-20): a jam at on-ramps from density 16 up
 that should form and clear again rather than sit, and the closure jam being harsher than real
 (~30 veh/min through against the ~40 a 10-30% merge loss would give). Queued as a spec (Q-17),
-narrowed 2026-11-27 to calibrating the near traffic; jams born beyond the window are F-61.
+narrowed 2026-11-27 to calibrating the near traffic; jams born beyond the window are F-61. Specced 2026-11-27: queues empty at ~60% of the real rate
+(lorries at 0.45 m/s², full reaction delay on pulling away, a spawner capped at ~20 veh/km/lane);
+the plan brings them to real numbers with a `npm run jams` tool (Q-19).
 
 ## F-23 · Dynamic matrix signs
 - status: built
