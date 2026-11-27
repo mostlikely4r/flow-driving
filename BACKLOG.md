@@ -731,6 +731,10 @@ Replay / rewind a situation to watch it again from above. (From the old parking 
 E.g. foreign trucks. Too close to stereotyping real groups; we stick to cars and driving habits.
 (From the old parking lot.)
 
+Reopened narrowly 2026-11-27 (F-53) for one habit only: the middle-lane cruiser has a foreign plate
+more often than other cars, because drivers carry their home country's lane habits across the
+border. It is never named for a country, not every one is foreign, and character traits stay out.
+
 ## F-46 · AI flashes its lights at you
 - status: parked
 
@@ -838,12 +842,13 @@ frames. Done: `slipAngle` in `util.js` caps the drawn slip at 8.6° and both vie
 `castStage`) use it. Render only; the traffic numbers do not move.
 
 ## F-53 · Driver rules: what a sane driver does
-- status: idea
+- status: specced
 - priority: P1
 - value: 5
 - effort: M
 - risk: Med
 - pillar: Readable
+- plan: docs/specs/F-53-driver-rules.md
 
 Write down, in plain language first, the general rules every driver here follows, before any code.
 Four sources: how you drive yourself, what you see in traffic, what is known about driving
@@ -851,6 +856,12 @@ behaviour, and general human limits (reaction time, what you can see, attention,
 behind spray for more than a moment). The personas sit on top as deviations from those rules, not
 as separate models. Then check the current AI against the rules: what conforms, what needs tuning,
 and which rules the headless tools can check. Raised 2026-11-26 while speccing rain.
+
+Specced 2026-11-27 ([docs/specs/F-53-driver-rules.md](docs/specs/F-53-driver-rules.md)): rules
+R1–R30 from the Q-13 talk, each with its source, how common it is and a check; free, following and
+jam regimes and an attention state; personas as deviations, with two new ones, the Cruiser (your own
+style, which `jij` starts from) and the middle-lane cruiser. The audit of the AI against the rules
+is Q-20; its slices come back to you to pick.
 
 ## F-54 · Draw calls: one mesh per vehicle
 - status: built
@@ -1054,3 +1065,15 @@ edges; (3) matrix signs (F-23) and the radio driven by it; (4) the jam explainer
 plot with each wave tagged by where and when it started ("on-ramp km 14, 17:32" or "closure km 22").
 Runs on the numbers F-22's calibration (Q-17) measures, so the two layers agree and waves don't
 stall at the seam. Queued as a spec (Q-18), after Q-17.
+
+## F-62 · Speedometer reads like a real one
+- status: idea
+- priority: P3
+- value: 2
+- effort: S
+- risk: Low
+- pillar: Authentic
+
+Real speedometers read 3–5% high (never under), so drivers set the cruise on what the dial shows:
+109 on the dial is ~104 true. Our HUD shows true speed. From the F-53 talk (rule R2), 2026-11-27.
+The cruise set speed and the journals would need to agree on which one they record.

@@ -2,6 +2,19 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-20 · Driver rules: the audit · build
+- state: queued
+- who: strong
+- backlog: F-53
+- plan: docs/specs/F-53-driver-rules.md
+- added: 2026-11-27
+
+Section 6 steps 1–7: map R1–R30 to the code, measure with the existing tools and the human journals,
+a verdict per rule, the persona table, the cause of the jerky pre-move drift, ranked candidate
+slices, all into `docs/specs/F-53-audit.md`. No change to `src/`, `tools/` or the config.
+
+Tier strong: reads the whole traffic step and judges it against rules; no code, but the judgement is the work.
+
 ## Q-19 · Jams calibrated: measuring tool, lorries, pull-away, spawner · build
 - state: queued
 - who: strong
@@ -39,17 +52,6 @@ convoys, splits and joins. The sim output must not change.
 
 Tier strong: new curved geometry with hard clearance rules, and it must stay within the draw-call budget.
 
-## Q-13 · Driver rules: write down what a sane driver does · spec
-- state: queued
-- who: pair
-- backlog: F-53
-- added: 2026-11-26
-
-For later. Write the rules first (your driving, what you see, driving research, human limits), then
-personas as deviations from them, then audit the current AI against them. No code in the first pass.
-
-Tier pair: a spec that needs your own driving habits as input.
-
 ## Q-18 · Far traffic: jams born kilometres ahead · spec
 - state: queued
 - who: pair
@@ -63,6 +65,24 @@ jam explainer); build slice 1 first. Start from Q-17's measured numbers.
 Tier pair: an architecture choice (a second traffic model) the rest of the sim leans on.
 
 ## Done
+
+## Q-13 · Driver rules: write down what a sane driver does · spec
+- state: done
+- done: 2026-11-27
+- plan: docs/specs/F-53-driver-rules.md
+- who: pair
+- backlog: F-53
+- added: 2026-11-26
+
+For later. Write the rules first (your driving, what you see, driving research, human limits), then
+personas as deviations from them, then audit the current AI against them. No code in the first pass.
+
+Tier pair: a spec that needs your own driving habits as input.
+
+Done: talked through 2026-11-27 and written as rules R1–R30 (with sources, tags and a check each),
+three regimes and an attention state, personas as deviations, and two new personas: the Cruiser
+(your style; `jij` starts from it) and the middle-lane cruiser (a habit, more often a foreign
+plate). The audit is queued as Q-20.
 
 ## Q-17 · Jams: calibrate the near traffic to real numbers · spec
 - state: done
