@@ -518,15 +518,24 @@ ends, so no pocket can fill. The N-road (F-31) is a later class; the map comes l
 records. Queued as Q-21 (step 1, to drive) and Q-22 (AI and oncoming).
 
 ## F-31 · Player takes an exit onto an N-road
-- status: idea
+- status: specced
 - priority: P2
 - value: 4
 - effort: L
 - risk: Med
 - pillar: Authentic
 - milestone: M3
+- plan: docs/specs/F-31-nroad.md
 
 80 km/h, single carriageway, oncoming traffic.
+
+Slice 1 specced 2026-11-27 ([docs/specs/F-31-nroad.md](docs/specs/F-31-nroad.md)), on F-30's
+graph: a roundabout at the top of the exit ramp (traffic lights later), a 2x1 N-road at 80 with
+no overtaking (overtaking personas later), going on forever with a roundabout every 2–5 km, minor
+side arms that drop out of sight, about every third roundabout back onto a motorway, a parallel
+road with cyclists and tractors that never cross your path yet. You only rejoin the motorway in
+the direction you were going: the far on-ramp is closed with a barrier until turning around comes
+with the map. Queued as Q-23 (step 1, to drive) and Q-24 (cyclists, the way back, bot, tool).
 
 ## F-32 · Overhead lane map + time-space diagram
 - status: built

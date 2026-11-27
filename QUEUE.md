@@ -2,6 +2,34 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-23 · N-road, step 1: off the motorway, round the roundabout, along the N-road · build
+- state: queued
+- who: strong
+- after: Q-22
+- backlog: F-31
+- plan: docs/specs/F-31-nroad.md
+- added: 2026-11-27
+
+Step 1 only (1.1–1.8): N-road classes and nodes on F-30's graph, the roundabout sim, the dumbbell
+at every junction with the closed far on-ramp, exiting AI going round and away, the N-road look,
+cuts and re-base, `?scenario=nroad`. N-roads off must keep every baseline identical. Stop for the
+user to drive it.
+
+Tier strong: a new node type with its own sim and handovers on top of the route frame; every tool baseline must hold.
+
+## Q-24 · N-road, step 2: cyclists, the way back, the bot, the tool · build
+- state: queued
+- who: strong
+- after: Q-23
+- backlog: F-31
+- plan: docs/specs/F-31-nroad.md
+- added: 2026-11-27
+
+The parallel road with cyclists and tractors, roundabouts that lead back onto a motorway, the bot
+on roundabouts, `npm run nroads` with the pocket run.
+
+Tier strong: new vehicle kinds in the instanced drawing and the bot's perception of rings.
+
 ## Q-21 · Splits, step 1: the wegsplitsing you can drive · build
 - state: queued
 - who: strong
