@@ -498,16 +498,24 @@ sweeps over the car lamp by lamp, white lines that light up in your own beam (re
 Done, needs playtest.
 
 ## F-30 · Road network graph
-- status: idea
+- status: specced
 - priority: P2
 - value: 5
 - effort: XL
 - risk: High
 - pillar: —
 - milestone: M3
+- plan: docs/specs/F-30-splits.md
 
 Replace the single endless road with connected segments (architecture work). Split needed. Street
 lighting then follows the map (junctions, specific sections) instead of random 1.6 km stretches.
+
+Slice 1 specced 2026-11-27 ([docs/specs/F-30-splits.md](docs/specs/F-30-splits.md)): a motorway
+that splits into two motorways (3 lanes continue, 2 bear off onto a 100 km/h road), one split per
+15–25 km on a road that goes on forever; edges with a road class, a route frame, one flyover for
+the branch's oncoming side, the other branch cut behind a tree belt. Every edge is open at both
+ends, so no pocket can fill. The N-road (F-31) is a later class; the map comes later from the same
+records. Queued as Q-21 (step 1, to drive) and Q-22 (AI and oncoming).
 
 ## F-31 · Player takes an exit onto an N-road
 - status: idea
@@ -1064,7 +1072,8 @@ Slices: (1) corridor model, headless, with a position-over-time plot; (2) coupli
 edges; (3) matrix signs (F-23) and the radio driven by it; (4) the jam explainer, a dev view of the
 plot with each wave tagged by where and when it started ("on-ramp km 14, 17:32" or "closure km 22").
 Runs on the numbers F-22's calibration (Q-17) measures, so the two layers agree and waves don't
-stall at the seam. Queued as a spec (Q-18), after Q-17.
+stall at the seam. Queued as a spec (Q-18), after Q-17. Spec it against F-30's graph and route frame
+(`docs/specs/F-30-splits.md`, 5.1): edges open at both ends, merges and diverges as nodes.
 
 ## F-62 · Speedometer reads like a real one
 - status: idea

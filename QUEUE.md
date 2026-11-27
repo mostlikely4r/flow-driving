@@ -2,6 +2,34 @@
 
 <!-- vibeview queue v1. Order = the order tasks go to agents; top is next. Format: see vibeview/FORMAT.md -->
 
+## Q-21 · Splits, step 1: the wegsplitsing you can drive · build
+- state: queued
+- who: strong
+- after: Q-19
+- backlog: F-30
+- plan: docs/specs/F-30-splits.md
+- added: 2026-11-27
+
+Step 1 only (1.1–1.8): the route frame (`src/route.js`), lane layout by s, the split drawn with its
+flyover and tree belt, the player choosing a branch, the cut and the re-base, `?scenario=split`.
+AI stays on the continuing lanes before the gore. Splits off must keep every baseline identical.
+Stop for the user to drive it.
+
+Tier strong: replaces the single road and the global lane count that 14 files read; every tool baseline must hold.
+
+## Q-22 · Splits, steps 2–3: AI chooses a branch, oncoming on both · build
+- state: queued
+- who: strong
+- after: Q-21
+- backlog: F-30
+- plan: docs/specs/F-30-splits.md
+- added: 2026-11-27
+
+Steps 2 and 3: the destination roll and early lane choice, the bot's route choice, `npm run splits`
+with the pocket run, then oncoming traffic over the flyover with its lane drops.
+
+Tier strong: changes the lane-change decision and the spawner in the core traffic step.
+
 ## Q-14 · Rain slice 1: wet driving, spray and wipers · build
 - state: queued
 - who: strong
