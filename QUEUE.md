@@ -38,17 +38,31 @@ personas as deviations from them, then audit the current AI against them. No cod
 
 Tier pair: a spec that needs your own driving habits as input.
 
-## Q-17 · Jams that form and clear: on-ramps and closures · spec
+## Q-17 · Jams: calibrate the near traffic to real numbers · spec
 - state: queued
 - who: pair
 - backlog: F-22
 - added: 2026-11-26
 
-The open part of F-22 now that on-ramps are built: at density 16+ the on-ramp jam should form and
-clear again rather than sit, and a closure should let ~40 veh/min through instead of ~30. Start from
-the onrampsuite numbers at D16 and the F-23 closure setups.
+Measure what the AI does now (discharge from a queue in veh/min, wave speed back, capacity per lane,
+the density where flow breaks down) with `wave.js`, `closure.js` and `onrampsuite`, then tune towards
+real numbers: a closure lets ~40 veh/min through instead of ~30, the on-ramp jam at density 16+ forms
+and clears again instead of sitting, waves run back at 15–20 km/h. The measured numbers are the
+settings the far layer (F-61, Q-18) runs on.
 
 Tier pair: what a "real" jam looks like is your call before it is a number.
+
+## Q-18 · Far traffic: jams born kilometres ahead · spec
+- state: queued
+- who: pair
+- after: Q-17
+- backlog: F-61
+- added: 2026-11-27
+
+Spec all four slices of F-61 (corridor model, coupling at the window edges, signs and radio, the
+jam explainer); build slice 1 first. Start from Q-17's measured numbers.
+
+Tier pair: an architecture choice (a second traffic model) the rest of the sim leans on.
 
 ## Done
 

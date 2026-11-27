@@ -417,7 +417,8 @@ throughput: stragglers zip in from standstill, trucks pull away at 0.45 m/s², q
 
 Still open (groomed 2026-11-26, on-ramps are built in F-20): a jam at on-ramps from density 16 up
 that should form and clear again rather than sit, and the closure jam being harsher than real
-(~30 veh/min through against the ~40 a 10-30% merge loss would give). Queued as a spec (Q-17).
+(~30 veh/min through against the ~40 a 10-30% merge loss would give). Queued as a spec (Q-17),
+narrowed 2026-11-27 to calibrating the near traffic; jams born beyond the window are F-61.
 
 ## F-23 · Dynamic matrix signs
 - status: built
@@ -1022,3 +1023,31 @@ Built on F-48's toggle: once that has its slices in, a world is a theme set (pal
 pieces, car bodies that keep every archetype tell, sounds) behind the same switch. Pillar 1 doesn't
 apply inside these worlds, Readable and Calm still do: the traffic stays real Dutch drivers. Not
 before M3 and F-48 are done; pick one to spike first.
+
+## F-61 · Far traffic: jams born kilometres ahead
+- status: idea
+- priority: P1
+- value: 5
+- effort: L
+- risk: High
+- pillar: Readable
+- milestone: M2
+
+A jam you drive into was usually started 5–15 minutes earlier, kilometres further on, by something
+that has long cleared: the wave travels back at 15–20 km/h and you see nothing at its cause. Our
+detailed traffic only exists 1,500 m ahead and 900 m behind you, so that cannot happen yet.
+
+A cheap far layer: traffic as a fluid over 30–100 km per carriageway (cell transmission model,
+200–500 m cells holding density and speed), with on-ramps, closures and the capacity drop as causes,
+and bottlenecks near capacity giving off wide moving jams. The near window spawns at its edges from
+the far layer's cells, so a wave crosses into view and the existing AI carries it to you. No jam
+frequency knob: jams come only from density, junctions and closures; being in a jam all the time in
+busy traffic is correct. Closures are the cause you sometimes pass; ghost jams from a merge near
+capacity are fine too. The far layer is made for networks (merges and diverges are nodes), so it
+carries over to F-30.
+
+Slices: (1) corridor model, headless, with a position-over-time plot; (2) coupling at the window
+edges; (3) matrix signs (F-23) and the radio driven by it; (4) the jam explainer, a dev view of the
+plot with each wave tagged by where and when it started ("on-ramp km 14, 17:32" or "closure km 22").
+Runs on the numbers F-22's calibration (Q-17) measures, so the two layers agree and waves don't
+stall at the seam. Queued as a spec (Q-18), after Q-17.
