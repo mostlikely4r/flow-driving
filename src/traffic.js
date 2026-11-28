@@ -17,7 +17,7 @@ import { KMH, mulberry32, gauss, clamp, pickWeighted, lcProfile, lcProfileDeriv 
 import { laneLat } from './layout.js';
 import { gantryIndexAt, gantryS } from './msi.js';
 import { VARIANTS, TYPE_VARIANTS } from './variants.js';
-import { pickPersona, applyPersona } from './archetypes.js';
+import { pickPersona, applyPersona, wetHabits } from './archetypes.js';
 
 const TYPE_PARAMS = {
   car: { a: 1.5, b: 2.1, s0: 2.0, Tmean: 1.25, Tsd: 0.3 },
@@ -326,8 +326,54 @@ export class Traffic {
   }
 
   applyLimit(veh) {
-    if (veh.type === 'car' || veh.type === 'van') veh.v0base = veh.limitFactor * this.limitKmh * KMH + veh.limitOffset * KMH;
-    else veh.v0base = Math.min(veh.ownMax, this.limitKmh) * KMH;
+    if (veh.type === 'car' || veh.type === 'van') {
+      veh.v0base = veh.limitFactor * this.limitKmh * KMH + veh.limitOffset * KMH;
+      // F-24: in the rain an adapting driver sets the cruise a few km/h lower
+      if (this.wet && veh.wetK) veh.v0base -= CONFIG.wet.underKmh * veh.wetK * KMH;
+    } else veh.v0base = Math.min(veh.ownMax, this.limitKmh) * KMH;
+  }
+
+  /**
+   * F-24: rain on or off. Every driver takes its share of the wet habits
+   * (longer headway, softer pedals, a lower cruise); off restores the dry
+   * values. `veh.T` eases toward `Tbase`, so a switch mid-drive spreads the
+   * traffic out over some seconds instead of snapping.
+   */
+  setWet(on) {
+    on = !!on;
+    if (on === !!this.wet) return;
+    this.wet = on;
+    for (const veh of this.vehicles) {
+      if (veh.isObstacle || veh.isPlayer || veh.seed == null) continue;
+      this.applyWet(veh);
+      this.applyLimit(veh);
+    }
+  }
+
+  /** Put the wet (or the stored dry) headway and pedals on one driver. */
+  applyWet(veh) {
+    if (!veh.dry) {
+      veh.dry = { Tbase: veh.Tbase ?? veh.T, a: veh.a, b: veh.b };
+      Object.assign(veh, wetHabits(veh, CONFIG.wet));
+    }
+    const d = veh.dry;
+    if (!this.wet) {
+      veh.Tbase = d.Tbase;
+      veh.a = d.a;
+      veh.b = d.b;
+      return;
+    }
+    const w = CONFIG.wet;
+    if (veh.type === 'truck' || veh.type === 'caravan') {
+      veh.Tbase = d.Tbase * (1 + w.truckTmul);
+      veh.a = d.a;
+      veh.b = d.b;
+      return;
+    }
+    const k = veh.wetK;
+    veh.Tbase = d.Tbase * (1 + w.Tmul * k);
+    veh.a = d.a * (1 + (w.aMul - 1) * k);
+    veh.b = d.b * (1 + (w.bMul - 1) * k);
   }
 
   // ---------------- driver generation ----------------
@@ -464,6 +510,13 @@ export class Traffic {
     veh.tPrep *= tg;
     // Hoggers don't notice you behind them: only flashing moves them.
     if (veh.hogger) veh.p = Math.min(veh.p, 0.04);
+    // F-24: a car made in the rain starts with its wet habits (no rng draw)
+    if (this.wet) {
+      this.applyWet(veh);
+      veh.T = veh.Tbase;
+      this.applyLimit(veh);
+      veh.v0 = veh.v0base;
+    }
     return veh;
   }
 
@@ -909,7 +962,9 @@ export class Traffic {
         if (dCur < start || dCur === 0) closure += 0.5 + 2.5 * (dCur === 0 ? Math.max(0.4, 1 - dEnd / 600) : 1 - dCur / Math.max(1, start));
       }
     }
-    const inc = selfish + p * (dNf + dOf) + love + closure + exitUrge;
+    // F-24: blinded behind a lorry, the lane to the left is worth a bit more
+    const spray = this.wet && veh.sprayBy != null && t === veh.lane + 1 ? CONFIG.wet.sprayPassBonus : 0;
+    const inc = selfish + p * (dNf + dOf) + love + closure + exitUrge + spray;
     // hoggers like the middle, not the far left
     const baseBias = veh.hogger && veh.lane === this.N - 1 && this.N >= 3 ? 0.2 : veh.bias;
     // after an overtake, going back right is the plan (F-09)
@@ -1691,13 +1746,24 @@ export class Traffic {
       veh.drafting = false;
       if (veh.Tdraft && veh.state === 'none') {
         const ld = leaderIn(this.laneList(veh.lane), veh);
-        if (ld && ld.type === 'truck' && gapBetween(ld, veh) < 90) {
+        // (F-24: nobody tucks in behind a lorry in its spray)
+        if (ld && ld.type === 'truck' && gapBetween(ld, veh) < 90 && !(this.wet && ld.v > CONFIG.wet.sprayMinKmh * KMH)) {
           tT = Math.min(tT, veh.Tdraft);
           veh.drafting = true;
         }
       }
+      if (this.wet) tT = this.sprayTarget(veh, tT, pushing, dt);
       veh.T += (tT - veh.T) * Math.min(1, dt * 0.4);
       veh.acc = this.reactLate(veh, this.computeAcc(veh));
+      // F-24: blinded in a lorry's spray, a driver lifts off and lets the lorry
+      // pull away until it is out of it: a gentle, steady drop back
+      const sl = veh.sprayLift;
+      if (sl) {
+        // (at most ~14 km/h under the lorry's speed and -1.5 m/s²: a lift and a
+        // touch of the brake; anything firmer starts a wave behind it)
+        const vWant = sl.ld.v - Math.min(4, (CONFIG.wet.sprayM + 5 - sl.g) / 3);
+        veh.acc = Math.min(veh.acc, Math.max(-1.5, (vWant - veh.v) / 1.2));
+      }
       // scripted event (scenarios): brake hard to a speed, hold it, drive on
       const be = veh.brakeEvent;
       if (be && this.time >= be.at && this.time < be.at + (be.hold ?? 3) + 30) {
@@ -1791,6 +1857,39 @@ export class Traffic {
       }
     }
     return who;
+  }
+
+  /**
+   * F-24: lorry spray. A car close behind a lorry above `sprayMinKmh` sits in
+   * its spray and sees nothing past it. After its grace it drops back to
+   * `sprayClearM`, where it sees past, by the usual headway easing (never a
+   * hard brake), and stays there while it follows that lorry; or it overtakes
+   * (the nudge is in `evaluate`). A driver closing up to pull out waits at the
+   * spray's edge, not in it (slipstreaming is off in the step).
+   * Lorry drivers sit above the spray: it doesn't blind them.
+   * Returns the headway target; sets `sprayT` (seconds in the spray, for the
+   * checks) and `sprayBy` (the lorry it hangs back from, after its grace).
+   */
+  sprayTarget(veh, tT, pushing, dt) {
+    veh.sprayLift = null;
+    if (veh.type === 'truck') return tT;
+    const w = CONFIG.wet;
+    const ld = leaderIn(this.laneList(veh.lane), veh);
+    const spraying = ld && ld.type === 'truck' && ld.v > w.sprayMinKmh * KMH;
+    const g = spraying ? gapBetween(ld, veh) : Infinity;
+    if (g < w.sprayM) veh.sprayT = (veh.sprayT || 0) + dt;
+    else veh.sprayT = 0;
+    if (!spraying || veh.sprayBy !== ld.id) veh.sprayBy = null;
+    if (!spraying) return tT;
+    const v = Math.max(veh.v, 5);
+    if (veh.sprayT > (veh.sprayGrace ?? 1.5)) veh.sprayBy = ld.id;
+    if (veh.sprayBy === ld.id) {
+      // still in it: lift off until the gap opens past the spray's edge
+      if (g < w.sprayM) veh.sprayLift = { ld, g };
+      return Math.max(tT, (w.sprayClearM - veh.s0) / v);
+    }
+    if (pushing && g < w.sprayClearM) return Math.max(tT, (w.sprayM - veh.s0) / v);
+    return tT;
   }
 
   /** Player flashed headlights: the vehicle ahead in our lane feels pressure. */

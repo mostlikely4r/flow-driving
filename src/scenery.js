@@ -245,6 +245,18 @@ export class Scenery {
     return hash01(Math.floor(s / 1600), 4) < LIT_SHARE || junctionLitAt(s);
   }
 
+  /**
+   * F-24: a wet road: darker, slightly glossier asphalt and markings. A material
+   * tweak only; real reflections of lights are slice 2.
+   */
+  setWet(on) {
+    const M = this.M;
+    M.asphalt.color.set(on ? 0x8a8c90 : 0xffffff);
+    M.asphalt.roughness = on ? 0.6 : 0.93;
+    M.asphalt.envMapIntensity = on ? 1.6 : 1;
+    M.marking.roughness = on ? 0.4 : 0.6;
+  }
+
   setNight(mode) {
     const night = mode === 'night';
     const dusk = mode === 'dusk';

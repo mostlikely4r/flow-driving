@@ -40,6 +40,25 @@ const PROMISED = {
   night: {},
 };
 
+/**
+ * F-24: the wet variant of each time of day, laid over the world's table. An
+ * overcast grey sky, a dim sun that casts no shadow, the fog pulled in (`fogMul`)
+ * and the exposure a touch down. Night loses its stars.
+ */
+const WET = {
+  day: {
+    turbidity: 20, rayleigh: 0.45, mie: 0.025, mieG: 0.55, elevation: 30,
+    sun: 0xd8dde3, sunI: 0.75, hemiSky: 0xa9b1ba, hemiGround: 0x4b4f47, hemiI: 1.2,
+    fog: 0x9ba3aa, envI: 0.75, bloom: 0.1,
+  },
+  dusk: {
+    turbidity: 18, rayleigh: 1.1, mie: 0.02, sun: 0xc8a088, sunI: 0.45,
+    hemiSky: 0x4d5263, hemiGround: 0x22231e, hemiI: 0.42, fog: 0x55555c, envI: 0.5,
+  },
+  night: { fog: 0x05060a, hemiI: 0.03 },
+};
+const WET_FOG_NEAR = 0.5, WET_FOG_FAR = 0.45, WET_EXPOSURE = 0.92;
+
 export class Environment {
   constructor(scene, renderer) {
     this.scene = scene;
@@ -77,6 +96,7 @@ export class Environment {
     scene.fog = new THREE.Fog(0xffffff, 200, 3000);
     this.mode = null;
     this.world = CONFIG.world;
+    this.rain = false;
     this.envCache = {};
   }
 
@@ -131,19 +151,29 @@ export class Environment {
   }
 
   /** The mode's numbers for a world (F-48 lays PROMISED over MODES). */
-  modeTable(mode, world) {
-    return world === 'promised' ? { ...MODES[mode], ...PROMISED[mode] } : MODES[mode];
+  modeTable(mode, world, rain = false) {
+    const m = world === 'promised' ? { ...MODES[mode], ...PROMISED[mode] } : MODES[mode];
+    if (!rain) return m;
+    const w = { ...m, ...WET[mode] };
+    w.fogNear = m.fogNear * WET_FOG_NEAR;
+    w.fogFar = m.fogFar * WET_FOG_FAR;
+    w.exposure = m.exposure * WET_EXPOSURE;
+    return w;
   }
 
-  envFor(mode, world = this.world) {
-    const key = `${mode}:${world}`;
+  envFor(mode, world = this.world, rain = this.rain) {
+    const key = `${mode}:${world}:${rain ? 'wet' : 'dry'}`;
     if (this.envCache[key]) return this.envCache[key];
-    const m = this.modeTable(mode, world);
+    const m = this.modeTable(mode, world, rain);
     const sc = new THREE.Scene();
     if (mode === 'night') {
       const ns = this.makeNightSky();
       ns.scale.setScalar(0.02);
+      if (rain) ns.children[1].visible = false; // no stars through the cloud
       sc.add(ns);
+    } else if (rain) {
+      // overcast: an even grey dome, a little lighter overhead
+      sc.add(new THREE.Mesh(new THREE.SphereGeometry(100, 16, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(m.fog).multiplyScalar(1.1), side: THREE.BackSide })));
     } else {
       const sky = new Sky();
       sky.scale.setScalar(100);
@@ -177,13 +207,17 @@ export class Environment {
     return v;
   }
 
-  setMode(mode, world = this.world) {
+  setMode(mode, world = this.world, rain = this.rain) {
     this.mode = mode;
     this.world = world;
-    const m = this.modeTable(mode, world);
+    this.rain = !!rain;
+    const m = this.modeTable(mode, world, this.rain);
     const night = mode === 'night';
-    this.sky.visible = !night;
+    // in the rain the day sky is an even overcast grey: the background is the fog colour
+    this.sky.visible = !night && !this.rain;
     this.nightSky.visible = night;
+    // the stars and the moon are behind the cloud in the rain
+    for (const c of this.nightSky.children.slice(1)) c.visible = !this.rain;
     if (!night) {
       this.sunDir.copy(this.applySkyUniforms(this.sky, m));
       if (mode === 'dusk') this.sunDir.y = Math.max(this.sunDir.y, 0.12);
@@ -192,19 +226,25 @@ export class Environment {
     }
     this.sun.color.set(m.sun);
     this.sun.intensity = m.sunI;
-    this.sun.castShadow = CONFIG.shadows && !night;
+    this.sun.castShadow = CONFIG.shadows && !night && !this.rain; // overcast: no hard shadows
     this.hemi.color.set(m.hemiSky);
     this.hemi.groundColor.set(m.hemiGround);
     this.hemi.intensity = m.hemiI;
     this.scene.fog.color.set(m.fog);
     this.scene.fog.near = m.fogNear;
     this.scene.fog.far = m.fogFar;
-    this.scene.background = night ? new THREE.Color(0x010204) : null;
-    this.scene.environment = this.envFor(mode, world);
+    this.scene.background = night ? new THREE.Color(0x010204) : this.rain ? new THREE.Color(m.fog) : null;
+    this.scene.environment = this.envFor(mode, world, this.rain);
     this.scene.environmentIntensity = m.envI;
     this.renderer.toneMappingExposure = m.exposure;
     this.bloomStrength = m.bloom;
     this.exposure = m.exposure;
+  }
+
+  /** F-24: rain on or off re-applies the current time of day, wet or dry. */
+  setRain(on) {
+    this.rain = !!on;
+    if (this.mode) this.setMode(this.mode, this.world, this.rain);
   }
 
   /** Switching the world re-applies the current time of day in it (F-48). */

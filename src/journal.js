@@ -128,6 +128,7 @@ export class Journal {
         seed,
         scenario,
         timeOfDay,
+        ...(CONFIG.rain ? { rain: true } : {}), // F-24: a wet drive is reproduced wet (absent dry, so dry hashes hold)
         lanes: CONFIG.lanes,
         laneWidth: CONFIG.laneWidth,
         playerLen,

@@ -12,6 +12,24 @@ export const DEFAULTS = {
   // --- time of day & limits (Dutch: 100 from 6-19h, 130 at night) ---
   timeOfDay: 'day', // 'day' | 'dusk' | 'night'
 
+  // --- F-24 rain: a toggle, not a weather timeline ---
+  // Every number in `wet` is a proposal from general driving research, held to
+  // a 10-15% capacity drop by `npm run rain`.
+  rain: false,
+  wet: {
+    adaptShare: 0.85, // share of ordinary drivers who adapt at all; the rest drive as in the dry
+    Tmul: 0.45, // full adaptation: time headway × (1 + Tmul)
+    underKmh: 6, // full adaptation: wanted speed this much lower
+    bMul: 0.85, // full adaptation: comfortable braking × this (brakes earlier, softer)
+    aMul: 0.75, // full adaptation: pulls away more gently (what costs a queue its discharge)
+    truckTmul: 0.15, // lorries keep speed (limiter) but leave a bit more room
+    sprayM: 50, // spray reaches this far behind a lorry...
+    sprayMinKmh: 50, // ...when it drives faster than this
+    sprayClearM: 75, // a blinded driver drops back to this gap, where it sees past
+    sprayGraceS: [1, 2], // how long a driver tolerates the spray before acting, per driver
+    sprayPassBonus: 0.2, // lane-change incentive to the left for a driver blinded behind a lorry
+  },
+
   // --- F-48 Toekomstflitsen: the promised world ---
   // 'now' is the A12 as it is; 'promised' is the same road as 1990 drew the
   // future: a guideway spine over the median with cabins on top. View only.

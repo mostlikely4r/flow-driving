@@ -79,6 +79,10 @@ Everything below is how the simulation works, what to tune, and the tools that c
   3-6 km: exit signs, *afritbakens*, an exit lane, a bridge, and an on-ramp road that AI cars drive
   down onto the acceleration strip.
 - Day (limit 100), dusk and night (limit 130). Live interior and side mirrors.
+- **Rain** (a menu toggle, or `?rain=1` in dev): most drivers leave longer gaps, drive a few km/h
+  slower and pull away more gently, a pensioner a lot and a patser hardly at all. Lorries throw
+  spray that blinds the car behind them: it drops back to where it sees past, or overtakes, and
+  through your windscreen the view ahead goes too. Wipers, an overcast sky and a darker road.
 
 ### Checks
 
@@ -95,6 +99,9 @@ npm run worldtest
 ```
 
 `npm run playtest` is the long one (minutes of traffic per seed, written to `playtests/bot/`).
+`npm run rain` (about 3.5 minutes) runs the same seeds dry and wet on a plain road and at a lane
+closure, and fails when the wet traffic leaves the ranges in `docs/specs/F-24-rain.md` (gaps,
+speeds, closure throughput, time in a lorry's spray). `wet.<key>=<n>` tries another wet number.
 
 `npm run simtest` runs the traffic model headless and prints lane usage, speeds and collisions
 (options: `density=20 lanes=4 player=120 plane=2 limit=130 min=6`).
@@ -170,7 +177,8 @@ ids are a module global) and writes `playtests/bot/<run>/` with a journal per se
 (`seed-N.trace.json`), `run.json` (arguments, commit, timings, checks, pass/fail) and `report.md`
 from the same `buildReport()` a human drive uses. Options: `driver=slak` (the slowcoach) or
 `driver=dwars` (short signals, late tight merges, a brake tap with nothing in front — the AI's
-defences against a bad player), `scenario=closure`, `seed=N`, `until=T` (one seed; prints the
+defences against a bad player; in the rain it is also the one that sits in a lorry's spray),
+`scenario=closure`, `rain=1` (a wet drive; the journal and the repro line carry it), `seed=N`, `until=T` (one seed; prints the
 player state, the nearest car per lane from the percept, the bot state and the last trace lines, no
 report), `jobs=N`, `dt=1/60`, `cfg.<key>=<value>` (or `cfg=<json>` for a whole diff),
 `<profile>.<param>=<value>` and `frames` (below). `npm run bottest` runs the headless tests:

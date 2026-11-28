@@ -32,6 +32,7 @@ export const PROFILES = {
     react: 0.5,
     giveUpS: 15,
     backoffS: 10,
+    sprayBack: true, // F-24: in the rain, never follows in a lorry's spray
   },
   // The slowcoach: ten under the limit, middle lane, never flashes.
   slak: {
@@ -48,6 +49,7 @@ export const PROFILES = {
     react: 0.7,
     giveUpS: 15,
     backoffS: 10,
+    sprayBack: true,
   },
   // The awkward one: sits in the middle, fast, short signals, late tight merges,
   // and now and then a brake tap with nothing in front of it. The probe for
@@ -67,6 +69,7 @@ export const PROFILES = {
     giveUpS: 15,
     backoffS: 4,
     twitchS: 25, // mean seconds between pointless brake taps (0 = never)
+    sprayBack: false, // may sit in a lorry's spray: what the awkward-player probe is for
   },
 };
 
@@ -350,6 +353,19 @@ export class BotDriver {
       }
       if (a < -0.3) this.keys.brake = true;
       else if (a > 0.3 && !emergency) this.keys.throttle = true;
+    }
+    // F-24: behind a fast lorry in the rain, a driver that won't pass it now
+    // keeps back where it sees past the spray, like the AI does
+    if (prof.sprayBack && s.rain && lead && !lead.obstacle && lead.type === 'truck' && !overtakeIntent) {
+      const w = CONFIG.wet;
+      if (lead.kmh > w.sprayMinKmh && lead.gap < w.sprayClearM + 10) {
+        const hw = Math.max(prof.headwayS, (w.sprayClearM - 5) / Math.max(s.v, 5));
+        const a = idmAcc(s.v, roadTarget * KMH, lead, { ...prof, headwayS: hw });
+        want = Math.min(want, Math.round(lead.kmh) - (s.spray ? 6 : 0));
+        idm = true;
+        if (a < -0.3) this.keys.brake = true;
+        else this.keys.throttle = false;
+      }
     }
     if (emergency || tooClose) {
       this.keys.brake = true;

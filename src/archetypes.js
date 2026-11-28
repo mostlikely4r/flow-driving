@@ -18,6 +18,7 @@ export const ARCHETYPES = {
     colors: [[0x1a1b1d, 5], [0x34373b, 6], [0x55595e, 3], [0x1d2b4d, 1.5]],
     lights: 'bar',
     loyalty: 0.7,
+    wetK: [0.2, 0.5], // F-24: how much of the wet adaptation this driver takes (0 = drives as in the dry)
     // Experienced and in a hurry: fast, short headway, reads the road well
     // (lifts early instead of braking late), not very polite.
     drive(veh, r) {
@@ -47,6 +48,7 @@ export const ARCHETYPES = {
     low: true,
     tint: true,
     loyalty: 0.7,
+    wetK: [0, 0.2],
     // Erratic: tailgates, cuts in late with barely a signal, undertakes,
     // reads nothing ahead, so it brakes hard.
     drive(veh, r) {
@@ -78,6 +80,7 @@ export const ARCHETYPES = {
     colors: [[0x9a9fa3, 6], [0xc9b98f, 3], [0x7a6a55, 2], [0x8aa3b5, 2], [0x274030, 1.5], [0x6b2430, 1]],
     lights: 'round',
     loyalty: 0.75,
+    wetK: [0.8, 1],
     // Under the limit, keeps right, signals early and long, leaves big gaps,
     // very polite and sees everything coming.
     drive(veh, r) {
@@ -110,6 +113,7 @@ export const ARCHETYPES = {
     colors: [[0x8d9296, 6], [0x6e7378, 5], [0xa9aeb0, 3], [0x7d8c96, 2], [0x5e6a5c, 1]],
     lights: 'eco',
     loyalty: 0.75,
+    wetK: [0.8, 1],
     // Fuel-economy driver: well under the limit, gentle on the pedals, coasts
     // early, and seeks out a truck to sit behind (closer than it should, for
     // the slipstream). Once there it stays: overtaking a truck costs fuel.
@@ -145,6 +149,7 @@ export const ARCHETYPES = {
     colors: [[0x2e5aa8, 5], [0x8e1c1c, 4], [0x3f6f7a, 2], [0x5b5f63, 2], [0xe9eaea, 2]],
     lights: 'tall',
     loyalty: 0.7,
+    wetK: [0.8, 1],
     // The calm baseline: steady at the limit, normal gaps, keeps right,
     // signals properly, makes room. Nothing to read, which is the point.
     drive(veh, r) {
@@ -175,6 +180,7 @@ export const ARCHETYPES = {
     colors: [[0xf2f3f3, 10], [0xe4e6e6, 2]],
     lights: 'rack',
     loyalty: 0.75,
+    wetK: [0.2, 0.6],
     // Bestelbus: faster than a van should be, pushes on in the middle lane,
     // sits close and edges out early so you know it wants past.
     drive(veh, r) {
@@ -206,6 +212,7 @@ export const ARCHETYPES = {
     colors: [[0xf2f3f3, 6], [0x2e5aa8, 3], [0xb9bec2, 3], [0x1d2b4d, 1]],
     lights: 'ev',
     loyalty: 0.75,
+    wetK: [0.8, 1],
     // Exactly at the limit on cruise control, perfectly smooth: gentle on
     // the pedals, reads everything early. Often camps in the middle lane.
     drive(veh, r) {
@@ -284,4 +291,22 @@ export function lookFor(veh) {
   if (!a && veh.type === 'van') return null; // ordinary vans keep their random paint
   if (!a) return { color: pickWeighted(r, NORMAL_COLORS), lights: r() < 0.4 ? 'modern' : 'std', low: false, tint: false };
   return { color: pickWeighted(r, a.colors), lights: a.lights, low: !!a.low, tint: !!a.tint };
+}
+
+/**
+ * F-24: a driver's rain habits, from its seed alone (never the traffic rng, so
+ * the same seed is the same world dry and wet). `wetK` 0..1 is how much of the
+ * wet adaptation it takes, `sprayGrace` how many seconds it tolerates a lorry's
+ * spray before it acts. Lorries return k = 1: they only take `truckTmul`.
+ */
+export function wetHabits(veh, wet) {
+  const r = mulberry32((veh.seed ^ 0x3a1f00d) >>> 0);
+  const [g0, g1] = wet.sprayGraceS;
+  const sprayGrace = g0 + r() * (g1 - g0);
+  const x = r();
+  const y = r();
+  if (veh.type === 'truck' || veh.type === 'caravan') return { wetK: 1, sprayGrace };
+  const a = veh.drives && ARCHETYPES[veh.drives];
+  if (a && a.wetK) return { wetK: a.wetK[0] + x * (a.wetK[1] - a.wetK[0]), sprayGrace };
+  return { wetK: y < 1 - wet.adaptShare ? 0 : 0.5 + x * 0.5, sprayGrace };
 }

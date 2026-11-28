@@ -89,10 +89,27 @@ export class Perception {
     const eyeS = player.s + cfg.eyeM;
     const eyeLat = player.lat;
 
+    // F-24: rain is something you see, and so is the spray you sit in. With your
+    // eye in a fast lorry's spray, nothing ahead of that lorry is visible.
+    // (both fields exist only in the rain, so a dry percept is what it was)
+    if (traffic.wet) {
+      self.rain = true;
+      self.spray = null;
+      const w = CONFIG.wet;
+      for (const { o } of cand) {
+        if (o.type !== 'truck' || o.v <= w.sprayMinKmh * KMH) continue;
+        const rear = o.u - o.len / 2;
+        const gap = rear - (player.s + plen / 2);
+        if (gap < 0 || gap > w.sprayM || Math.abs(o.latLocal - player.lat) > 2.2) continue;
+        if (!self.spray || gap < self.spray.gap) self.spray = { id: o.id, gap, rear };
+      }
+    }
+
     const cars = [];
     const alive = new Set();
     for (const { o, dl, vLat, vOcc, vLane } of cand) {
       if (blockers.length && hidden(blockers, { o, dl }, eyeS, eyeLat, cfg)) continue;
+      if (self.spray && o.id !== self.spray.id && o.u - o.len / 2 > self.spray.rear) continue;
       alive.add(o.id);
 
       // lateral history → slope (never read from the sim)

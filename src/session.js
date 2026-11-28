@@ -34,6 +34,7 @@ export function bindSim({ road, player, traffic, msi = null, rng = Math.random, 
     journal: journal || new Journal(),
     notices: [], // sim-level things the renderer/HUD may want to show
     scenario: scenario || null,
+    rain: !!traffic.wet, // F-24 (applyWeatherSim keeps it in step with the traffic)
     ramps: new Map(), // junction block -> the ramp the sim has for it (F-20)
     exits: new Map(), // junction block -> the exit the sim has for it (F-21)
   };
@@ -45,7 +46,7 @@ export function bindSim({ road, player, traffic, msi = null, rng = Math.random, 
  * → fill traffic → apply the time of day (so night density applies to what is
  * filled). Same order means the same world for the same seed.
  */
-export function createSim({ seed, timeOfDay, scenario = null, rng = Math.random }) {
+export function createSim({ seed, timeOfDay, scenario = null, rng = Math.random, rain = CONFIG.rain }) {
   const sc = typeof scenario === 'string' ? SCENARIOS[scenario] || null : scenario;
   if (sc && sc.lanes) CONFIG.lanes = sc.lanes;
   if (timeOfDay) CONFIG.timeOfDay = timeOfDay;
@@ -72,7 +73,14 @@ export function createSim({ seed, timeOfDay, scenario = null, rng = Math.random 
   }
   const sim = bindSim({ road, player, traffic, msi, rng, scenario: sc ? sc : null });
   applyTimeSim(sim, timeOfDay || CONFIG.timeOfDay);
+  applyWeatherSim(sim, rain);
   return sim;
+}
+
+/** F-24: rain state that lives in the sim: the drivers' wet habits and the spray. */
+export function applyWeatherSim(sim, rain) {
+  sim.rain = !!rain;
+  sim.traffic.setWet(sim.rain);
 }
 
 /** Time-of-day state that lives in the sim (no rendering). */

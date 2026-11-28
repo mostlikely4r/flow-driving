@@ -1,7 +1,7 @@
 // Proefrit (F-37) slice 2: headless playtest runner.
 //
 //   npm run playtest -- driver=forens min=20 seeds=5 tod=day
-//                       [scenario=closure] [seed=N] [until=T] [dt=1/60]
+//                       [scenario=closure] [seed=N] [until=T] [dt=1/60] [rain=1]
 //                       [jobs=N] [out=<dir>] [cfg.<key>=<value>]
 //                       [<profile>.<param>=<value>]
 //
@@ -66,6 +66,10 @@ function parseArgs(argv) {
       } catch {
         console.error(`ignoring a config that is not JSON: ${v}`);
       }
+    } else if (k === 'rain') {
+      // F-24: a wet drive; it travels as config, so the journal, the repro line
+      // and the replay URL all carry it
+      if (parseScalar(v)) o.cfg.rain = true;
     } else if (k.startsWith('cfg.')) {
       o.cfg[k.slice(4)] = parseScalar(v);
     } else if (k.includes('.') && !['dt', 'jobs', 'out'].includes(k)) {
@@ -495,7 +499,7 @@ async function parentMain(o) {
     console.error('until= needs a single seed (add seed=N)');
     process.exit(1);
   }
-  const dir = resolve(o.out || join('playtests', 'bot', `${stamp()}-${driver}-${tod}${scenario ? `-${scenario}` : ''}`));
+  const dir = resolve(o.out || join('playtests', 'bot', `${stamp()}-${driver}-${tod}${o.cfg.rain ? '-rain' : ''}${scenario ? `-${scenario}` : ''}`));
   const base = { driver, minutes, tod, scenario, dt, cfg: o.cfg, overrides: o.overrides, profileParams: o.overrides[driver] || null, dir, until: o.until ?? null };
 
   // `until=` is a single interactive probe: run it here, no files, no report.

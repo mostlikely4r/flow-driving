@@ -25,7 +25,8 @@
     "playtest": "node tools/playtest.js",
     "frame": "node tools/frame.js",
     "bottest": "node tools/bottest.js",
-    "perf": "node tools/perf.js"
+    "perf": "node tools/perf.js",
+    "rain": "node tools/rain.js"
   },
   "dependencies": {
     "three": "^0.170.0"

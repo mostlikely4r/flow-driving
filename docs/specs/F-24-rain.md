@@ -1,6 +1,6 @@
 # F-24 Rain, slice 1: wet driving and spray (spec)
 
-Date: 2026-11-26. Backlog item F-24 (Rain, M2). Status: ready to build.
+Date: 2026-11-26. Backlog item F-24 (Rain, M2). Status: built 2026-11-28 (Q-14); see section 8.
 
 ## 1. Why
 
@@ -65,7 +65,7 @@ and the same world plus rain wet. Check with the full check outputs against `mai
 
 ## 5. What to build
 
-### Step 1. The toggle and the wet sim
+### Step 1. The toggle and the wet sim — *built*
 
 1. `src/config.js`: `rain: false` (saved like other settings), and a `wet` block. All values are
    *proposals*:
@@ -121,7 +121,7 @@ and the same world plus rain wet. Check with the full check outputs against `mai
    playtest runner and the replay URL take `rain=1` too, and the journal header records `rain`, so
    a wet drive is reproduced wet.
 
-### Step 2. The view: wet sky, spray, wipers
+### Step 2. The view: wet sky, spray, wipers — *built*
 
 1. `environment.js`: a wet variant of each time of day: greyer sky, lower sun/no stars, fog
    pulled in (proposal: `fogFar` × 0.45, `fogNear` × 0.5), exposure a touch down. `setMode(mode,
@@ -141,7 +141,7 @@ and the same world plus rain wet. Check with the full check outputs against `mai
 4. Road surface: a darker, slightly glossier asphalt when wet (a material tweak only); real
    reflections of lights are slice 2.
 
-### Step 3. The bot sees the spray too (*proposal*)
+### Step 3. The bot sees the spray too (*proposal*) — *built*
 
 The bot drives the player car from what a driver can see (`perception.js`). In rain, a lorry's
 spray hides everything ahead of it from a percept closer than `sprayM` (same line-of-sight rule as
@@ -149,7 +149,7 @@ occlusion, the lorry's rear plus `sprayM` as the blocker). `forens` (and the oth
 except `dwars`) back off to `sprayClearM` or overtake, like the AI. `dwars` may sit in it: that is
 what the awkward-player probe is for. This keeps wet `playtest` runs honest.
 
-### Step 4. The rain check: `tools/rain.js` (`npm run rain`)
+### Step 4. The rain check: `tools/rain.js` (`npm run rain`) — *built*
 
 Same seeds, dry against wet, printed side by side:
 - **Plain road** (the `simtest` setup, 3 lanes, densities 8 and 12, 6 min): mean speed per lane,
@@ -193,6 +193,59 @@ lorries straight away.)
 - No forced behaviour for the player in spray: no speed cap, no penalty, no HUD warning.
 - No weather that changes on its own.
 
+## 8. Built (2026-11-28, Q-14)
+
+All four steps. Rain off leaves the sim identical to `main`: `simtest`, `personas`, `closure.js`
+and `bottest` print the same output as before the change (the wet path draws nothing from the
+traffic rng; the journal header gets `rain: true` only on a wet drive, and the percept gets `rain`
+and `spray` only in the rain, so dry hashes hold).
+
+What changed from the plan, and why:
+
+- **The wet numbers, tuned by `npm run rain`:** `Tmul` 0.35 → 0.45, `underKmh` 8 → 6, `aMul`
+  0.9 → 0.75. With the proposals the closure lost only 3% of its throughput: its bottleneck is the
+  zip merge, which reads gap rules, not headway, so the headway knob hardly reaches it. A gentler
+  pull-away does (a queue discharges slower), and lands the closure at 86% of dry over two seeds.
+  The others then put the plain road in range. New: `sprayPassBonus` (the +0.2) as a config value.
+- **A blinded driver lifts off, gently.** The headway easing alone left cars in the spray for
+  7–9 s. Past its grace a blinded car now also caps its speed to fall back out of the spray: at
+  most ~14 km/h under the lorry and −1.5 m/s². Firmer (tried −2 and 18 km/h) got them out a second
+  or two sooner but started waves behind the lorry (cars 11 km/h slower at density 12). It then
+  stays at `sprayClearM` while it follows that lorry (`veh.sprayBy`), so it doesn't creep back in.
+- **The spray check is grace + 8 s, not grace + 3 s.** A car that lands 30 m behind a lorry (a
+  lorry pulling in, or a lane change behind one: that is how cars get into the spray) needs ~20 m
+  more room. Gently that takes 5–7 s; in 3 s it is a hard brake, which the plan rules out. Measured:
+  median 3.5 s past grace, 90% within ~7 s, max ~8 s. The plan's "+3 s" was a guess that put the
+  check against its own no-hard-brake rule.
+- **Lorry drivers sit above the spray**: it doesn't blind them. Caravans and vans are blinded like
+  cars (only lorries make spray, as planned).
+- **Measuring the gaps:** the time gap is taken only for cars following steadily (under 100 m,
+  within 1 m/s of the car ahead). Over all gaps under 150 m, overtaking cars closing in dominate and
+  the per-persona numbers were noise (a patser "adapted" 23% with almost no wet habits).
+- **"Lanes 1–2" read as the right and middle lane.** The left lane drops least (−2.7 km/h at
+  density 8): it is where speeders, patsers and leasebakken drive, who barely adapt. Printed, not
+  checked.
+- **Closure collisions: no more than dry.** The dry closure already has one collision (seed 7) on
+  `main`; wet has none. The check compares rather than demanding 0 of a run that is 1 when dry.
+- **Closure throughput fails outside 80–95% of dry**, section 6's own fail rule (a drop under 5%
+  or over 20%); 85–90% is the target the line prints next to it. Measured: 86%.
+- **Two seeds (7 and 8)** for both the plain road and the closure; one seed swung the closure
+  between 90% and 103% on small changes.
+- **The view:** in the rain the day and dusk sky is an even overcast grey (the sky dome is hidden,
+  the background is the fog colour), with no hard shadows; night loses its stars and moon. Spray is
+  `src/spray.js` (instanced camera-facing sprites, one draw call). To promise that you can't see
+  past a lorry from inside its cloud, the fog closes in for the main view (not the mirrors) by how
+  deep your eye is in the spray (full from ~30 m, none past `sprayM`). Wipers and the drops they
+  clear are `src/wipers.js`, in the cockpit group. The asphalt is darker and glossier
+  (`scenery.setWet`).
+- **The bot:** the percept carries `self.rain` and `self.spray`; with the eye in a fast lorry's spray,
+  every car ahead of that lorry's rear drops out of view. `forens` and `slak` keep back at
+  `sprayClearM` behind a fast lorry they won't pass now (`sprayBack`); `dwars` may sit in it.
+  Wet 4-minute drives (`forens` 3 seeds, `dwars` 2): no contacts, no scrapes.
+
+First timings: `npm run build` ~5 s, `simtest` 18 s, `personas` 3 s, `moments` 3 s, `bottest` 24 s,
+`worldtest` 2 s, `node tools/closure.js` 37 s, `npm run rain` ~3.5 min.
+
 ## Needs first
 
 Nothing unbuilt. Checked present on 2026-11-26: `idm()`, `Tbase`/`Tdraft` easing and
@@ -204,6 +257,10 @@ group in `src/main.js`; `tools/closure.js`, `tools/simtest.js`. Q-11 (F-48 slice
 
 ## Not in this build
 
+- Spray seen from beside a lorry (the plume sideways onto the next lane) and from a car behind a car
+  behind a lorry: only the spray of the lorry directly ahead counts, in the sim and the percept.
+- An anticipating driver keeping back from a spray cloud it sees coming, before it is in it: today
+  everyone reacts after the grace (the decided rule).
 - Slice 2: wet-road reflections of lights, rain sound, puddles/aquaplaning (probably never).
 - Spray from vans and caravans; spray thrown sideways onto the next lane when you pass a lorry
   (only the view behind it is modelled).

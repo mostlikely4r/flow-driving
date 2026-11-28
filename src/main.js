@@ -31,7 +31,9 @@ import { SCENARIOS, applyScenario } from './scenarios.js';
 import { CastStage } from './castStage.js';
 import { CastViewer } from './castViewer.js';
 import { Journal, clock as clockText, sendJournal, journalHash } from './journal.js';
-import { bindSim, applyTimeSim, stepSim, advanceDrive, applyDrivePress, holdFlash, drainEvents, playerLimit } from './session.js';
+import { SprayView } from './spray.js';
+import { createWipers } from './wipers.js';
+import { bindSim, applyTimeSim, applyWeatherSim, stepSim, advanceDrive, applyDrivePress, holdFlash, drainEvents, playerLimit } from './session.js';
 
 // ---------------------------------------------------------------- renderer
 const container = document.getElementById('app');
@@ -86,6 +88,9 @@ if (REPLAY) {
   CONFIG.timeOfDay = REPLAY.tod;
   Object.assign(CONFIG, REPLAY.cfg);
 }
+// F-24: ?rain=1 drives wet without saving it (like ?scenario=); a replay takes
+// it from its config instead.
+if (DEV && !REPLAY && PARAMS.has('rain')) CONFIG.rain = PARAMS.get('rain') !== '0';
 // The closure rolls are Math.random in free play, but a replay must reproduce:
 // the runner seeds them from the same number.
 const SIM_RNG = REPLAY ? mulberry32(REPLAY.seed + 3) : Math.random;
@@ -100,6 +105,8 @@ setLayerRecursive(selfGlow.points, LAYER_SELF);
 scene.add(selfGlow.points);
 const beams = new BeamSystem();
 scene.add(beams.mesh);
+const spray = new SprayView(); // F-24: lorry spray in the rain
+scene.add(spray.mesh);
 
 // far ground plane under everything (fields texture, snapped to texture period)
 const ground = new THREE.Mesh(
@@ -271,6 +278,9 @@ let dashCanvas, dashCtx, dashTex;
   col.add(steeringWheel);
   cockpit.add(col);
 }
+// F-24: wipers and the drops on the glass, only in the rain
+const wipers = createWipers();
+cockpit.add(wipers.group);
 setLayerRecursive(cockpit, LAYER_COCKPIT);
 
 // ---------------------------------------------------------------- mirrors
@@ -426,6 +436,9 @@ function makeTraffic() {
   // fill: the ids are one global counter, and the journal records them. The
   // oncoming traffic is visuals only, so it is filled after the replay instead.
   if (!REPLAY) oncoming.initialFill(player.s, null);
+  // F-24: the drivers' wet habits (no rng draws, so the fill above is the dry one)
+  traffic.setWet(CONFIG.rain);
+  oncoming.setWet(CONFIG.rain);
 }
 function startScenario() {
   if (SCENARIO.player.s != null) player.s = SCENARIO.player.s; // start at the junction's own place
@@ -494,8 +507,21 @@ function applyTime(m) {
   bloom.strength = CONFIG.bloom ? env.bloomStrength : 0;
   bloom.enabled = CONFIG.bloom;
   glow.mat.uniforms.uFade.value = m === 'night' ? 1 / 2600 : 1 / 900;
+  spray.setMode(m);
 }
 applyTime(CONFIG.timeOfDay);
+
+/** F-24: rain on or off: the drivers (both carriageways), the sky, the spray, the wipers. */
+function applyWeather(v) {
+  CONFIG.rain = !!v;
+  applyWeatherSim(sim, CONFIG.rain);
+  oncoming.setWet(CONFIG.rain);
+  env.setRain(CONFIG.rain);
+  scenery.setWet(CONFIG.rain);
+  spray.mesh.visible = CONFIG.rain;
+  applyTime(mode);
+}
+applyWeather(CONFIG.rain);
 hud.setView(VIEW_NAMES[VIEWS[viewIdx]]);
 
 // ---------------------------------------------------------------- the world (F-48)
@@ -545,6 +571,7 @@ scenery.update(player.s, 999);
 
 hud.buildMenu((key, v) => {
   if (key === 'timeOfDay') applyTime(v);
+  else if (key === 'rain') applyWeather(v);
   else if (key === 'world') swapWorld(v);
   else if (key === 'trafficDensity') traffic.density = v;
   else if (key === 'oncomingDensity') oncoming.density = v;
@@ -937,6 +964,7 @@ function blinkPhase() {
 
 // ---------------------------------------------------------------- camera update
 const _v3 = new THREE.Vector3();
+const _fogCol = new THREE.Color();
 function updateCamera(dt, pad) {
   const v = VIEWS[viewIdx];
   let target = 0;
@@ -1101,6 +1129,8 @@ function frame(now) {
   glow.begin(camWorld);
   beams.begin(camWorld);
   view.update([traffic, oncoming], player.s, camWorld, night, time);
+  spray.update([traffic, oncoming], road, camWorld, time, { x: player.x, z: player.z, yaw: player.yaw, lights });
+  wipers.update(paused ? 0 : dt, CONFIG.rain && VIEWS[viewIdx] === 'cockpit');
   updateStreetLamps(mode === 'night', mode === 'dusk');
   updateMatrixSigns(time);
   closureView.update(time, glow, mode === 'night');
@@ -1196,7 +1226,20 @@ function frame(now) {
   renderer.setRenderTarget(null);
   scene.background = prevBg;
   renderer.shadowMap.needsUpdate = CONFIG.shadows && mode !== 'night';
+  // F-24: with your eye in a lorry's spray the fog closes in on the main view
+  // (the mirrors, drawn above, look back out of it)
+  const eye = spray.eyeIn(traffic, player, dt);
+  const fog = scene.fog;
+  const fogNear = fog.near, fogFar = fog.far, fogCol = _fogCol.copy(fog.color);
+  if (eye > 0.01) {
+    fog.near = fogNear + (1 - fogNear) * eye;
+    fog.far = fogFar + (50 - fogFar) * eye;
+    fog.color.lerp(spray.mat.uniforms.uColor.value, eye * 0.8);
+  }
   composer.render(dt);
+  fog.near = fogNear;
+  fog.far = fogFar;
+  fog.color.copy(fogCol);
   if (v !== 'cockpit') {
     hudMirrors.left.frame.visible = hudMirrors.left.glass.visible = needSide;
     hudMirrors.right.frame.visible = hudMirrors.right.glass.visible = needSide;

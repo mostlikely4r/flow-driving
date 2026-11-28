@@ -442,7 +442,7 @@ lane map; random closures in free play (`closuresPer10km`, menu); `?scenario=clo
 `node tools/closure.js`.
 
 ## F-24 · Rain
-- status: specced
+- status: building
 - priority: P2
 - value: 4
 - effort: L
@@ -458,6 +458,13 @@ the AI leaves longer gaps, drives a few km/h slower and brakes softer, spread by
 not at all; spray behind lorries blinds the AI (it backs off or overtakes within 1–2 s) and your
 view through the camera; wipers and a wet sky. Matrix signs stay traffic-driven. Reflections are
 slice 2.
+
+Slice 1 built 2026-11-28 ([docs/specs/F-24-rain.md](docs/specs/F-24-rain.md), Q-14): the Rain row
+in the menu, wet habits from each driver's seed (headway +45%, cruise −6 km/h and a gentler
+pull-away at full adaptation; patsers hardly, pensioners and families fully), lorry spray that
+blinds the car behind for its 1–2 s grace before it lifts off to 75 m or overtakes, `src/spray.js`
+and the fog closing in when your eye is in it, wipers, an overcast sky and a darker road, the bot
+blinded too, and `npm run rain` (closure 86% of dry). Slice 2: reflections, sound.
 
 Later: "bij nat wegdek" signs (a 90 with that sub-sign, seen on Dutch roads) belong on sharper
 bends, which the road doesn't have yet (curves, M3); some drivers would slow for them, some not.

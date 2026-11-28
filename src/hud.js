@@ -105,6 +105,7 @@ export class Hud {
   buildMenu(onChange) {
     const defs = [
       ['timeOfDay', 'Time of day', 'select', [['day', 'Day (limit 100)'], ['dusk', 'Dusk (limit 130)'], ['night', 'Night (limit 130)']]],
+      ['rain', 'Rain', 'check'],
       ['world', 'World', 'world'],
       ['lanes', 'Lanes per direction *', 'select', [[2, '2'], [3, '3'], [4, '4'], [5, '5']]],
       ['trafficDensity', 'Traffic (vehicles / km / lane)', 'range', [2, 30, 1]],

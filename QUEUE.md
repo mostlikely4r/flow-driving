@@ -58,18 +58,6 @@ with the pocket run, then oncoming traffic over the flyover with its lane drops.
 
 Tier strong: changes the lane-change decision and the spawner in the core traffic step.
 
-## Q-14 · Rain slice 1: wet driving, spray and wipers · build
-- state: queued
-- who: strong
-- backlog: F-24
-- plan: docs/specs/F-24-rain.md
-- added: 2026-11-26
-
-All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
-to `main`.
-
-Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
-
 ## Q-20 · Driver rules: the audit · build
 - state: queued
 - who: strong
@@ -121,6 +109,26 @@ jam explainer); build slice 1 first. Start from Q-17's measured numbers.
 Tier pair: an architecture choice (a second traffic model) the rest of the sim leans on.
 
 ## Done
+
+## Q-14 · Rain slice 1: wet driving, spray and wipers · build
+- state: done
+- done: 2026-11-28
+- who: strong
+- backlog: F-24
+- plan: docs/specs/F-24-rain.md
+- added: 2026-11-26
+
+All of the plan's steps 1–4 (sim, view, bot, `npm run rain`). Rain off must keep the sim identical
+to `main`.
+
+Tier strong: touches the core traffic step and the per-driver setup, where a stray rng draw changes every seed.
+
+Done: all four steps. Rain is a menu toggle (`?rain=1` in dev); most drivers leave longer gaps,
+drive a few km/h slower and pull away more gently, spread by persona; a lorry's spray blinds the
+car behind, which lifts off to ~75 m or overtakes; overcast sky, spray, wipers, a darker road; the
+bot sees the spray too. `npm run rain`: closure throughput 86% of dry, gaps +19%, cars 5 km/h
+slower in the right and middle lanes. Changes from the plan (tuned wet numbers, spray check at
+grace + 8 s) are in the plan's section 8. Rain off is identical to before. Play: P-4.
 
 ## Q-13 · Driver rules: write down what a sane driver does · spec
 - state: done
